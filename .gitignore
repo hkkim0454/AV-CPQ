@@ -1,0 +1,38 @@
+node_modules/
+dist/
+coverage/
+test-results/
+playwright-report/
+.superpowers/
+
+# 원본 분석 산출물 — 구조 분석용 중간 파일은 저장소에 넣지 않는다 (설계서 §4.5)
+docs/template/_raw-*.txt
+docs/template/_template-audit.txt
+tests/fixtures/out/
+__pycache__/
+
+# --- 원본 자료 및 민감 데이터 반입 차단 (설계서 §4.5 / §8.1) ---
+# 원본 견적서·품셈 원본은 어떤 경로로도 저장소에 들어오지 않는다.
+# 검증을 통과한 정리 템플릿만 `git add -f` 로 명시 예외 처리한다.
+*.xlsx
+*.xlsm
+*.xlsb
+*.xls
+*.pdf
+
+# 로컬 전용 분석/출력 디렉터리. 커밋 대상 아님.
+.local/
+
+# 원가·매입 관련 파일명 패턴 차단 (문서는 예외)
+*원가*
+*매입*
+*cost*.csv
+*cost*.json
+!docs/**/*.md
+
+# 환경
+.env
+.env.*
+.DS_Store
+Thumbs.db
+*.log
