@@ -77,13 +77,41 @@ function thousands(amount: DecimalText): string {
 }
 
 /**
+ * 원본이 통화 기호로 쓰는 바이트. `\`(U+005C)다.
+ *
+ * 한국어 Windows의 Excel에서는 글꼴 매핑 때문에 **₩로 보인다.**
+ * 원본 수식이 그렇게 쓰여 있으므로 Excel 출력에서는 이 바이트를 그대로 쓴다.
+ */
+export const EXCEL_WON_SIGN = '\\';
+
+/**
+ * 웹 화면에서 쓸 통화 기호. `₩`(U+20A9)다.
+ *
+ * 브라우저에는 그 글꼴 매핑이 없어서 `\`를 쓰면 **역슬래시가 그대로 보인다.**
+ * 같은 문구인데 화면에는 `일금삼백오십만원정(\3,500,000)`로 나온다.
+ */
+export const WEB_WON_SIGN = '₩';
+
+/**
  * 갑지 C8의 금액 문구 전체.
  *
  * 원본 수식: `="일금"&NUMBERSTRING(H18,1)&"원정(\"&TEXT(H18,"###,##0")&") V.A.T별도"`
- * `\`(U+005C)는 한국어 Windows에서 ₩로 보인다. 원본 바이트를 그대로 쓴다.
+ *
+ * **화면과 Excel이 같은 함수를 쓴다.** 두 곳에서 따로 만들면 언젠가 어긋난다
+ * (설계서 §5.1과 같은 원칙). 다른 것은 통화 기호 한 글자뿐이라 인자로 받는다.
+ *
+ * @param wonSign 기본값은 Excel용 `\`. 웹 화면은 `WEB_WON_SIGN`을 넘긴다.
  */
-export function koreanAmountSentence(amount: DecimalText): string {
-  return `일금${numberString(amount)}원정(\\${thousands(amount)}) V.A.T별도`;
+export function koreanAmountSentence(
+  amount: DecimalText,
+  wonSign: string = EXCEL_WON_SIGN,
+): string {
+  return `일금${numberString(amount)}원정(${wonSign}${thousands(amount)}) V.A.T별도`;
+}
+
+/** 웹 화면용 — `₩`를 쓴다. 숫자와 한글 금액은 Excel과 같은 코드로 만든다. */
+export function koreanAmountSentenceForWeb(amount: DecimalText): string {
+  return koreanAmountSentence(amount, WEB_WON_SIGN);
 }
 
 /**

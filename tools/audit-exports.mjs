@@ -10,6 +10,8 @@
 //   2. 영속 저장 API — 원가를 다룰 수 있는 모듈이 localStorage 등에 닿는가
 //   3. 네트워크 API — 원가를 다룰 수 있는 모듈이 fetch 등을 쓰는가
 //   4. 위험한 실행 — eval, new Function, dynamic import (설계서 §8.3)
+//   5. 화면 경로 — 견적 문서를 브라우저에 영속 저장하거나 외부 origin으로 보내는가 (§8.8, §8.4)
+//   6. 시그니처 — calculateQuote/buildCustomerProjection이 PrivateCostSession을 받는가 (§10.4)
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
@@ -37,6 +39,25 @@ const NETWORK = /\b(fetch|XMLHttpRequest|WebSocket|navigator\.sendBeacon|EventSo
 
 /** 설계서 §5.1, §8.3: eval 금지, dynamic import 금지. */
 const DANGEROUS = /\beval\s*\(|new\s+Function\s*\(|(?<![.\w])import\s*\(/;
+
+/**
+ * 화면 경로. 설계서 §8.8이 "RTCOM의 localStorage 자동 저장을 계승하지 않는다"고 한 곳이다.
+ *
+ * 견적 문서에는 고객명·공사명·금액이 들어간다. 브라우저에 영속 저장하면
+ * 같은 origin의 스크립트가 읽을 수 있고(설계서 §8.5), 사용자가 지웠다고 생각한 뒤에도 남는다.
+ * 저장은 사용자가 명시적으로 파일로 내보낼 때만 한다 (설계서 §6.3).
+ */
+const UI_PREFIXES = ['src/features', 'src/app'];
+
+/**
+ * 화면이 **외부 origin**으로 나가는 요청.
+ *
+ * 설계서 §8.4: "네트워크 요청에 문서 상태를 싣는 공용 함수를 두지 않는다."
+ * 같은 origin의 배포 데이터(`data/approved/*.json`)를 읽는 것은 허용한다 —
+ * 읽기이고 문서 상태를 바깥으로 보내지 않는다.
+ */
+const EXTERNAL_ORIGIN = /\b(?:fetch|XMLHttpRequest|WebSocket|EventSource)\s*\(\s*[`'"]\s*https?:/;
+const BEACON = /navigator\s*\.\s*sendBeacon/;
 
 const findings = [];
 
@@ -100,6 +121,7 @@ for (const file of files) {
   const lines = codeLines(source);
   const isCostFree = COST_FREE_PREFIXES.some((p) => rel.startsWith(p));
   const isCostModule = COST_MODULE.test(rel);
+  const isUi = UI_PREFIXES.some((p) => rel.startsWith(p));
 
   for (const [number, line] of lines) {
     // 1. 금지 import
@@ -126,10 +148,27 @@ for (const file of files) {
     if (DANGEROUS.test(line)) {
       findings.push(`${rel}:${number}  eval/Function/dynamic import: ${line.trim()}`);
     }
+
+    // 5. 화면 경로 — 견적 문서를 브라우저에 영속 저장하거나 외부로 보내지 않는다
+    if (isUi) {
+      if (PERSISTENCE.test(line)) {
+        findings.push(
+          `${rel}:${number}  화면에서 영속 저장 API 사용 (설계서 §8.8): ${line.trim()}`,
+        );
+      }
+      if (EXTERNAL_ORIGIN.test(line)) {
+        findings.push(
+          `${rel}:${number}  화면에서 외부 origin 요청 (설계서 §8.4): ${line.trim()}`,
+        );
+      }
+      if (BEACON.test(line)) {
+        findings.push(`${rel}:${number}  sendBeacon 사용 (설계서 §8.4): ${line.trim()}`);
+      }
+    }
   }
 }
 
-// 5. 시그니처 검사 — 설계서 §10.4가 "PrivateCostSession을 인자로 받지 않는다"고 못박은 함수들
+// 6. 시그니처 검사 — 설계서 §10.4가 "PrivateCostSession을 인자로 받지 않는다"고 못박은 함수들
 const SIGNATURE_RULES = [
   ['src/domain/calculation/calculate.ts', 'calculateQuote'],
   ['src/export/customer/projection.ts', 'buildCustomerProjection'],
@@ -147,7 +186,10 @@ for (const [relPath, fn] of SIGNATURE_RULES) {
   }
 }
 
-console.log(`검사한 파일: ${files.length}`);
+const uiFiles = files.filter((f) =>
+  UI_PREFIXES.some((p) => posix(relative(ROOT, f)).startsWith(p)),
+);
+console.log(`검사한 파일: ${files.length} (화면 경로 ${uiFiles.length})`);
 if (findings.length > 0) {
   console.error(`\n=== 위반 ${findings.length}건 ===`);
   for (const f of findings) console.error('  ! ' + f);

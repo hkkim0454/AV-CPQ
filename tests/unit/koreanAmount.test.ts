@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { numberString, koreanAmountSentence } from '@/export/ooxml/koreanAmount';
+import {
+  numberString,
+  koreanAmountSentence,
+  koreanAmountSentenceForWeb,
+  EXCEL_WON_SIGN,
+  WEB_WON_SIGN,
+} from '@/export/ooxml/koreanAmount';
 
 /**
  * 설계서 §9.4: "원본 C8의 NUMBERSTRING 한글 금액 수식은 목표 Excel에서 검증한다."
@@ -64,5 +70,28 @@ describe('koreanAmountSentence — 갑지 C8 전체 문구', () => {
 
   it('0원도 문구를 만든다', () => {
     expect(koreanAmountSentence('0')).toBe('일금영원정(\\0) V.A.T별도');
+  });
+});
+
+describe('통화 기호 — Excel과 웹이 다르다', () => {
+  it('Excel용 기본값은 역슬래시(U+005C)다 — 원본 수식 그대로', () => {
+    const sentence = koreanAmountSentence('3500000');
+    const at = sentence.indexOf('(') + 1;
+    expect(sentence.codePointAt(at)).toBe(0x5c);
+  });
+
+  it('웹용은 원화 기호(U+20A9)다 — 브라우저에는 글꼴 매핑이 없다', () => {
+    const sentence = koreanAmountSentenceForWeb('3500000');
+    const at = sentence.indexOf('(') + 1;
+    expect(sentence.codePointAt(at)).toBe(0x20a9);
+    expect(sentence).toBe('일금삼백오십만원정(₩3,500,000) V.A.T별도');
+  });
+
+  it('통화 기호 말고는 완전히 같다 — 화면과 Excel이 어긋날 수 없다', () => {
+    for (const amount of ['0', '1', '266000000', '1234567890']) {
+      const excel = koreanAmountSentence(amount);
+      const web = koreanAmountSentenceForWeb(amount);
+      expect(web.replace(WEB_WON_SIGN, EXCEL_WON_SIGN)).toBe(excel);
+    }
   });
 });
