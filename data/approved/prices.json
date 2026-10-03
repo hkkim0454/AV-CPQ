@@ -1,0 +1,5784 @@
+{
+ "schemaVersion": 1,
+ "generatedOn": "2026-10-03",
+ "sourceSha256": "0cc2e8bd3ec9a28bf0622cc71f34901a8793be6ff325e25fa6e785b5826cb85a",
+ "currency": "KRW",
+ "prices": {
+  "CBL-0006": {
+   "sellingUnitPrice": "12300",
+   "currency": "KRW"
+  },
+  "CBL-0007": {
+   "sellingUnitPrice": "24900",
+   "currency": "KRW"
+  },
+  "CBL-0008": {
+   "sellingUnitPrice": "16500",
+   "currency": "KRW"
+  },
+  "CBL-0009": {
+   "sellingUnitPrice": "8000",
+   "currency": "KRW"
+  },
+  "CBL-0011": {
+   "sellingUnitPrice": "5800",
+   "currency": "KRW"
+  },
+  "CBL-0013": {
+   "sellingUnitPrice": "25500",
+   "currency": "KRW"
+  },
+  "CBL-0016": {
+   "sellingUnitPrice": "20000",
+   "currency": "KRW"
+  },
+  "CBL-0017": {
+   "sellingUnitPrice": "22000",
+   "currency": "KRW"
+  },
+  "CBL-0018": {
+   "sellingUnitPrice": "26000",
+   "currency": "KRW"
+  },
+  "CBL-0019": {
+   "sellingUnitPrice": "45000",
+   "currency": "KRW"
+  },
+  "CBL-0020": {
+   "sellingUnitPrice": "55000",
+   "currency": "KRW"
+  },
+  "CBL-0022": {
+   "sellingUnitPrice": "10000",
+   "currency": "KRW"
+  },
+  "CBL-0023": {
+   "sellingUnitPrice": "11000",
+   "currency": "KRW"
+  },
+  "CBL-0024": {
+   "sellingUnitPrice": "15000",
+   "currency": "KRW"
+  },
+  "CBL-0025": {
+   "sellingUnitPrice": "26000",
+   "currency": "KRW"
+  },
+  "CBL-0026": {
+   "sellingUnitPrice": "39000",
+   "currency": "KRW"
+  },
+  "CBL-0029": {
+   "sellingUnitPrice": "195000",
+   "currency": "KRW"
+  },
+  "CBL-0030": {
+   "sellingUnitPrice": "210000",
+   "currency": "KRW"
+  },
+  "CBL-0031": {
+   "sellingUnitPrice": "232000",
+   "currency": "KRW"
+  },
+  "CBL-0032": {
+   "sellingUnitPrice": "270000",
+   "currency": "KRW"
+  },
+  "CBL-0033": {
+   "sellingUnitPrice": "300000",
+   "currency": "KRW"
+  },
+  "CBL-0034": {
+   "sellingUnitPrice": "345000",
+   "currency": "KRW"
+  },
+  "CBL-0035": {
+   "sellingUnitPrice": "405000",
+   "currency": "KRW"
+  },
+  "CBL-0036": {
+   "sellingUnitPrice": "450000",
+   "currency": "KRW"
+  },
+  "CBL-0037": {
+   "sellingUnitPrice": "600000",
+   "currency": "KRW"
+  },
+  "CBL-0039": {
+   "sellingUnitPrice": "48000",
+   "currency": "KRW"
+  },
+  "CBL-0040": {
+   "sellingUnitPrice": "54000",
+   "currency": "KRW"
+  },
+  "CBL-0041": {
+   "sellingUnitPrice": "59000",
+   "currency": "KRW"
+  },
+  "CBL-0042": {
+   "sellingUnitPrice": "65000",
+   "currency": "KRW"
+  },
+  "CBL-0043": {
+   "sellingUnitPrice": "69000",
+   "currency": "KRW"
+  },
+  "CBL-0044": {
+   "sellingUnitPrice": "81000",
+   "currency": "KRW"
+  },
+  "CBL-0046": {
+   "sellingUnitPrice": "75000",
+   "currency": "KRW"
+  },
+  "CBL-0047": {
+   "sellingUnitPrice": "82500",
+   "currency": "KRW"
+  },
+  "CBL-0048": {
+   "sellingUnitPrice": "90000",
+   "currency": "KRW"
+  },
+  "CBL-0049": {
+   "sellingUnitPrice": "105000",
+   "currency": "KRW"
+  },
+  "CBL-0050": {
+   "sellingUnitPrice": "120000",
+   "currency": "KRW"
+  },
+  "CBL-0051": {
+   "sellingUnitPrice": "135000",
+   "currency": "KRW"
+  },
+  "CBL-0052": {
+   "sellingUnitPrice": "150000",
+   "currency": "KRW"
+  },
+  "CBL-0053": {
+   "sellingUnitPrice": "172500",
+   "currency": "KRW"
+  },
+  "CBL-0054": {
+   "sellingUnitPrice": "195000",
+   "currency": "KRW"
+  },
+  "CBL-0055": {
+   "sellingUnitPrice": "217500",
+   "currency": "KRW"
+  },
+  "CBL-0056": {
+   "sellingUnitPrice": "240000",
+   "currency": "KRW"
+  },
+  "CBL-0057": {
+   "sellingUnitPrice": "262500",
+   "currency": "KRW"
+  },
+  "CBL-0059": {
+   "sellingUnitPrice": "165000",
+   "currency": "KRW"
+  },
+  "CBL-0060": {
+   "sellingUnitPrice": "180000",
+   "currency": "KRW"
+  },
+  "CBL-0061": {
+   "sellingUnitPrice": "195000",
+   "currency": "KRW"
+  },
+  "CBL-0062": {
+   "sellingUnitPrice": "217500",
+   "currency": "KRW"
+  },
+  "CBL-0063": {
+   "sellingUnitPrice": "240000",
+   "currency": "KRW"
+  },
+  "CBL-0064": {
+   "sellingUnitPrice": "262500",
+   "currency": "KRW"
+  },
+  "CBL-0065": {
+   "sellingUnitPrice": "285000",
+   "currency": "KRW"
+  },
+  "CBL-0066": {
+   "sellingUnitPrice": "307500",
+   "currency": "KRW"
+  },
+  "CBL-0067": {
+   "sellingUnitPrice": "337500",
+   "currency": "KRW"
+  },
+  "CBL-0068": {
+   "sellingUnitPrice": "367500",
+   "currency": "KRW"
+  },
+  "CBL-0069": {
+   "sellingUnitPrice": "397500",
+   "currency": "KRW"
+  },
+  "CBL-0071": {
+   "sellingUnitPrice": "157500",
+   "currency": "KRW"
+  },
+  "CBL-0072": {
+   "sellingUnitPrice": "165000",
+   "currency": "KRW"
+  },
+  "CBL-0073": {
+   "sellingUnitPrice": "187500",
+   "currency": "KRW"
+  },
+  "CBL-0074": {
+   "sellingUnitPrice": "217500",
+   "currency": "KRW"
+  },
+  "CBL-0075": {
+   "sellingUnitPrice": "247500",
+   "currency": "KRW"
+  },
+  "CBL-0076": {
+   "sellingUnitPrice": "277500",
+   "currency": "KRW"
+  },
+  "CBL-0077": {
+   "sellingUnitPrice": "307500",
+   "currency": "KRW"
+  },
+  "CBL-0078": {
+   "sellingUnitPrice": "337500",
+   "currency": "KRW"
+  },
+  "CBL-0079": {
+   "sellingUnitPrice": "367500",
+   "currency": "KRW"
+  },
+  "CBL-0080": {
+   "sellingUnitPrice": "397500",
+   "currency": "KRW"
+  },
+  "CBL-0081": {
+   "sellingUnitPrice": "427500",
+   "currency": "KRW"
+  },
+  "CBL-0084": {
+   "sellingUnitPrice": "8400",
+   "currency": "KRW"
+  },
+  "CBL-0085": {
+   "sellingUnitPrice": "7900",
+   "currency": "KRW"
+  },
+  "CBL-0086": {
+   "sellingUnitPrice": "13000",
+   "currency": "KRW"
+  },
+  "CBL-0088": {
+   "sellingUnitPrice": "66400",
+   "currency": "KRW"
+  },
+  "CBL-0089": {
+   "sellingUnitPrice": "29500",
+   "currency": "KRW"
+  },
+  "CBL-0090": {
+   "sellingUnitPrice": "20400",
+   "currency": "KRW"
+  },
+  "CBL-0091": {
+   "sellingUnitPrice": "13500",
+   "currency": "KRW"
+  },
+  "CBL-0092": {
+   "sellingUnitPrice": "17200",
+   "currency": "KRW"
+  },
+  "CBL-0093": {
+   "sellingUnitPrice": "169000",
+   "currency": "KRW"
+  },
+  "CBL-0094": {
+   "sellingUnitPrice": "15200",
+   "currency": "KRW"
+  },
+  "CBL-0095": {
+   "sellingUnitPrice": "13000",
+   "currency": "KRW"
+  },
+  "CBL-0096": {
+   "sellingUnitPrice": "17200",
+   "currency": "KRW"
+  },
+  "CBL-0098": {
+   "sellingUnitPrice": "3600",
+   "currency": "KRW"
+  },
+  "CBL-0099": {
+   "sellingUnitPrice": "5100",
+   "currency": "KRW"
+  },
+  "CBL-0100": {
+   "sellingUnitPrice": "7900",
+   "currency": "KRW"
+  },
+  "CBL-0102": {
+   "sellingUnitPrice": "16200",
+   "currency": "KRW"
+  },
+  "CBL-0103": {
+   "sellingUnitPrice": "13000",
+   "currency": "KRW"
+  },
+  "CBL-0106": {
+   "sellingUnitPrice": "18900",
+   "currency": "KRW"
+  },
+  "CBL-0107": {
+   "sellingUnitPrice": "13600",
+   "currency": "KRW"
+  },
+  "CBL-0109": {
+   "sellingUnitPrice": "34000",
+   "currency": "KRW"
+  },
+  "CBL-0110": {
+   "sellingUnitPrice": "22700",
+   "currency": "KRW"
+  },
+  "CBL-0111": {
+   "sellingUnitPrice": "45300",
+   "currency": "KRW"
+  },
+  "CBL-0112": {
+   "sellingUnitPrice": "83700",
+   "currency": "KRW"
+  },
+  "CBL-0113": {
+   "sellingUnitPrice": "122200",
+   "currency": "KRW"
+  },
+  "CBL-0114": {
+   "sellingUnitPrice": "144800",
+   "currency": "KRW"
+  },
+  "CBL-0116": {
+   "sellingUnitPrice": "56600",
+   "currency": "KRW"
+  },
+  "CBL-0117": {
+   "sellingUnitPrice": "40000",
+   "currency": "KRW"
+  },
+  "CBL-0118": {
+   "sellingUnitPrice": "26400",
+   "currency": "KRW"
+  },
+  "CBL-0119": {
+   "sellingUnitPrice": "16600",
+   "currency": "KRW"
+  },
+  "CBL-0120": {
+   "sellingUnitPrice": "55800",
+   "currency": "KRW"
+  },
+  "CBL-0121": {
+   "sellingUnitPrice": "83000",
+   "currency": "KRW"
+  },
+  "CBL-0122": {
+   "sellingUnitPrice": "174200",
+   "currency": "KRW"
+  },
+  "CBL-0125": {
+   "sellingUnitPrice": "81000",
+   "currency": "KRW"
+  },
+  "CBL-0126": {
+   "sellingUnitPrice": "130000",
+   "currency": "KRW"
+  },
+  "CBL-0127": {
+   "sellingUnitPrice": "137000",
+   "currency": "KRW"
+  },
+  "CBL-0128": {
+   "sellingUnitPrice": "107000",
+   "currency": "KRW"
+  },
+  "CBL-0129": {
+   "sellingUnitPrice": "63000",
+   "currency": "KRW"
+  },
+  "CBL-0130": {
+   "sellingUnitPrice": "58000",
+   "currency": "KRW"
+  },
+  "CBL-0131": {
+   "sellingUnitPrice": "98000",
+   "currency": "KRW"
+  },
+  "CBL-0132": {
+   "sellingUnitPrice": "98000",
+   "currency": "KRW"
+  },
+  "CBL-0133": {
+   "sellingUnitPrice": "71000",
+   "currency": "KRW"
+  },
+  "CBL-0135": {
+   "sellingUnitPrice": "23000",
+   "currency": "KRW"
+  },
+  "CBL-0136": {
+   "sellingUnitPrice": "20000",
+   "currency": "KRW"
+  },
+  "CBL-0137": {
+   "sellingUnitPrice": "20000",
+   "currency": "KRW"
+  },
+  "CBL-0138": {
+   "sellingUnitPrice": "18000",
+   "currency": "KRW"
+  },
+  "CBL-0139": {
+   "sellingUnitPrice": "26000",
+   "currency": "KRW"
+  },
+  "CBL-0140": {
+   "sellingUnitPrice": "22000",
+   "currency": "KRW"
+  },
+  "CBL-0143": {
+   "sellingUnitPrice": "27200",
+   "currency": "KRW"
+  },
+  "CBL-0144": {
+   "sellingUnitPrice": "34000",
+   "currency": "KRW"
+  },
+  "CBL-0145": {
+   "sellingUnitPrice": "21900",
+   "currency": "KRW"
+  },
+  "CBL-0146": {
+   "sellingUnitPrice": "22700",
+   "currency": "KRW"
+  },
+  "CBL-0148": {
+   "sellingUnitPrice": "15900",
+   "currency": "KRW"
+  },
+  "CBL-0149": {
+   "sellingUnitPrice": "40800",
+   "currency": "KRW"
+  },
+  "CBL-0150": {
+   "sellingUnitPrice": "23400",
+   "currency": "KRW"
+  },
+  "CBL-0151": {
+   "sellingUnitPrice": "41500",
+   "currency": "KRW"
+  },
+  "CBL-0152": {
+   "sellingUnitPrice": "46000",
+   "currency": "KRW"
+  },
+  "CBL-0153": {
+   "sellingUnitPrice": "91300",
+   "currency": "KRW"
+  },
+  "CBL-0155": {
+   "sellingUnitPrice": "27900",
+   "currency": "KRW"
+  },
+  "CBL-0156": {
+   "sellingUnitPrice": "58900",
+   "currency": "KRW"
+  },
+  "CBL-0157": {
+   "sellingUnitPrice": "42300",
+   "currency": "KRW"
+  },
+  "CBL-0158": {
+   "sellingUnitPrice": "59600",
+   "currency": "KRW"
+  },
+  "CBL-0159": {
+   "sellingUnitPrice": "104900",
+   "currency": "KRW"
+  },
+  "CBL-0160": {
+   "sellingUnitPrice": "135800",
+   "currency": "KRW"
+  },
+  "CBL-0161": {
+   "sellingUnitPrice": "75600",
+   "currency": "KRW"
+  },
+  "CBL-0162": {
+   "sellingUnitPrice": "134400",
+   "currency": "KRW"
+  },
+  "CBL-0164": {
+   "sellingUnitPrice": "4800",
+   "currency": "KRW"
+  },
+  "CBL-0165": {
+   "sellingUnitPrice": "200",
+   "currency": "KRW"
+  },
+  "CBL-0166": {
+   "sellingUnitPrice": "9400",
+   "currency": "KRW"
+  },
+  "CBL-0167": {
+   "sellingUnitPrice": "400",
+   "currency": "KRW"
+  },
+  "CBL-0168": {
+   "sellingUnitPrice": "22000",
+   "currency": "KRW"
+  },
+  "CBL-0169": {
+   "sellingUnitPrice": "4000",
+   "currency": "KRW"
+  },
+  "CBL-0172": {
+   "sellingUnitPrice": "83000",
+   "currency": "KRW"
+  },
+  "CBL-0173": {
+   "sellingUnitPrice": "45000",
+   "currency": "KRW"
+  },
+  "CBL-0174": {
+   "sellingUnitPrice": "30000",
+   "currency": "KRW"
+  },
+  "CBL-0175": {
+   "sellingUnitPrice": "2100",
+   "currency": "KRW"
+  },
+  "CBL-0176": {
+   "sellingUnitPrice": "12300",
+   "currency": "KRW"
+  },
+  "CBL-0181": {
+   "sellingUnitPrice": "810000",
+   "currency": "KRW"
+  },
+  "CBL-0182": {
+   "sellingUnitPrice": "22000",
+   "currency": "KRW"
+  },
+  "CBL-0183": {
+   "sellingUnitPrice": "2000",
+   "currency": "KRW"
+  },
+  "CBL-0184": {
+   "sellingUnitPrice": "10800",
+   "currency": "KRW"
+  },
+  "CBL-0185": {
+   "sellingUnitPrice": "12300",
+   "currency": "KRW"
+  },
+  "CBL-0187": {
+   "sellingUnitPrice": "83000",
+   "currency": "KRW"
+  },
+  "CBL-0188": {
+   "sellingUnitPrice": "98000",
+   "currency": "KRW"
+  },
+  "CBL-0189": {
+   "sellingUnitPrice": "113000",
+   "currency": "KRW"
+  },
+  "CBL-0190": {
+   "sellingUnitPrice": "128000",
+   "currency": "KRW"
+  },
+  "CBL-0191": {
+   "sellingUnitPrice": "150000",
+   "currency": "KRW"
+  },
+  "CBL-0192": {
+   "sellingUnitPrice": "218000",
+   "currency": "KRW"
+  },
+  "CBL-0193": {
+   "sellingUnitPrice": "233000",
+   "currency": "KRW"
+  },
+  "CBL-0195": {
+   "sellingUnitPrice": "210000",
+   "currency": "KRW"
+  },
+  "CBL-0196": {
+   "sellingUnitPrice": "300000",
+   "currency": "KRW"
+  },
+  "CBL-0198": {
+   "sellingUnitPrice": "336000",
+   "currency": "KRW"
+  },
+  "CBL-0199": {
+   "sellingUnitPrice": "393000",
+   "currency": "KRW"
+  },
+  "CBL-0200": {
+   "sellingUnitPrice": "450000",
+   "currency": "KRW"
+  },
+  "CBL-0201": {
+   "sellingUnitPrice": "507000",
+   "currency": "KRW"
+  },
+  "CBL-0202": {
+   "sellingUnitPrice": "564000",
+   "currency": "KRW"
+  },
+  "CBL-0203": {
+   "sellingUnitPrice": "621000",
+   "currency": "KRW"
+  },
+  "CBL-0204": {
+   "sellingUnitPrice": "678000",
+   "currency": "KRW"
+  },
+  "CBL-0205": {
+   "sellingUnitPrice": "735000",
+   "currency": "KRW"
+  },
+  "CBL-0207": {
+   "sellingUnitPrice": "81000",
+   "currency": "KRW"
+  },
+  "CBL-0209": {
+   "sellingUnitPrice": "420000",
+   "currency": "KRW"
+  },
+  "CBL-0210": {
+   "sellingUnitPrice": "294000",
+   "currency": "KRW"
+  },
+  "CBL-0211": {
+   "sellingUnitPrice": "90000",
+   "currency": "KRW"
+  },
+  "CBL-0212": {
+   "sellingUnitPrice": "112500",
+   "currency": "KRW"
+  },
+  "CBL-0213": {
+   "sellingUnitPrice": "135000",
+   "currency": "KRW"
+  },
+  "CBL-0215": {
+   "sellingUnitPrice": "27000",
+   "currency": "KRW"
+  },
+  "CBL-0216": {
+   "sellingUnitPrice": "30000",
+   "currency": "KRW"
+  },
+  "CBL-0217": {
+   "sellingUnitPrice": "38000",
+   "currency": "KRW"
+  },
+  "CBL-0218": {
+   "sellingUnitPrice": "45000",
+   "currency": "KRW"
+  },
+  "CBL-0219": {
+   "sellingUnitPrice": "71000",
+   "currency": "KRW"
+  },
+  "CBL-0220": {
+   "sellingUnitPrice": "89000",
+   "currency": "KRW"
+  },
+  "CBL-0221": {
+   "sellingUnitPrice": "162000",
+   "currency": "KRW"
+  },
+  "CBL-0222": {
+   "sellingUnitPrice": "20000",
+   "currency": "KRW"
+  },
+  "CBL-0223": {
+   "sellingUnitPrice": "23000",
+   "currency": "KRW"
+  },
+  "CBL-0225": {
+   "sellingUnitPrice": "1400",
+   "currency": "KRW"
+  },
+  "CBL-0226": {
+   "sellingUnitPrice": "2000",
+   "currency": "KRW"
+  },
+  "CBL-0227": {
+   "sellingUnitPrice": "1700",
+   "currency": "KRW"
+  },
+  "CBL-0228": {
+   "sellingUnitPrice": "2000",
+   "currency": "KRW"
+  },
+  "CBL-0229": {
+   "sellingUnitPrice": "1700",
+   "currency": "KRW"
+  },
+  "CBL-0230": {
+   "sellingUnitPrice": "2200",
+   "currency": "KRW"
+  },
+  "CBL-0232": {
+   "sellingUnitPrice": "12100",
+   "currency": "KRW"
+  },
+  "CBL-0233": {
+   "sellingUnitPrice": "13100",
+   "currency": "KRW"
+  },
+  "CBL-0234": {
+   "sellingUnitPrice": "15600",
+   "currency": "KRW"
+  },
+  "CBL-0235": {
+   "sellingUnitPrice": "18100",
+   "currency": "KRW"
+  },
+  "CBL-0236": {
+   "sellingUnitPrice": "11000",
+   "currency": "KRW"
+  },
+  "CBL-0237": {
+   "sellingUnitPrice": "12000",
+   "currency": "KRW"
+  },
+  "CBL-0238": {
+   "sellingUnitPrice": "14500",
+   "currency": "KRW"
+  },
+  "CBL-0239": {
+   "sellingUnitPrice": "17000",
+   "currency": "KRW"
+  },
+  "CBL-0240": {
+   "sellingUnitPrice": "10800",
+   "currency": "KRW"
+  },
+  "CBL-0241": {
+   "sellingUnitPrice": "11800",
+   "currency": "KRW"
+  },
+  "CBL-0242": {
+   "sellingUnitPrice": "14200",
+   "currency": "KRW"
+  },
+  "CBL-0243": {
+   "sellingUnitPrice": "16800",
+   "currency": "KRW"
+  },
+  "CBL-0244": {
+   "sellingUnitPrice": "9100",
+   "currency": "KRW"
+  },
+  "CBL-0245": {
+   "sellingUnitPrice": "10100",
+   "currency": "KRW"
+  },
+  "CBL-0246": {
+   "sellingUnitPrice": "12500",
+   "currency": "KRW"
+  },
+  "CBL-0247": {
+   "sellingUnitPrice": "15000",
+   "currency": "KRW"
+  },
+  "CBL-0248": {
+   "sellingUnitPrice": "8600",
+   "currency": "KRW"
+  },
+  "CBL-0249": {
+   "sellingUnitPrice": "9600",
+   "currency": "KRW"
+  },
+  "CBL-0250": {
+   "sellingUnitPrice": "12000",
+   "currency": "KRW"
+  },
+  "CBL-0251": {
+   "sellingUnitPrice": "14600",
+   "currency": "KRW"
+  },
+  "CBL-0254": {
+   "sellingUnitPrice": "15000",
+   "currency": "KRW"
+  },
+  "CBL-0255": {
+   "sellingUnitPrice": "11000",
+   "currency": "KRW"
+  },
+  "CBL-0257": {
+   "sellingUnitPrice": "105000",
+   "currency": "KRW"
+  },
+  "CBL-0259": {
+   "sellingUnitPrice": "5000",
+   "currency": "KRW"
+  },
+  "CBL-0260": {
+   "sellingUnitPrice": "50000",
+   "currency": "KRW"
+  },
+  "CBL-0261": {
+   "sellingUnitPrice": "35000",
+   "currency": "KRW"
+  },
+  "CBL-0262": {
+   "sellingUnitPrice": "23000",
+   "currency": "KRW"
+  },
+  "CBL-0263": {
+   "sellingUnitPrice": "5500",
+   "currency": "KRW"
+  },
+  "CBL-0264": {
+   "sellingUnitPrice": "14000",
+   "currency": "KRW"
+  },
+  "CBL-0265": {
+   "sellingUnitPrice": "16000",
+   "currency": "KRW"
+  },
+  "CBL-0268": {
+   "sellingUnitPrice": "5900",
+   "currency": "KRW"
+  },
+  "CBL-0270": {
+   "sellingUnitPrice": "8500",
+   "currency": "KRW"
+  },
+  "CBL-0272": {
+   "sellingUnitPrice": "11400",
+   "currency": "KRW"
+  },
+  "CBL-0274": {
+   "sellingUnitPrice": "4100",
+   "currency": "KRW"
+  },
+  "CBL-0276": {
+   "sellingUnitPrice": "8200",
+   "currency": "KRW"
+  },
+  "CBL-0278": {
+   "sellingUnitPrice": "12800",
+   "currency": "KRW"
+  },
+  "CBL-0280": {
+   "sellingUnitPrice": "21500",
+   "currency": "KRW"
+  },
+  "AUD-0006": {
+   "sellingUnitPrice": "500000",
+   "currency": "KRW"
+  },
+  "AUD-0007": {
+   "sellingUnitPrice": "500000",
+   "currency": "KRW"
+  },
+  "AUD-0009": {
+   "sellingUnitPrice": "4590000",
+   "currency": "KRW"
+  },
+  "AUD-0010": {
+   "sellingUnitPrice": "7115000",
+   "currency": "KRW"
+  },
+  "AUD-0011": {
+   "sellingUnitPrice": "230000",
+   "currency": "KRW"
+  },
+  "AUD-0013": {
+   "sellingUnitPrice": "9384000",
+   "currency": "KRW"
+  },
+  "AUD-0014": {
+   "sellingUnitPrice": "446000",
+   "currency": "KRW"
+  },
+  "AUD-0015": {
+   "sellingUnitPrice": "10908000",
+   "currency": "KRW"
+  },
+  "AUD-0017": {
+   "sellingUnitPrice": "21465000",
+   "currency": "KRW"
+  },
+  "AUD-0018": {
+   "sellingUnitPrice": "1107000",
+   "currency": "KRW"
+  },
+  "AUD-0020": {
+   "sellingUnitPrice": "19710000",
+   "currency": "KRW"
+  },
+  "AUD-0021": {
+   "sellingUnitPrice": "1080000",
+   "currency": "KRW"
+  },
+  "AUD-0023": {
+   "sellingUnitPrice": "608000",
+   "currency": "KRW"
+  },
+  "AUD-0024": {
+   "sellingUnitPrice": "1701000",
+   "currency": "KRW"
+  },
+  "AUD-0025": {
+   "sellingUnitPrice": "1715000",
+   "currency": "KRW"
+  },
+  "AUD-0026": {
+   "sellingUnitPrice": "3335000",
+   "currency": "KRW"
+  },
+  "AUD-0027": {
+   "sellingUnitPrice": "6426000",
+   "currency": "KRW"
+  },
+  "AUD-0028": {
+   "sellingUnitPrice": "12083000",
+   "currency": "KRW"
+  },
+  "AUD-0029": {
+   "sellingUnitPrice": "22437000",
+   "currency": "KRW"
+  },
+  "AUD-0030": {
+   "sellingUnitPrice": "2680000",
+   "currency": "KRW"
+  },
+  "AUD-0032": {
+   "sellingUnitPrice": "1620000",
+   "currency": "KRW"
+  },
+  "AUD-0033": {
+   "sellingUnitPrice": "1215000",
+   "currency": "KRW"
+  },
+  "AUD-0034": {
+   "sellingUnitPrice": "360000",
+   "currency": "KRW"
+  },
+  "AUD-0035": {
+   "sellingUnitPrice": "140000",
+   "currency": "KRW"
+  },
+  "AUD-0036": {
+   "sellingUnitPrice": "1485000",
+   "currency": "KRW"
+  },
+  "AUD-0037": {
+   "sellingUnitPrice": "945000",
+   "currency": "KRW"
+  },
+  "AUD-0038": {
+   "sellingUnitPrice": "1036000",
+   "currency": "KRW"
+  },
+  "AUD-0039": {
+   "sellingUnitPrice": "2088000",
+   "currency": "KRW"
+  },
+  "AUD-0040": {
+   "sellingUnitPrice": "829000",
+   "currency": "KRW"
+  },
+  "AUD-0041": {
+   "sellingUnitPrice": "719000",
+   "currency": "KRW"
+  },
+  "AUD-0043": {
+   "sellingUnitPrice": "1208000",
+   "currency": "KRW"
+  },
+  "AUD-0045": {
+   "sellingUnitPrice": "8028000",
+   "currency": "KRW"
+  },
+  "AUD-0046": {
+   "sellingUnitPrice": "6252000",
+   "currency": "KRW"
+  },
+  "AUD-0047": {
+   "sellingUnitPrice": "8916000",
+   "currency": "KRW"
+  },
+  "AUD-0048": {
+   "sellingUnitPrice": "3204000",
+   "currency": "KRW"
+  },
+  "AUD-0049": {
+   "sellingUnitPrice": "2676000",
+   "currency": "KRW"
+  },
+  "AUD-0050": {
+   "sellingUnitPrice": "900000",
+   "currency": "KRW"
+  },
+  "AUD-0051": {
+   "sellingUnitPrice": "900000",
+   "currency": "KRW"
+  },
+  "AUD-0052": {
+   "sellingUnitPrice": "2316000",
+   "currency": "KRW"
+  },
+  "AUD-0053": {
+   "sellingUnitPrice": "528000",
+   "currency": "KRW"
+  },
+  "AUD-0054": {
+   "sellingUnitPrice": "109000",
+   "currency": "KRW"
+  },
+  "AUD-0055": {
+   "sellingUnitPrice": "720000",
+   "currency": "KRW"
+  },
+  "AUD-0056": {
+   "sellingUnitPrice": "109000",
+   "currency": "KRW"
+  },
+  "AUD-0058": {
+   "sellingUnitPrice": "11540000",
+   "currency": "KRW"
+  },
+  "AUD-0059": {
+   "sellingUnitPrice": "5824000",
+   "currency": "KRW"
+  },
+  "AUD-0060": {
+   "sellingUnitPrice": "1424000",
+   "currency": "KRW"
+  },
+  "AUD-0061": {
+   "sellingUnitPrice": "500000",
+   "currency": "KRW"
+  },
+  "AUD-0063": {
+   "sellingUnitPrice": "311000",
+   "currency": "KRW"
+  },
+  "AUD-0064": {
+   "sellingUnitPrice": "476000",
+   "currency": "KRW"
+  },
+  "AUD-0065": {
+   "sellingUnitPrice": "376000",
+   "currency": "KRW"
+  },
+  "AUD-0066": {
+   "sellingUnitPrice": "376000",
+   "currency": "KRW"
+  },
+  "AUD-0068": {
+   "sellingUnitPrice": "986000",
+   "currency": "KRW"
+  },
+  "AUD-0071": {
+   "sellingUnitPrice": "3613000",
+   "currency": "KRW"
+  },
+  "AUD-0072": {
+   "sellingUnitPrice": "5003000",
+   "currency": "KRW"
+  },
+  "AUD-0073": {
+   "sellingUnitPrice": "749000",
+   "currency": "KRW"
+  },
+  "AUD-0074": {
+   "sellingUnitPrice": "380000",
+   "currency": "KRW"
+  },
+  "AUD-0075": {
+   "sellingUnitPrice": "298000",
+   "currency": "KRW"
+  },
+  "AUD-0076": {
+   "sellingUnitPrice": "13000",
+   "currency": "KRW"
+  },
+  "AUD-0077": {
+   "sellingUnitPrice": "3000",
+   "currency": "KRW"
+  },
+  "AUD-0080": {
+   "sellingUnitPrice": "1386000",
+   "currency": "KRW"
+  },
+  "AUD-0082": {
+   "sellingUnitPrice": "1600000",
+   "currency": "KRW"
+  },
+  "AUD-0083": {
+   "sellingUnitPrice": "500000",
+   "currency": "KRW"
+  },
+  "AUD-0085": {
+   "sellingUnitPrice": "0",
+   "currency": "KRW"
+  },
+  "AUD-0087": {
+   "sellingUnitPrice": "844000",
+   "currency": "KRW"
+  },
+  "AUD-0089": {
+   "sellingUnitPrice": "500000",
+   "currency": "KRW"
+  },
+  "AUD-0091": {
+   "sellingUnitPrice": "1055000",
+   "currency": "KRW"
+  },
+  "AUD-0092": {
+   "sellingUnitPrice": "46000",
+   "currency": "KRW"
+  },
+  "AUD-0093": {
+   "sellingUnitPrice": "879000",
+   "currency": "KRW"
+  },
+  "AUD-0094": {
+   "sellingUnitPrice": "51000",
+   "currency": "KRW"
+  },
+  "AUD-0096": {
+   "sellingUnitPrice": "2745600",
+   "currency": "KRW"
+  },
+  "AUD-0097": {
+   "sellingUnitPrice": "986000",
+   "currency": "KRW"
+  },
+  "AUD-0099": {
+   "sellingUnitPrice": "36036000",
+   "currency": "KRW"
+  },
+  "AUD-0100": {
+   "sellingUnitPrice": "18018000",
+   "currency": "KRW"
+  },
+  "AUD-0101": {
+   "sellingUnitPrice": "6930000",
+   "currency": "KRW"
+  },
+  "AUD-0102": {
+   "sellingUnitPrice": "2649000",
+   "currency": "KRW"
+  },
+  "AUD-0103": {
+   "sellingUnitPrice": "2649000",
+   "currency": "KRW"
+  },
+  "AUD-0104": {
+   "sellingUnitPrice": "2431000",
+   "currency": "KRW"
+  },
+  "AUD-0105": {
+   "sellingUnitPrice": "2190000",
+   "currency": "KRW"
+  },
+  "AUD-0106": {
+   "sellingUnitPrice": "115000",
+   "currency": "KRW"
+  },
+  "AUD-0107": {
+   "sellingUnitPrice": "25712000",
+   "currency": "KRW"
+  },
+  "AUD-0108": {
+   "sellingUnitPrice": "1859000",
+   "currency": "KRW"
+  },
+  "AUD-0109": {
+   "sellingUnitPrice": "7593000",
+   "currency": "KRW"
+  },
+  "AUD-0110": {
+   "sellingUnitPrice": "13321000",
+   "currency": "KRW"
+  },
+  "AUD-0112": {
+   "sellingUnitPrice": "4647000",
+   "currency": "KRW"
+  },
+  "AUD-0113": {
+   "sellingUnitPrice": "3909000",
+   "currency": "KRW"
+  },
+  "AUD-0114": {
+   "sellingUnitPrice": "3267000",
+   "currency": "KRW"
+  },
+  "AUD-0115": {
+   "sellingUnitPrice": "63000",
+   "currency": "KRW"
+  },
+  "AUD-0116": {
+   "sellingUnitPrice": "2602000",
+   "currency": "KRW"
+  },
+  "AUD-0117": {
+   "sellingUnitPrice": "1716000",
+   "currency": "KRW"
+  },
+  "AUD-0118": {
+   "sellingUnitPrice": "642000",
+   "currency": "KRW"
+  },
+  "AUD-0122": {
+   "sellingUnitPrice": "2232000",
+   "currency": "KRW"
+  },
+  "AUD-0123": {
+   "sellingUnitPrice": "3288000",
+   "currency": "KRW"
+  },
+  "AUD-0124": {
+   "sellingUnitPrice": "3636000",
+   "currency": "KRW"
+  },
+  "AUD-0125": {
+   "sellingUnitPrice": "5448000",
+   "currency": "KRW"
+  },
+  "AUD-0127": {
+   "sellingUnitPrice": "1980000",
+   "currency": "KRW"
+  },
+  "AUD-0128": {
+   "sellingUnitPrice": "2532000",
+   "currency": "KRW"
+  },
+  "AUD-0129": {
+   "sellingUnitPrice": "3888000",
+   "currency": "KRW"
+  },
+  "AUD-0130": {
+   "sellingUnitPrice": "3336000",
+   "currency": "KRW"
+  },
+  "AUD-0131": {
+   "sellingUnitPrice": "4608000",
+   "currency": "KRW"
+  },
+  "AUD-0132": {
+   "sellingUnitPrice": "5808000",
+   "currency": "KRW"
+  },
+  "AUD-0134": {
+   "sellingUnitPrice": "3588000",
+   "currency": "KRW"
+  },
+  "AUD-0135": {
+   "sellingUnitPrice": "4692000",
+   "currency": "KRW"
+  },
+  "AUD-0136": {
+   "sellingUnitPrice": "5448000",
+   "currency": "KRW"
+  },
+  "AUD-0137": {
+   "sellingUnitPrice": "7620000",
+   "currency": "KRW"
+  },
+  "AUD-0138": {
+   "sellingUnitPrice": "15048000",
+   "currency": "KRW"
+  },
+  "AUD-0139": {
+   "sellingUnitPrice": "2532000",
+   "currency": "KRW"
+  },
+  "AUD-0140": {
+   "sellingUnitPrice": "3060000",
+   "currency": "KRW"
+  },
+  "AUD-0141": {
+   "sellingUnitPrice": "4428000",
+   "currency": "KRW"
+  },
+  "AUD-0142": {
+   "sellingUnitPrice": "3864000",
+   "currency": "KRW"
+  },
+  "AUD-0143": {
+   "sellingUnitPrice": "5148000",
+   "currency": "KRW"
+  },
+  "AUD-0144": {
+   "sellingUnitPrice": "6360000",
+   "currency": "KRW"
+  },
+  "AUD-0146": {
+   "sellingUnitPrice": "5484000",
+   "currency": "KRW"
+  },
+  "AUD-0147": {
+   "sellingUnitPrice": "7668000",
+   "currency": "KRW"
+  },
+  "AUD-0149": {
+   "sellingUnitPrice": "1560000",
+   "currency": "KRW"
+  },
+  "AUD-0150": {
+   "sellingUnitPrice": "1840000",
+   "currency": "KRW"
+  },
+  "AUD-0151": {
+   "sellingUnitPrice": "1930000",
+   "currency": "KRW"
+  },
+  "AUD-0152": {
+   "sellingUnitPrice": "2350000",
+   "currency": "KRW"
+  },
+  "AUD-0154": {
+   "sellingUnitPrice": "1290000",
+   "currency": "KRW"
+  },
+  "AUD-0155": {
+   "sellingUnitPrice": "1570000",
+   "currency": "KRW"
+  },
+  "AUD-0156": {
+   "sellingUnitPrice": "1500000",
+   "currency": "KRW"
+  },
+  "AUD-0157": {
+   "sellingUnitPrice": "1930000",
+   "currency": "KRW"
+  },
+  "AUD-0159": {
+   "sellingUnitPrice": "3010000",
+   "currency": "KRW"
+  },
+  "AUD-0160": {
+   "sellingUnitPrice": "3490000",
+   "currency": "KRW"
+  },
+  "AUD-0161": {
+   "sellingUnitPrice": "3740000",
+   "currency": "KRW"
+  },
+  "AUD-0162": {
+   "sellingUnitPrice": "4510000",
+   "currency": "KRW"
+  },
+  "AUD-0163": {
+   "sellingUnitPrice": "5680000",
+   "currency": "KRW"
+  },
+  "AUD-0165": {
+   "sellingUnitPrice": "2340000",
+   "currency": "KRW"
+  },
+  "AUD-0166": {
+   "sellingUnitPrice": "2990000",
+   "currency": "KRW"
+  },
+  "AUD-0167": {
+   "sellingUnitPrice": "3170000",
+   "currency": "KRW"
+  },
+  "AUD-0168": {
+   "sellingUnitPrice": "3960000",
+   "currency": "KRW"
+  },
+  "AUD-0169": {
+   "sellingUnitPrice": "5160000",
+   "currency": "KRW"
+  },
+  "AUD-0181": {
+   "sellingUnitPrice": "9750000",
+   "currency": "KRW"
+  },
+  "AUD-0182": {
+   "sellingUnitPrice": "476000",
+   "currency": "KRW"
+  },
+  "AUD-0184": {
+   "sellingUnitPrice": "8541000",
+   "currency": "KRW"
+  },
+  "AUD-0185": {
+   "sellingUnitPrice": "458000",
+   "currency": "KRW"
+  },
+  "AUD-0186": {
+   "sellingUnitPrice": "8541000",
+   "currency": "KRW"
+  },
+  "AUD-0187": {
+   "sellingUnitPrice": "198000",
+   "currency": "KRW"
+  },
+  "AUD-0188": {
+   "sellingUnitPrice": "3796000",
+   "currency": "KRW"
+  },
+  "AUD-0189": {
+   "sellingUnitPrice": "4823000",
+   "currency": "KRW"
+  },
+  "AUD-0190": {
+   "sellingUnitPrice": "159000",
+   "currency": "KRW"
+  },
+  "AUD-0191": {
+   "sellingUnitPrice": "326000",
+   "currency": "KRW"
+  },
+  "AUD-0193": {
+   "sellingUnitPrice": "13154000",
+   "currency": "KRW"
+  },
+  "AUD-0194": {
+   "sellingUnitPrice": "6585000",
+   "currency": "KRW"
+  },
+  "AUD-0195": {
+   "sellingUnitPrice": "2292000",
+   "currency": "KRW"
+  },
+  "AUD-0196": {
+   "sellingUnitPrice": "1456000",
+   "currency": "KRW"
+  },
+  "AUD-0197": {
+   "sellingUnitPrice": "2754000",
+   "currency": "KRW"
+  },
+  "AUD-0198": {
+   "sellingUnitPrice": "1650000",
+   "currency": "KRW"
+  },
+  "AUD-0199": {
+   "sellingUnitPrice": "1156000",
+   "currency": "KRW"
+  },
+  "AUD-0200": {
+   "sellingUnitPrice": "936000",
+   "currency": "KRW"
+  },
+  "AUD-0202": {
+   "sellingUnitPrice": "1341000",
+   "currency": "KRW"
+  },
+  "AUD-0203": {
+   "sellingUnitPrice": "1095000",
+   "currency": "KRW"
+  },
+  "AUD-0204": {
+   "sellingUnitPrice": "930000",
+   "currency": "KRW"
+  },
+  "AUD-0205": {
+   "sellingUnitPrice": "706000",
+   "currency": "KRW"
+  },
+  "AUD-0207": {
+   "sellingUnitPrice": "1406000",
+   "currency": "KRW"
+  },
+  "AUD-0208": {
+   "sellingUnitPrice": "754000",
+   "currency": "KRW"
+  },
+  "AUD-0209": {
+   "sellingUnitPrice": "471000",
+   "currency": "KRW"
+  },
+  "AUD-0210": {
+   "sellingUnitPrice": "542000",
+   "currency": "KRW"
+  },
+  "AUD-0211": {
+   "sellingUnitPrice": "697000",
+   "currency": "KRW"
+  },
+  "AUD-0212": {
+   "sellingUnitPrice": "377000",
+   "currency": "KRW"
+  },
+  "AUD-0214": {
+   "sellingUnitPrice": "25000",
+   "currency": "KRW"
+  },
+  "AUD-0216": {
+   "sellingUnitPrice": "141000",
+   "currency": "KRW"
+  },
+  "AUD-0217": {
+   "sellingUnitPrice": "214000",
+   "currency": "KRW"
+  },
+  "AUD-0218": {
+   "sellingUnitPrice": "399000",
+   "currency": "KRW"
+  },
+  "AUD-0219": {
+   "sellingUnitPrice": "460000",
+   "currency": "KRW"
+  },
+  "AUD-0220": {
+   "sellingUnitPrice": "462000",
+   "currency": "KRW"
+  },
+  "AUD-0221": {
+   "sellingUnitPrice": "437000",
+   "currency": "KRW"
+  },
+  "AUD-0222": {
+   "sellingUnitPrice": "1210000",
+   "currency": "KRW"
+  },
+  "AUD-0224": {
+   "sellingUnitPrice": "897000",
+   "currency": "KRW"
+  },
+  "AUD-0225": {
+   "sellingUnitPrice": "448000",
+   "currency": "KRW"
+  },
+  "AUD-0226": {
+   "sellingUnitPrice": "195000",
+   "currency": "KRW"
+  },
+  "AUD-0228": {
+   "sellingUnitPrice": "236000",
+   "currency": "KRW"
+  },
+  "AUD-0229": {
+   "sellingUnitPrice": "90000",
+   "currency": "KRW"
+  },
+  "AUD-0231": {
+   "sellingUnitPrice": "1716000",
+   "currency": "KRW"
+  },
+  "AUD-0232": {
+   "sellingUnitPrice": "1005000",
+   "currency": "KRW"
+  },
+  "AUD-0233": {
+   "sellingUnitPrice": "792000",
+   "currency": "KRW"
+  },
+  "AUD-0234": {
+   "sellingUnitPrice": "662000",
+   "currency": "KRW"
+  },
+  "AUD-0235": {
+   "sellingUnitPrice": "292000",
+   "currency": "KRW"
+  },
+  "AUD-0236": {
+   "sellingUnitPrice": "136000",
+   "currency": "KRW"
+  },
+  "AUD-0238": {
+   "sellingUnitPrice": "1001000",
+   "currency": "KRW"
+  },
+  "AUD-0239": {
+   "sellingUnitPrice": "314000",
+   "currency": "KRW"
+  },
+  "AUD-0240": {
+   "sellingUnitPrice": "468000",
+   "currency": "KRW"
+  },
+  "AUD-0241": {
+   "sellingUnitPrice": "143000",
+   "currency": "KRW"
+  },
+  "AUD-0243": {
+   "sellingUnitPrice": "2050000",
+   "currency": "KRW"
+  },
+  "AUD-0244": {
+   "sellingUnitPrice": "1935000",
+   "currency": "KRW"
+  },
+  "AUD-0246": {
+   "sellingUnitPrice": "1380000",
+   "currency": "KRW"
+  },
+  "AUD-0247": {
+   "sellingUnitPrice": "1380000",
+   "currency": "KRW"
+  },
+  "AUD-0248": {
+   "sellingUnitPrice": "797500",
+   "currency": "KRW"
+  },
+  "AUD-0249": {
+   "sellingUnitPrice": "797500",
+   "currency": "KRW"
+  },
+  "AUD-0251": {
+   "sellingUnitPrice": "526000",
+   "currency": "KRW"
+  },
+  "AUD-0252": {
+   "sellingUnitPrice": "414000",
+   "currency": "KRW"
+  },
+  "AUD-0253": {
+   "sellingUnitPrice": "443000",
+   "currency": "KRW"
+  },
+  "AUD-0254": {
+   "sellingUnitPrice": "187000",
+   "currency": "KRW"
+  },
+  "AUD-0255": {
+   "sellingUnitPrice": "262000",
+   "currency": "KRW"
+  },
+  "AUD-0257": {
+   "sellingUnitPrice": "315000",
+   "currency": "KRW"
+  },
+  "AUD-0260": {
+   "sellingUnitPrice": "250000",
+   "currency": "KRW"
+  },
+  "AUD-0261": {
+   "sellingUnitPrice": "350000",
+   "currency": "KRW"
+  },
+  "AUD-0262": {
+   "sellingUnitPrice": "118000",
+   "currency": "KRW"
+  },
+  "AUD-0263": {
+   "sellingUnitPrice": "540000",
+   "currency": "KRW"
+  },
+  "AUD-0264": {
+   "sellingUnitPrice": "128000",
+   "currency": "KRW"
+  },
+  "AUD-0265": {
+   "sellingUnitPrice": "2148000",
+   "currency": "KRW"
+  },
+  "AUD-0266": {
+   "sellingUnitPrice": "128000",
+   "currency": "KRW"
+  },
+  "AUD-0267": {
+   "sellingUnitPrice": "420000",
+   "currency": "KRW"
+  },
+  "AUD-0269": {
+   "sellingUnitPrice": "1116000",
+   "currency": "KRW"
+  },
+  "AUD-0270": {
+   "sellingUnitPrice": "92000",
+   "currency": "KRW"
+  },
+  "AUD-0271": {
+   "sellingUnitPrice": "708000",
+   "currency": "KRW"
+  },
+  "AUD-0272": {
+   "sellingUnitPrice": "1188000",
+   "currency": "KRW"
+  },
+  "AUD-0273": {
+   "sellingUnitPrice": "3000000",
+   "currency": "KRW"
+  },
+  "AUD-0274": {
+   "sellingUnitPrice": "1704000",
+   "currency": "KRW"
+  },
+  "AUD-0275": {
+   "sellingUnitPrice": "92000",
+   "currency": "KRW"
+  },
+  "AUD-0276": {
+   "sellingUnitPrice": "2064000",
+   "currency": "KRW"
+  },
+  "AUD-0277": {
+   "sellingUnitPrice": "92000",
+   "currency": "KRW"
+  },
+  "AUD-0278": {
+   "sellingUnitPrice": "21300000",
+   "currency": "KRW"
+  },
+  "AUD-0280": {
+   "sellingUnitPrice": "336000",
+   "currency": "KRW"
+  },
+  "AUD-0281": {
+   "sellingUnitPrice": "468000",
+   "currency": "KRW"
+  },
+  "AUD-0282": {
+   "sellingUnitPrice": "660000",
+   "currency": "KRW"
+  },
+  "AUD-0283": {
+   "sellingUnitPrice": "684000",
+   "currency": "KRW"
+  },
+  "AUD-0284": {
+   "sellingUnitPrice": "948000",
+   "currency": "KRW"
+  },
+  "AUD-0286": {
+   "sellingUnitPrice": "540000",
+   "currency": "KRW"
+  },
+  "AUD-0287": {
+   "sellingUnitPrice": "972000",
+   "currency": "KRW"
+  },
+  "AUD-0289": {
+   "sellingUnitPrice": "12480000",
+   "currency": "KRW"
+  },
+  "AUD-0290": {
+   "sellingUnitPrice": "8030000",
+   "currency": "KRW"
+  },
+  "AUD-0291": {
+   "sellingUnitPrice": "5340000",
+   "currency": "KRW"
+  },
+  "AUD-0292": {
+   "sellingUnitPrice": "6980000",
+   "currency": "KRW"
+  },
+  "AUD-0293": {
+   "sellingUnitPrice": "4780000",
+   "currency": "KRW"
+  },
+  "AUD-0295": {
+   "sellingUnitPrice": "302000",
+   "currency": "KRW"
+  },
+  "AUD-0296": {
+   "sellingUnitPrice": "676000",
+   "currency": "KRW"
+  },
+  "AUD-0297": {
+   "sellingUnitPrice": "741000",
+   "currency": "KRW"
+  },
+  "AUD-0299": {
+   "sellingUnitPrice": "1430000",
+   "currency": "KRW"
+  },
+  "AUD-0300": {
+   "sellingUnitPrice": "1430000",
+   "currency": "KRW"
+  },
+  "AUD-0302": {
+   "sellingUnitPrice": "286000",
+   "currency": "KRW"
+  },
+  "AUD-0303": {
+   "sellingUnitPrice": "224000",
+   "currency": "KRW"
+  },
+  "AUD-0304": {
+   "sellingUnitPrice": "390000",
+   "currency": "KRW"
+  },
+  "AUD-0305": {
+   "sellingUnitPrice": "36000",
+   "currency": "KRW"
+  },
+  "AUD-0306": {
+   "sellingUnitPrice": "390000",
+   "currency": "KRW"
+  },
+  "AUD-0308": {
+   "sellingUnitPrice": "330000",
+   "currency": "KRW"
+  },
+  "AUD-0309": {
+   "sellingUnitPrice": "240000",
+   "currency": "KRW"
+  },
+  "AUD-0310": {
+   "sellingUnitPrice": "375000",
+   "currency": "KRW"
+  },
+  "AUD-0311": {
+   "sellingUnitPrice": "499000",
+   "currency": "KRW"
+  },
+  "AUD-0312": {
+   "sellingUnitPrice": "2670000",
+   "currency": "KRW"
+  },
+  "AUD-0313": {
+   "sellingUnitPrice": "200000",
+   "currency": "KRW"
+  },
+  "AUD-0314": {
+   "sellingUnitPrice": "2000000",
+   "currency": "KRW"
+  },
+  "AUD-0315": {
+   "sellingUnitPrice": "200000",
+   "currency": "KRW"
+  },
+  "AUD-0316": {
+   "sellingUnitPrice": "1190000",
+   "currency": "KRW"
+  },
+  "AUD-0317": {
+   "sellingUnitPrice": "48000",
+   "currency": "KRW"
+  },
+  "AUD-0318": {
+   "sellingUnitPrice": "850000",
+   "currency": "KRW"
+  },
+  "AUD-0319": {
+   "sellingUnitPrice": "219000",
+   "currency": "KRW"
+  },
+  "AUD-0320": {
+   "sellingUnitPrice": "935000",
+   "currency": "KRW"
+  },
+  "AUD-0323": {
+   "sellingUnitPrice": "866000",
+   "currency": "KRW"
+  },
+  "AUD-0325": {
+   "sellingUnitPrice": "651000",
+   "currency": "KRW"
+  },
+  "AUD-0326": {
+   "sellingUnitPrice": "125000",
+   "currency": "KRW"
+  },
+  "AUD-0328": {
+   "sellingUnitPrice": "156000",
+   "currency": "KRW"
+  },
+  "AUD-0329": {
+   "sellingUnitPrice": "188000",
+   "currency": "KRW"
+  },
+  "AUD-0330": {
+   "sellingUnitPrice": "230000",
+   "currency": "KRW"
+  },
+  "AUD-0331": {
+   "sellingUnitPrice": "300000",
+   "currency": "KRW"
+  },
+  "AUD-0332": {
+   "sellingUnitPrice": "315000",
+   "currency": "KRW"
+  },
+  "AUD-0333": {
+   "sellingUnitPrice": "479000",
+   "currency": "KRW"
+  },
+  "AUD-0334": {
+   "sellingUnitPrice": "110000",
+   "currency": "KRW"
+  },
+  "AUD-0335": {
+   "sellingUnitPrice": "329000",
+   "currency": "KRW"
+  },
+  "AUD-0337": {
+   "sellingUnitPrice": "498000",
+   "currency": "KRW"
+  },
+  "AUD-0338": {
+   "sellingUnitPrice": "99000",
+   "currency": "KRW"
+  },
+  "AUD-0340": {
+   "sellingUnitPrice": "268000",
+   "currency": "KRW"
+  },
+  "AUD-0342": {
+   "sellingUnitPrice": "81000",
+   "currency": "KRW"
+  },
+  "AUD-0343": {
+   "sellingUnitPrice": "44000",
+   "currency": "KRW"
+  },
+  "VID-0006": {
+   "sellingUnitPrice": "11475000",
+   "currency": "KRW"
+  },
+  "VID-0007": {
+   "sellingUnitPrice": "250000",
+   "currency": "KRW"
+  },
+  "VID-0008": {
+   "sellingUnitPrice": "450000",
+   "currency": "KRW"
+  },
+  "VID-0009": {
+   "sellingUnitPrice": "3552000",
+   "currency": "KRW"
+  },
+  "VID-0010": {
+   "sellingUnitPrice": "6020000",
+   "currency": "KRW"
+  },
+  "VID-0011": {
+   "sellingUnitPrice": "150000",
+   "currency": "KRW"
+  },
+  "VID-0012": {
+   "sellingUnitPrice": "5040000",
+   "currency": "KRW"
+  },
+  "VID-0013": {
+   "sellingUnitPrice": "2657000",
+   "currency": "KRW"
+  },
+  "VID-0014": {
+   "sellingUnitPrice": "5060000",
+   "currency": "KRW"
+  },
+  "VID-0016": {
+   "sellingUnitPrice": "5850000",
+   "currency": "KRW"
+  },
+  "VID-0017": {
+   "sellingUnitPrice": "5083000",
+   "currency": "KRW"
+  },
+  "VID-0018": {
+   "sellingUnitPrice": "4560000",
+   "currency": "KRW"
+  },
+  "VID-0019": {
+   "sellingUnitPrice": "4025000",
+   "currency": "KRW"
+  },
+  "VID-0020": {
+   "sellingUnitPrice": "150000",
+   "currency": "KRW"
+  },
+  "VID-0021": {
+   "sellingUnitPrice": "480000",
+   "currency": "KRW"
+  },
+  "VID-0022": {
+   "sellingUnitPrice": "1518000",
+   "currency": "KRW"
+  },
+  "VID-0024": {
+   "sellingUnitPrice": "4060000",
+   "currency": "KRW"
+  },
+  "VID-0025": {
+   "sellingUnitPrice": "8120000",
+   "currency": "KRW"
+  },
+  "VID-0026": {
+   "sellingUnitPrice": "13200000",
+   "currency": "KRW"
+  },
+  "VID-0027": {
+   "sellingUnitPrice": "195000",
+   "currency": "KRW"
+  },
+  "VID-0028": {
+   "sellingUnitPrice": "1650000",
+   "currency": "KRW"
+  },
+  "VID-0029": {
+   "sellingUnitPrice": "150000",
+   "currency": "KRW"
+  },
+  "VID-0030": {
+   "sellingUnitPrice": "2835000",
+   "currency": "KRW"
+  },
+  "VID-0031": {
+   "sellingUnitPrice": "9920000",
+   "currency": "KRW"
+  },
+  "VID-0034": {
+   "sellingUnitPrice": "900000",
+   "currency": "KRW"
+  },
+  "VID-0035": {
+   "sellingUnitPrice": "150000",
+   "currency": "KRW"
+  },
+  "VID-0037": {
+   "sellingUnitPrice": "20800",
+   "currency": "KRW"
+  },
+  "VID-0038": {
+   "sellingUnitPrice": "34600",
+   "currency": "KRW"
+  },
+  "VID-0040": {
+   "sellingUnitPrice": "2800000",
+   "currency": "KRW"
+  },
+  "VID-0041": {
+   "sellingUnitPrice": "69900",
+   "currency": "KRW"
+  },
+  "VID-0042": {
+   "sellingUnitPrice": "156200",
+   "currency": "KRW"
+  },
+  "VID-0043": {
+   "sellingUnitPrice": "240000",
+   "currency": "KRW"
+  },
+  "VID-0045": {
+   "sellingUnitPrice": "460000",
+   "currency": "KRW"
+  },
+  "VID-0047": {
+   "sellingUnitPrice": "990000",
+   "currency": "KRW"
+  },
+  "VID-0050": {
+   "sellingUnitPrice": "600000",
+   "currency": "KRW"
+  },
+  "VID-0051": {
+   "sellingUnitPrice": "650000",
+   "currency": "KRW"
+  },
+  "VID-0052": {
+   "sellingUnitPrice": "3850000",
+   "currency": "KRW"
+  },
+  "VID-0053": {
+   "sellingUnitPrice": "4080000",
+   "currency": "KRW"
+  },
+  "VID-0054": {
+   "sellingUnitPrice": "2280000",
+   "currency": "KRW"
+  },
+  "VID-0055": {
+   "sellingUnitPrice": "3840000",
+   "currency": "KRW"
+  },
+  "VID-0056": {
+   "sellingUnitPrice": "6000000",
+   "currency": "KRW"
+  },
+  "VID-0057": {
+   "sellingUnitPrice": "7000000",
+   "currency": "KRW"
+  },
+  "VID-0058": {
+   "sellingUnitPrice": "1820000",
+   "currency": "KRW"
+  },
+  "VID-0059": {
+   "sellingUnitPrice": "4950000",
+   "currency": "KRW"
+  },
+  "VID-0061": {
+   "sellingUnitPrice": "27300000",
+   "currency": "KRW"
+  },
+  "VID-0062": {
+   "sellingUnitPrice": "41720000",
+   "currency": "KRW"
+  },
+  "VID-0065": {
+   "sellingUnitPrice": "2475000",
+   "currency": "KRW"
+  },
+  "VID-0066": {
+   "sellingUnitPrice": "5200000",
+   "currency": "KRW"
+  },
+  "VID-0067": {
+   "sellingUnitPrice": "163240000",
+   "currency": "KRW"
+  },
+  "VID-0069": {
+   "sellingUnitPrice": "193620000",
+   "currency": "KRW"
+  },
+  "VID-0074": {
+   "sellingUnitPrice": "78820000",
+   "currency": "KRW"
+  },
+  "VID-0075": {
+   "sellingUnitPrice": "106820000",
+   "currency": "KRW"
+  },
+  "VID-0076": {
+   "sellingUnitPrice": "2475000",
+   "currency": "KRW"
+  },
+  "VID-0077": {
+   "sellingUnitPrice": "25500000",
+   "currency": "KRW"
+  },
+  "VID-0078": {
+   "sellingUnitPrice": "24570000",
+   "currency": "KRW"
+  },
+  "VID-0079": {
+   "sellingUnitPrice": "5320000",
+   "currency": "KRW"
+  },
+  "VID-0080": {
+   "sellingUnitPrice": "3640000",
+   "currency": "KRW"
+  },
+  "VID-0082": {
+   "sellingUnitPrice": "2366000",
+   "currency": "KRW"
+  },
+  "VID-0083": {
+   "sellingUnitPrice": "1050000",
+   "currency": "KRW"
+  },
+  "VID-0084": {
+   "sellingUnitPrice": "1988000",
+   "currency": "KRW"
+  },
+  "VID-0085": {
+   "sellingUnitPrice": "1330000",
+   "currency": "KRW"
+  },
+  "VID-0086": {
+   "sellingUnitPrice": "2660000",
+   "currency": "KRW"
+  },
+  "VID-0087": {
+   "sellingUnitPrice": "1764000",
+   "currency": "KRW"
+  },
+  "VID-0088": {
+   "sellingUnitPrice": "1904000",
+   "currency": "KRW"
+  },
+  "VID-0089": {
+   "sellingUnitPrice": "3542000",
+   "currency": "KRW"
+  },
+  "VID-0090": {
+   "sellingUnitPrice": "2660000",
+   "currency": "KRW"
+  },
+  "VID-0091": {
+   "sellingUnitPrice": "2660000",
+   "currency": "KRW"
+  },
+  "VID-0092": {
+   "sellingUnitPrice": "1540000",
+   "currency": "KRW"
+  },
+  "VID-0093": {
+   "sellingUnitPrice": "1904000",
+   "currency": "KRW"
+  },
+  "VID-0094": {
+   "sellingUnitPrice": "350000",
+   "currency": "KRW"
+  },
+  "VID-0096": {
+   "sellingUnitPrice": "4599000",
+   "currency": "KRW"
+  },
+  "VID-0097": {
+   "sellingUnitPrice": "3680000",
+   "currency": "KRW"
+  },
+  "VID-0098": {
+   "sellingUnitPrice": "1942000",
+   "currency": "KRW"
+  },
+  "VID-0099": {
+   "sellingUnitPrice": "1482000",
+   "currency": "KRW"
+  },
+  "VID-0100": {
+   "sellingUnitPrice": "1738000",
+   "currency": "KRW"
+  },
+  "VID-0101": {
+   "sellingUnitPrice": "1431000",
+   "currency": "KRW"
+  },
+  "VID-0102": {
+   "sellingUnitPrice": "2862000",
+   "currency": "KRW"
+  },
+  "VID-0103": {
+   "sellingUnitPrice": "1738000",
+   "currency": "KRW"
+  },
+  "VID-0104": {
+   "sellingUnitPrice": "1288000",
+   "currency": "KRW"
+  },
+  "VID-0105": {
+   "sellingUnitPrice": "1568000",
+   "currency": "KRW"
+  },
+  "VID-0106": {
+   "sellingUnitPrice": "1482000",
+   "currency": "KRW"
+  },
+  "VID-0107": {
+   "sellingUnitPrice": "369000",
+   "currency": "KRW"
+  },
+  "VID-0109": {
+   "sellingUnitPrice": "3782000",
+   "currency": "KRW"
+  },
+  "VID-0112": {
+   "sellingUnitPrice": "7370000",
+   "currency": "KRW"
+  },
+  "VID-0113": {
+   "sellingUnitPrice": "49000",
+   "currency": "KRW"
+  },
+  "VID-0114": {
+   "sellingUnitPrice": "176000",
+   "currency": "KRW"
+  },
+  "VID-0116": {
+   "sellingUnitPrice": "1908000",
+   "currency": "KRW"
+  },
+  "VID-0117": {
+   "sellingUnitPrice": "400000",
+   "currency": "KRW"
+  },
+  "VID-0118": {
+   "sellingUnitPrice": "34700",
+   "currency": "KRW"
+  },
+  "VID-0119": {
+   "sellingUnitPrice": "1338000",
+   "currency": "KRW"
+  },
+  "VID-0120": {
+   "sellingUnitPrice": "103100",
+   "currency": "KRW"
+  },
+  "VID-0121": {
+   "sellingUnitPrice": "949800",
+   "currency": "KRW"
+  },
+  "VID-0122": {
+   "sellingUnitPrice": "103100",
+   "currency": "KRW"
+  },
+  "VID-0123": {
+   "sellingUnitPrice": "169800",
+   "currency": "KRW"
+  },
+  "VID-0124": {
+   "sellingUnitPrice": "1148000",
+   "currency": "KRW"
+  },
+  "VID-0125": {
+   "sellingUnitPrice": "103100",
+   "currency": "KRW"
+  },
+  "VID-0126": {
+   "sellingUnitPrice": "36300",
+   "currency": "KRW"
+  },
+  "VID-0128": {
+   "sellingUnitPrice": "3850000",
+   "currency": "KRW"
+  },
+  "VID-0129": {
+   "sellingUnitPrice": "880000",
+   "currency": "KRW"
+  },
+  "VID-0130": {
+   "sellingUnitPrice": "103100",
+   "currency": "KRW"
+  },
+  "VID-0132": {
+   "sellingUnitPrice": "1520000",
+   "currency": "KRW"
+  },
+  "VID-0133": {
+   "sellingUnitPrice": "69000",
+   "currency": "KRW"
+  },
+  "VID-0136": {
+   "sellingUnitPrice": "10070000",
+   "currency": "KRW"
+  },
+  "VID-0137": {
+   "sellingUnitPrice": "7208000",
+   "currency": "KRW"
+  },
+  "VID-0138": {
+   "sellingUnitPrice": "5300000",
+   "currency": "KRW"
+  },
+  "VID-0139": {
+   "sellingUnitPrice": "721000",
+   "currency": "KRW"
+  },
+  "VID-0140": {
+   "sellingUnitPrice": "742000",
+   "currency": "KRW"
+  },
+  "VID-0141": {
+   "sellingUnitPrice": "954000",
+   "currency": "KRW"
+  },
+  "VID-0142": {
+   "sellingUnitPrice": "1166000",
+   "currency": "KRW"
+  },
+  "VID-0143": {
+   "sellingUnitPrice": "2544000",
+   "currency": "KRW"
+  },
+  "VID-0144": {
+   "sellingUnitPrice": "2862000",
+   "currency": "KRW"
+  },
+  "VID-0145": {
+   "sellingUnitPrice": "1908000",
+   "currency": "KRW"
+  },
+  "VID-0146": {
+   "sellingUnitPrice": "1908000",
+   "currency": "KRW"
+  },
+  "VID-0147": {
+   "sellingUnitPrice": "1908000",
+   "currency": "KRW"
+  },
+  "VID-0148": {
+   "sellingUnitPrice": "1908000",
+   "currency": "KRW"
+  },
+  "VID-0149": {
+   "sellingUnitPrice": "1166000",
+   "currency": "KRW"
+  },
+  "VID-0150": {
+   "sellingUnitPrice": "1166000",
+   "currency": "KRW"
+  },
+  "VID-0151": {
+   "sellingUnitPrice": "138000",
+   "currency": "KRW"
+  },
+  "VID-0152": {
+   "sellingUnitPrice": "2226000",
+   "currency": "KRW"
+  },
+  "VID-0153": {
+   "sellingUnitPrice": "2226000",
+   "currency": "KRW"
+  },
+  "VID-0155": {
+   "sellingUnitPrice": "16960000",
+   "currency": "KRW"
+  },
+  "VID-0156": {
+   "sellingUnitPrice": "10600000",
+   "currency": "KRW"
+  },
+  "VID-0157": {
+   "sellingUnitPrice": "7950000",
+   "currency": "KRW"
+  },
+  "VID-0158": {
+   "sellingUnitPrice": "4770000",
+   "currency": "KRW"
+  },
+  "VID-0159": {
+   "sellingUnitPrice": "2438000",
+   "currency": "KRW"
+  },
+  "VID-0160": {
+   "sellingUnitPrice": "1060000",
+   "currency": "KRW"
+  },
+  "VID-0161": {
+   "sellingUnitPrice": "1484000",
+   "currency": "KRW"
+  },
+  "VID-0162": {
+   "sellingUnitPrice": "1484000",
+   "currency": "KRW"
+  },
+  "VID-0163": {
+   "sellingUnitPrice": "1696000",
+   "currency": "KRW"
+  },
+  "VID-0165": {
+   "sellingUnitPrice": "25440000",
+   "currency": "KRW"
+  },
+  "VID-0166": {
+   "sellingUnitPrice": "21200000",
+   "currency": "KRW"
+  },
+  "VID-0167": {
+   "sellingUnitPrice": "6890000",
+   "currency": "KRW"
+  },
+  "VID-0168": {
+   "sellingUnitPrice": "3816000",
+   "currency": "KRW"
+  },
+  "VID-0169": {
+   "sellingUnitPrice": "2460000",
+   "currency": "KRW"
+  },
+  "VID-0170": {
+   "sellingUnitPrice": "1219000",
+   "currency": "KRW"
+  },
+  "VID-0171": {
+   "sellingUnitPrice": "456000",
+   "currency": "KRW"
+  },
+  "VID-0172": {
+   "sellingUnitPrice": "1166000",
+   "currency": "KRW"
+  },
+  "VID-0173": {
+   "sellingUnitPrice": "976000",
+   "currency": "KRW"
+  },
+  "VID-0174": {
+   "sellingUnitPrice": "456000",
+   "currency": "KRW"
+  },
+  "VID-0175": {
+   "sellingUnitPrice": "976000",
+   "currency": "KRW"
+  },
+  "VID-0176": {
+   "sellingUnitPrice": "1166000",
+   "currency": "KRW"
+  },
+  "VID-0177": {
+   "sellingUnitPrice": "1378000",
+   "currency": "KRW"
+  },
+  "VID-0178": {
+   "sellingUnitPrice": "1325000",
+   "currency": "KRW"
+  },
+  "VID-0179": {
+   "sellingUnitPrice": "1166000",
+   "currency": "KRW"
+  },
+  "VID-0181": {
+   "sellingUnitPrice": "1908000",
+   "currency": "KRW"
+  },
+  "VID-0182": {
+   "sellingUnitPrice": "4770000",
+   "currency": "KRW"
+  },
+  "VID-0183": {
+   "sellingUnitPrice": "1272000",
+   "currency": "KRW"
+  },
+  "VID-0184": {
+   "sellingUnitPrice": "212000",
+   "currency": "KRW"
+  },
+  "VID-0185": {
+   "sellingUnitPrice": "297000",
+   "currency": "KRW"
+  },
+  "VID-0186": {
+   "sellingUnitPrice": "1680000",
+   "currency": "KRW"
+  },
+  "VID-0188": {
+   "sellingUnitPrice": "660000",
+   "currency": "KRW"
+  },
+  "VID-0189": {
+   "sellingUnitPrice": "924000",
+   "currency": "KRW"
+  },
+  "VID-0190": {
+   "sellingUnitPrice": "166000",
+   "currency": "KRW"
+  },
+  "VID-0193": {
+   "sellingUnitPrice": "117000",
+   "currency": "KRW"
+  },
+  "VID-0194": {
+   "sellingUnitPrice": "170000",
+   "currency": "KRW"
+  },
+  "VID-0195": {
+   "sellingUnitPrice": "318000",
+   "currency": "KRW"
+  },
+  "VID-0196": {
+   "sellingUnitPrice": "265000",
+   "currency": "KRW"
+  },
+  "VID-0197": {
+   "sellingUnitPrice": "297000",
+   "currency": "KRW"
+  },
+  "VID-0198": {
+   "sellingUnitPrice": "371000",
+   "currency": "KRW"
+  },
+  "VID-0199": {
+   "sellingUnitPrice": "509000",
+   "currency": "KRW"
+  },
+  "VID-0200": {
+   "sellingUnitPrice": "298000",
+   "currency": "KRW"
+  },
+  "VID-0202": {
+   "sellingUnitPrice": "413000",
+   "currency": "KRW"
+  },
+  "VID-0203": {
+   "sellingUnitPrice": "549000",
+   "currency": "KRW"
+  },
+  "VID-0204": {
+   "sellingUnitPrice": "1098000",
+   "currency": "KRW"
+  },
+  "VID-0206": {
+   "sellingUnitPrice": "155000",
+   "currency": "KRW"
+  },
+  "VID-0208": {
+   "sellingUnitPrice": "2058000",
+   "currency": "KRW"
+  },
+  "VID-0210": {
+   "sellingUnitPrice": "2453000",
+   "currency": "KRW"
+  },
+  "VID-0211": {
+   "sellingUnitPrice": "935000",
+   "currency": "KRW"
+  },
+  "VID-0214": {
+   "sellingUnitPrice": "721000",
+   "currency": "KRW"
+  },
+  "VID-0215": {
+   "sellingUnitPrice": "721000",
+   "currency": "KRW"
+  },
+  "VID-0216": {
+   "sellingUnitPrice": "484000",
+   "currency": "KRW"
+  },
+  "VID-0217": {
+   "sellingUnitPrice": "484000",
+   "currency": "KRW"
+  },
+  "VID-0218": {
+   "sellingUnitPrice": "291000",
+   "currency": "KRW"
+  },
+  "VID-0219": {
+   "sellingUnitPrice": "291000",
+   "currency": "KRW"
+  },
+  "VID-0221": {
+   "sellingUnitPrice": "130000",
+   "currency": "KRW"
+  },
+  "VID-0222": {
+   "sellingUnitPrice": "130000",
+   "currency": "KRW"
+  },
+  "VID-0223": {
+   "sellingUnitPrice": "380000",
+   "currency": "KRW"
+  },
+  "VID-0224": {
+   "sellingUnitPrice": "190000",
+   "currency": "KRW"
+  },
+  "VID-0225": {
+   "sellingUnitPrice": "190000",
+   "currency": "KRW"
+  },
+  "VID-0227": {
+   "sellingUnitPrice": "2030000",
+   "currency": "KRW"
+  },
+  "VID-0228": {
+   "sellingUnitPrice": "2030000",
+   "currency": "KRW"
+  },
+  "VID-0230": {
+   "sellingUnitPrice": "1820000",
+   "currency": "KRW"
+  },
+  "VID-0231": {
+   "sellingUnitPrice": "1820000",
+   "currency": "KRW"
+  },
+  "VID-0233": {
+   "sellingUnitPrice": "687000",
+   "currency": "KRW"
+  },
+  "VID-0234": {
+   "sellingUnitPrice": "1134000",
+   "currency": "KRW"
+  },
+  "VID-0235": {
+   "sellingUnitPrice": "902000",
+   "currency": "KRW"
+  },
+  "VID-0236": {
+   "sellingUnitPrice": "165000",
+   "currency": "KRW"
+  },
+  "VID-0237": {
+   "sellingUnitPrice": "819000",
+   "currency": "KRW"
+  },
+  "VID-0238": {
+   "sellingUnitPrice": "275000",
+   "currency": "KRW"
+  },
+  "VID-0239": {
+   "sellingUnitPrice": "50000",
+   "currency": "KRW"
+  },
+  "VID-0241": {
+   "sellingUnitPrice": "2400000",
+   "currency": "KRW"
+  },
+  "VID-0242": {
+   "sellingUnitPrice": "2340000",
+   "currency": "KRW"
+  },
+  "VID-0243": {
+   "sellingUnitPrice": "420000",
+   "currency": "KRW"
+  },
+  "VID-0244": {
+   "sellingUnitPrice": "1680000",
+   "currency": "KRW"
+  },
+  "VID-0245": {
+   "sellingUnitPrice": "1120000",
+   "currency": "KRW"
+  },
+  "VID-0246": {
+   "sellingUnitPrice": "980000",
+   "currency": "KRW"
+  },
+  "VID-0248": {
+   "sellingUnitPrice": "882000",
+   "currency": "KRW"
+  },
+  "VID-0250": {
+   "sellingUnitPrice": "689000",
+   "currency": "KRW"
+  },
+  "VID-0251": {
+   "sellingUnitPrice": "742000",
+   "currency": "KRW"
+  },
+  "VID-0252": {
+   "sellingUnitPrice": "689000",
+   "currency": "KRW"
+  },
+  "VID-0253": {
+   "sellingUnitPrice": "754000",
+   "currency": "KRW"
+  },
+  "VID-0254": {
+   "sellingUnitPrice": "59000",
+   "currency": "KRW"
+  },
+  "VID-0255": {
+   "sellingUnitPrice": "52000",
+   "currency": "KRW"
+  },
+  "VID-0256": {
+   "sellingUnitPrice": "365000",
+   "currency": "KRW"
+  },
+  "VID-0257": {
+   "sellingUnitPrice": "255000",
+   "currency": "KRW"
+  },
+  "VID-0258": {
+   "sellingUnitPrice": "255000",
+   "currency": "KRW"
+  },
+  "VID-0259": {
+   "sellingUnitPrice": "530000",
+   "currency": "KRW"
+  },
+  "VID-0260": {
+   "sellingUnitPrice": "530000",
+   "currency": "KRW"
+  },
+  "VID-0261": {
+   "sellingUnitPrice": "583000",
+   "currency": "KRW"
+  },
+  "VID-0262": {
+   "sellingUnitPrice": "456000",
+   "currency": "KRW"
+  },
+  "VID-0263": {
+   "sellingUnitPrice": "456000",
+   "currency": "KRW"
+  },
+  "VID-0264": {
+   "sellingUnitPrice": "234000",
+   "currency": "KRW"
+  },
+  "VID-0265": {
+   "sellingUnitPrice": "234000",
+   "currency": "KRW"
+  },
+  "VID-0266": {
+   "sellingUnitPrice": "933000",
+   "currency": "KRW"
+  },
+  "VID-0267": {
+   "sellingUnitPrice": "50000",
+   "currency": "KRW"
+  },
+  "VID-0269": {
+   "sellingUnitPrice": "258000",
+   "currency": "KRW"
+  },
+  "VID-0270": {
+   "sellingUnitPrice": "129000",
+   "currency": "KRW"
+  },
+  "VID-0272": {
+   "sellingUnitPrice": "3047000",
+   "currency": "KRW"
+  },
+  "VID-0273": {
+   "sellingUnitPrice": "3409000",
+   "currency": "KRW"
+  },
+  "VID-0274": {
+   "sellingUnitPrice": "21000",
+   "currency": "KRW"
+  },
+  "VID-0275": {
+   "sellingUnitPrice": "5201000",
+   "currency": "KRW"
+  },
+  "VID-0276": {
+   "sellingUnitPrice": "40000",
+   "currency": "KRW"
+  },
+  "VID-0277": {
+   "sellingUnitPrice": "21000",
+   "currency": "KRW"
+  },
+  "VID-0278": {
+   "sellingUnitPrice": "2338000",
+   "currency": "KRW"
+  },
+  "VID-0279": {
+   "sellingUnitPrice": "3467000",
+   "currency": "KRW"
+  },
+  "VID-0281": {
+   "sellingUnitPrice": "319000",
+   "currency": "KRW"
+  },
+  "VID-0284": {
+   "sellingUnitPrice": "297000",
+   "currency": "KRW"
+  },
+  "VID-0286": {
+   "sellingUnitPrice": "1098000",
+   "currency": "KRW"
+  },
+  "VID-0288": {
+   "sellingUnitPrice": "4900000",
+   "currency": "KRW"
+  },
+  "VID-0289": {
+   "sellingUnitPrice": "720000",
+   "currency": "KRW"
+  },
+  "VID-0291": {
+   "sellingUnitPrice": "450000",
+   "currency": "KRW"
+  },
+  "VID-0292": {
+   "sellingUnitPrice": "720000",
+   "currency": "KRW"
+  },
+  "VID-0293": {
+   "sellingUnitPrice": "360000",
+   "currency": "KRW"
+  },
+  "VID-0294": {
+   "sellingUnitPrice": "360000",
+   "currency": "KRW"
+  },
+  "VID-0295": {
+   "sellingUnitPrice": "300000",
+   "currency": "KRW"
+  },
+  "VID-0296": {
+   "sellingUnitPrice": "300000",
+   "currency": "KRW"
+  },
+  "VID-0298": {
+   "sellingUnitPrice": "276000",
+   "currency": "KRW"
+  },
+  "VID-0301": {
+   "sellingUnitPrice": "4632000",
+   "currency": "KRW"
+  },
+  "VID-0302": {
+   "sellingUnitPrice": "3444000",
+   "currency": "KRW"
+  },
+  "VID-0303": {
+   "sellingUnitPrice": "360000",
+   "currency": "KRW"
+  },
+  "VID-0304": {
+   "sellingUnitPrice": "1375000",
+   "currency": "KRW"
+  },
+  "VID-0305": {
+   "sellingUnitPrice": "2200000",
+   "currency": "KRW"
+  },
+  "VID-0306": {
+   "sellingUnitPrice": "149000",
+   "currency": "KRW"
+  },
+  "VID-0307": {
+   "sellingUnitPrice": "1235000",
+   "currency": "KRW"
+  },
+  "VID-0309": {
+   "sellingUnitPrice": "2350000",
+   "currency": "KRW"
+  },
+  "VID-0310": {
+   "sellingUnitPrice": "2350000",
+   "currency": "KRW"
+  },
+  "VID-0313": {
+   "sellingUnitPrice": "605000",
+   "currency": "KRW"
+  },
+  "VID-0314": {
+   "sellingUnitPrice": "2990000",
+   "currency": "KRW"
+  },
+  "VID-0315": {
+   "sellingUnitPrice": "1100000",
+   "currency": "KRW"
+  },
+  "VID-0316": {
+   "sellingUnitPrice": "385000",
+   "currency": "KRW"
+  },
+  "VID-0317": {
+   "sellingUnitPrice": "239000",
+   "currency": "KRW"
+  },
+  "VID-0318": {
+   "sellingUnitPrice": "806000",
+   "currency": "KRW"
+  },
+  "VID-0319": {
+   "sellingUnitPrice": "806000",
+   "currency": "KRW"
+  },
+  "VID-0322": {
+   "sellingUnitPrice": "730000",
+   "currency": "KRW"
+  },
+  "VID-0323": {
+   "sellingUnitPrice": "1340000",
+   "currency": "KRW"
+  },
+  "VID-0326": {
+   "sellingUnitPrice": "2509000",
+   "currency": "KRW"
+  },
+  "VID-0327": {
+   "sellingUnitPrice": "240000",
+   "currency": "KRW"
+  },
+  "VID-0328": {
+   "sellingUnitPrice": "360000",
+   "currency": "KRW"
+  },
+  "VID-0330": {
+   "sellingUnitPrice": "9900000",
+   "currency": "KRW"
+  },
+  "VID-0332": {
+   "sellingUnitPrice": "1898000",
+   "currency": "KRW"
+  },
+  "VID-0333": {
+   "sellingUnitPrice": "150000",
+   "currency": "KRW"
+  },
+  "VID-0335": {
+   "sellingUnitPrice": "975000",
+   "currency": "KRW"
+  },
+  "VID-0336": {
+   "sellingUnitPrice": "1331000",
+   "currency": "KRW"
+  },
+  "VID-0338": {
+   "sellingUnitPrice": "159600",
+   "currency": "KRW"
+  },
+  "VID-0340": {
+   "sellingUnitPrice": "495000.0000000001",
+   "currency": "KRW"
+  },
+  "VID-0346": {
+   "sellingUnitPrice": "81200000",
+   "currency": "KRW"
+  },
+  "VID-0348": {
+   "sellingUnitPrice": "20160000",
+   "currency": "KRW"
+  },
+  "VID-0349": {
+   "sellingUnitPrice": "10780000",
+   "currency": "KRW"
+  },
+  "VID-0350": {
+   "sellingUnitPrice": "11900000",
+   "currency": "KRW"
+  },
+  "VID-0351": {
+   "sellingUnitPrice": "15400000",
+   "currency": "KRW"
+  },
+  "VID-0352": {
+   "sellingUnitPrice": "4200000",
+   "currency": "KRW"
+  },
+  "VID-0353": {
+   "sellingUnitPrice": "2324000",
+   "currency": "KRW"
+  },
+  "VID-0354": {
+   "sellingUnitPrice": "8820000",
+   "currency": "KRW"
+  },
+  "VID-0355": {
+   "sellingUnitPrice": "630000",
+   "currency": "KRW"
+  },
+  "VID-0357": {
+   "sellingUnitPrice": "16100000",
+   "currency": "KRW"
+  },
+  "VID-0358": {
+   "sellingUnitPrice": "15400000",
+   "currency": "KRW"
+  },
+  "VID-0359": {
+   "sellingUnitPrice": "22260000",
+   "currency": "KRW"
+  },
+  "VID-0361": {
+   "sellingUnitPrice": "24500000",
+   "currency": "KRW"
+  },
+  "VID-0362": {
+   "sellingUnitPrice": "40040000",
+   "currency": "KRW"
+  },
+  "VID-0363": {
+   "sellingUnitPrice": "11760000",
+   "currency": "KRW"
+  },
+  "VID-0364": {
+   "sellingUnitPrice": "3500000",
+   "currency": "KRW"
+  },
+  "VID-0368": {
+   "sellingUnitPrice": "10640000",
+   "currency": "KRW"
+  },
+  "VID-0371": {
+   "sellingUnitPrice": "23800000",
+   "currency": "KRW"
+  },
+  "VID-0372": {
+   "sellingUnitPrice": "1820000",
+   "currency": "KRW"
+  },
+  "VID-0373": {
+   "sellingUnitPrice": "490000",
+   "currency": "KRW"
+  },
+  "VID-0374": {
+   "sellingUnitPrice": "1050000",
+   "currency": "KRW"
+  },
+  "VID-0376": {
+   "sellingUnitPrice": "36960000",
+   "currency": "KRW"
+  },
+  "VID-0377": {
+   "sellingUnitPrice": "1820000",
+   "currency": "KRW"
+  },
+  "VID-0378": {
+   "sellingUnitPrice": "490000",
+   "currency": "KRW"
+  },
+  "VID-0379": {
+   "sellingUnitPrice": "1050000",
+   "currency": "KRW"
+  },
+  "VID-0380": {
+   "sellingUnitPrice": "538000",
+   "currency": "KRW"
+  },
+  "VID-0382": {
+   "sellingUnitPrice": "4550000",
+   "currency": "KRW"
+  },
+  "VID-0384": {
+   "sellingUnitPrice": "1540000",
+   "currency": "KRW"
+  },
+  "VID-0385": {
+   "sellingUnitPrice": "5040000",
+   "currency": "KRW"
+  },
+  "VID-0387": {
+   "sellingUnitPrice": "812000",
+   "currency": "KRW"
+  },
+  "VID-0389": {
+   "sellingUnitPrice": "7420000",
+   "currency": "KRW"
+  },
+  "VID-0390": {
+   "sellingUnitPrice": "2128000",
+   "currency": "KRW"
+  },
+  "VID-0391": {
+   "sellingUnitPrice": "798000",
+   "currency": "KRW"
+  },
+  "VID-0394": {
+   "sellingUnitPrice": "6810000",
+   "currency": "KRW"
+  },
+  "VID-0395": {
+   "sellingUnitPrice": "9530000",
+   "currency": "KRW"
+  },
+  "VID-0396": {
+   "sellingUnitPrice": "654000",
+   "currency": "KRW"
+  },
+  "VID-0397": {
+   "sellingUnitPrice": "1095000",
+   "currency": "KRW"
+  },
+  "VID-0398": {
+   "sellingUnitPrice": "1308000",
+   "currency": "KRW"
+  },
+  "VID-0399": {
+   "sellingUnitPrice": "2126000",
+   "currency": "KRW"
+  },
+  "VID-0400": {
+   "sellingUnitPrice": "852000",
+   "currency": "KRW"
+  },
+  "VID-0401": {
+   "sellingUnitPrice": "1516000",
+   "currency": "KRW"
+  },
+  "VID-0402": {
+   "sellingUnitPrice": "1095000",
+   "currency": "KRW"
+  },
+  "VID-0403": {
+   "sellingUnitPrice": "1623000",
+   "currency": "KRW"
+  },
+  "VID-0405": {
+   "sellingUnitPrice": "688000",
+   "currency": "KRW"
+  },
+  "VID-0406": {
+   "sellingUnitPrice": "688000",
+   "currency": "KRW"
+  },
+  "VID-0407": {
+   "sellingUnitPrice": "921000",
+   "currency": "KRW"
+  },
+  "TVD-0006": {
+   "sellingUnitPrice": "759000",
+   "currency": "KRW"
+  },
+  "TVD-0007": {
+   "sellingUnitPrice": "828000",
+   "currency": "KRW"
+  },
+  "TVD-0008": {
+   "sellingUnitPrice": "1035000",
+   "currency": "KRW"
+  },
+  "TVD-0009": {
+   "sellingUnitPrice": "1242000",
+   "currency": "KRW"
+  },
+  "TVD-0010": {
+   "sellingUnitPrice": "2001000",
+   "currency": "KRW"
+  },
+  "TVD-0011": {
+   "sellingUnitPrice": "2622000",
+   "currency": "KRW"
+  },
+  "TVD-0013": {
+   "sellingUnitPrice": "469000",
+   "currency": "KRW"
+  },
+  "TVD-0014": {
+   "sellingUnitPrice": "579000",
+   "currency": "KRW"
+  },
+  "TVD-0015": {
+   "sellingUnitPrice": "710000",
+   "currency": "KRW"
+  },
+  "TVD-0016": {
+   "sellingUnitPrice": "930000",
+   "currency": "KRW"
+  },
+  "TVD-0017": {
+   "sellingUnitPrice": "1288000",
+   "currency": "KRW"
+  },
+  "TVD-0018": {
+   "sellingUnitPrice": "1867000",
+   "currency": "KRW"
+  },
+  "TVD-0021": {
+   "sellingUnitPrice": "368000",
+   "currency": "KRW"
+  },
+  "TVD-0022": {
+   "sellingUnitPrice": "557000",
+   "currency": "KRW"
+  },
+  "TVD-0023": {
+   "sellingUnitPrice": "672000",
+   "currency": "KRW"
+  },
+  "TVD-0024": {
+   "sellingUnitPrice": "777000",
+   "currency": "KRW"
+  },
+  "TVD-0025": {
+   "sellingUnitPrice": "998000",
+   "currency": "KRW"
+  },
+  "TVD-0026": {
+   "sellingUnitPrice": "1607000",
+   "currency": "KRW"
+  },
+  "TVD-0027": {
+   "sellingUnitPrice": "2835000",
+   "currency": "KRW"
+  },
+  "TVD-0028": {
+   "sellingUnitPrice": "4830000",
+   "currency": "KRW"
+  },
+  "TVD-0029": {
+   "sellingUnitPrice": "5740000",
+   "currency": "KRW"
+  },
+  "TVD-0031": {
+   "sellingUnitPrice": "662000",
+   "currency": "KRW"
+  },
+  "TVD-0032": {
+   "sellingUnitPrice": "809000",
+   "currency": "KRW"
+  },
+  "TVD-0033": {
+   "sellingUnitPrice": "903000",
+   "currency": "KRW"
+  },
+  "TVD-0034": {
+   "sellingUnitPrice": "1082000",
+   "currency": "KRW"
+  },
+  "TVD-0035": {
+   "sellingUnitPrice": "1701000",
+   "currency": "KRW"
+  },
+  "TVD-0036": {
+   "sellingUnitPrice": "19500000",
+   "currency": "KRW"
+  },
+  "TVD-0039": {
+   "sellingUnitPrice": "1173000",
+   "currency": "KRW"
+  },
+  "TVD-0040": {
+   "sellingUnitPrice": "1668000",
+   "currency": "KRW"
+  },
+  "TVD-0041": {
+   "sellingUnitPrice": "2208000",
+   "currency": "KRW"
+  },
+  "TVD-0042": {
+   "sellingUnitPrice": "2783000",
+   "currency": "KRW"
+  },
+  "TVD-0044": {
+   "sellingUnitPrice": "2783000",
+   "currency": "KRW"
+  },
+  "TVD-0045": {
+   "sellingUnitPrice": "3048000",
+   "currency": "KRW"
+  },
+  "TVD-0048": {
+   "sellingUnitPrice": "3894000",
+   "currency": "KRW"
+  },
+  "TVD-0049": {
+   "sellingUnitPrice": "110000",
+   "currency": "KRW"
+  },
+  "TVD-0050": {
+   "sellingUnitPrice": "2934000",
+   "currency": "KRW"
+  },
+  "TVD-0051": {
+   "sellingUnitPrice": "83000",
+   "currency": "KRW"
+  },
+  "TVD-0052": {
+   "sellingUnitPrice": "76000",
+   "currency": "KRW"
+  },
+  "TVD-0054": {
+   "sellingUnitPrice": "137000",
+   "currency": "KRW"
+  },
+  "TVD-0055": {
+   "sellingUnitPrice": "80000",
+   "currency": "KRW"
+  },
+  "TVD-0056": {
+   "sellingUnitPrice": "147000",
+   "currency": "KRW"
+  },
+  "TVD-0057": {
+   "sellingUnitPrice": "179000",
+   "currency": "KRW"
+  },
+  "TVD-0059": {
+   "sellingUnitPrice": "1672000",
+   "currency": "KRW"
+  },
+  "TVD-0060": {
+   "sellingUnitPrice": "2101000",
+   "currency": "KRW"
+  },
+  "TVD-0061": {
+   "sellingUnitPrice": "4180000",
+   "currency": "KRW"
+  },
+  "TVD-0062": {
+   "sellingUnitPrice": "18360000",
+   "currency": "KRW"
+  },
+  "TVD-0064": {
+   "sellingUnitPrice": "3700000",
+   "currency": "KRW"
+  },
+  "TVD-0065": {
+   "sellingUnitPrice": "4300000",
+   "currency": "KRW"
+  },
+  "TVD-0066": {
+   "sellingUnitPrice": "4800000",
+   "currency": "KRW"
+  },
+  "TVD-0067": {
+   "sellingUnitPrice": "5000000",
+   "currency": "KRW"
+  },
+  "TVD-0068": {
+   "sellingUnitPrice": "13200000",
+   "currency": "KRW"
+  },
+  "TVD-0069": {
+   "sellingUnitPrice": "1000000",
+   "currency": "KRW"
+  },
+  "TVD-0070": {
+   "sellingUnitPrice": "1600000",
+   "currency": "KRW"
+  },
+  "TVD-0071": {
+   "sellingUnitPrice": "2300000",
+   "currency": "KRW"
+  },
+  "TVD-0072": {
+   "sellingUnitPrice": "3550000",
+   "currency": "KRW"
+  },
+  "TVD-0074": {
+   "sellingUnitPrice": "294000",
+   "currency": "KRW"
+  },
+  "TVD-0075": {
+   "sellingUnitPrice": "130000",
+   "currency": "KRW"
+  },
+  "TVD-0076": {
+   "sellingUnitPrice": "23000",
+   "currency": "KRW"
+  },
+  "TVD-0078": {
+   "sellingUnitPrice": "512000",
+   "currency": "KRW"
+  },
+  "TVD-0079": {
+   "sellingUnitPrice": "5200",
+   "currency": "KRW"
+  },
+  "TVD-0080": {
+   "sellingUnitPrice": "389000",
+   "currency": "KRW"
+  },
+  "TVD-0081": {
+   "sellingUnitPrice": "399000",
+   "currency": "KRW"
+  },
+  "TVD-0082": {
+   "sellingUnitPrice": "900000",
+   "currency": "KRW"
+  },
+  "TVD-0085": {
+   "sellingUnitPrice": "1428000",
+   "currency": "KRW"
+  },
+  "TVD-0086": {
+   "sellingUnitPrice": "168000",
+   "currency": "KRW"
+  },
+  "TVD-0087": {
+   "sellingUnitPrice": "557000",
+   "currency": "KRW"
+  },
+  "TVD-0088": {
+   "sellingUnitPrice": "714000",
+   "currency": "KRW"
+  },
+  "TVD-0089": {
+   "sellingUnitPrice": "1932000",
+   "currency": "KRW"
+  },
+  "TVD-0090": {
+   "sellingUnitPrice": "168000",
+   "currency": "KRW"
+  },
+  "TVD-0091": {
+   "sellingUnitPrice": "714000",
+   "currency": "KRW"
+  },
+  "TVD-0093": {
+   "sellingUnitPrice": "2699000",
+   "currency": "KRW"
+  },
+  "TVD-0094": {
+   "sellingUnitPrice": "1019000",
+   "currency": "KRW"
+  },
+  "TVD-0095": {
+   "sellingUnitPrice": "3570000",
+   "currency": "KRW"
+  },
+  "TVD-0096": {
+   "sellingUnitPrice": "1019000",
+   "currency": "KRW"
+  },
+  "TVD-0098": {
+   "sellingUnitPrice": "69000",
+   "currency": "KRW"
+  },
+  "TVD-0099": {
+   "sellingUnitPrice": "209000",
+   "currency": "KRW"
+  },
+  "TVD-0100": {
+   "sellingUnitPrice": "143000",
+   "currency": "KRW"
+  },
+  "TVD-0101": {
+   "sellingUnitPrice": "143000",
+   "currency": "KRW"
+  },
+  "TVD-0103": {
+   "sellingUnitPrice": "1838000",
+   "currency": "KRW"
+  },
+  "TVD-0104": {
+   "sellingUnitPrice": "746000",
+   "currency": "KRW"
+  },
+  "TVD-0105": {
+   "sellingUnitPrice": "2657000",
+   "currency": "KRW"
+  },
+  "TVD-0106": {
+   "sellingUnitPrice": "956000",
+   "currency": "KRW"
+  },
+  "TVD-0107": {
+   "sellingUnitPrice": "3675000",
+   "currency": "KRW"
+  },
+  "TVD-0108": {
+   "sellingUnitPrice": "956000",
+   "currency": "KRW"
+  },
+  "TVD-0111": {
+   "sellingUnitPrice": "1204000",
+   "currency": "KRW"
+  },
+  "TVD-0112": {
+   "sellingUnitPrice": "605000",
+   "currency": "KRW"
+  },
+  "TVD-0113": {
+   "sellingUnitPrice": "345000",
+   "currency": "KRW"
+  },
+  "TVD-0114": {
+   "sellingUnitPrice": "320000",
+   "currency": "KRW"
+  },
+  "TVD-0115": {
+   "sellingUnitPrice": "219000",
+   "currency": "KRW"
+  },
+  "TVD-0116": {
+   "sellingUnitPrice": "229000",
+   "currency": "KRW"
+  },
+  "TVD-0117": {
+   "sellingUnitPrice": "69000",
+   "currency": "KRW"
+  },
+  "TVD-0118": {
+   "sellingUnitPrice": "69000",
+   "currency": "KRW"
+  },
+  "TVD-0119": {
+   "sellingUnitPrice": "127000",
+   "currency": "KRW"
+  },
+  "TVD-0120": {
+   "sellingUnitPrice": "57500",
+   "currency": "KRW"
+  },
+  "TVD-0121": {
+   "sellingUnitPrice": "69000",
+   "currency": "KRW"
+  },
+  "TVD-0123": {
+   "sellingUnitPrice": "20000",
+   "currency": "KRW"
+  },
+  "TVD-0124": {
+   "sellingUnitPrice": "26000",
+   "currency": "KRW"
+  },
+  "TVD-0125": {
+   "sellingUnitPrice": "31000",
+   "currency": "KRW"
+  },
+  "TVD-0126": {
+   "sellingUnitPrice": "24000",
+   "currency": "KRW"
+  },
+  "TVD-0127": {
+   "sellingUnitPrice": "65000",
+   "currency": "KRW"
+  },
+  "TVD-0129": {
+   "sellingUnitPrice": "102000",
+   "currency": "KRW"
+  },
+  "TVD-0130": {
+   "sellingUnitPrice": "154000",
+   "currency": "KRW"
+  },
+  "TVD-0131": {
+   "sellingUnitPrice": "193000",
+   "currency": "KRW"
+  },
+  "TVD-0132": {
+   "sellingUnitPrice": "115000",
+   "currency": "KRW"
+  },
+  "TVD-0133": {
+   "sellingUnitPrice": "167000",
+   "currency": "KRW"
+  },
+  "TVD-0134": {
+   "sellingUnitPrice": "206000",
+   "currency": "KRW"
+  },
+  "TVD-0136": {
+   "sellingUnitPrice": "128000",
+   "currency": "KRW"
+  },
+  "TVD-0137": {
+   "sellingUnitPrice": "193000",
+   "currency": "KRW"
+  },
+  "TVD-0138": {
+   "sellingUnitPrice": "245000",
+   "currency": "KRW"
+  },
+  "TVD-0139": {
+   "sellingUnitPrice": "141000",
+   "currency": "KRW"
+  },
+  "TVD-0140": {
+   "sellingUnitPrice": "206000",
+   "currency": "KRW"
+  },
+  "TVD-0141": {
+   "sellingUnitPrice": "258000",
+   "currency": "KRW"
+  },
+  "TVD-0144": {
+   "sellingUnitPrice": "46000",
+   "currency": "KRW"
+  },
+  "TVD-0145": {
+   "sellingUnitPrice": "68000",
+   "currency": "KRW"
+  },
+  "TVD-0146": {
+   "sellingUnitPrice": "51000",
+   "currency": "KRW"
+  },
+  "TVD-0147": {
+   "sellingUnitPrice": "12000",
+   "currency": "KRW"
+  },
+  "TVD-0148": {
+   "sellingUnitPrice": "10000",
+   "currency": "KRW"
+  },
+  "TVD-0149": {
+   "sellingUnitPrice": "12000",
+   "currency": "KRW"
+  },
+  "TVD-0151": {
+   "sellingUnitPrice": "183000",
+   "currency": "KRW"
+  },
+  "TVD-0152": {
+   "sellingUnitPrice": "30000",
+   "currency": "KRW"
+  },
+  "TVD-0153": {
+   "sellingUnitPrice": "36000",
+   "currency": "KRW"
+  },
+  "TVD-0154": {
+   "sellingUnitPrice": "36000",
+   "currency": "KRW"
+  },
+  "TVD-0156": {
+   "sellingUnitPrice": "286000",
+   "currency": "KRW"
+  },
+  "TVD-0157": {
+   "sellingUnitPrice": "442000",
+   "currency": "KRW"
+  },
+  "TVD-0158": {
+   "sellingUnitPrice": "598000",
+   "currency": "KRW"
+  },
+  "TVD-0159": {
+   "sellingUnitPrice": "754000",
+   "currency": "KRW"
+  },
+  "TVD-0160": {
+   "sellingUnitPrice": "24000",
+   "currency": "KRW"
+  },
+  "TVD-0161": {
+   "sellingUnitPrice": "30000",
+   "currency": "KRW"
+  },
+  "TVD-0162": {
+   "sellingUnitPrice": "36000",
+   "currency": "KRW"
+  },
+  "TVD-0163": {
+   "sellingUnitPrice": "18000",
+   "currency": "KRW"
+  },
+  "TVD-0164": {
+   "sellingUnitPrice": "30000",
+   "currency": "KRW"
+  },
+  "TVD-0167": {
+   "sellingUnitPrice": "496000",
+   "currency": "KRW"
+  },
+  "TVD-0168": {
+   "sellingUnitPrice": "780000",
+   "currency": "KRW"
+  },
+  "TVD-0169": {
+   "sellingUnitPrice": "1140000",
+   "currency": "KRW"
+  },
+  "TVD-0170": {
+   "sellingUnitPrice": "1380000",
+   "currency": "KRW"
+  },
+  "TVD-0171": {
+   "sellingUnitPrice": "2100000",
+   "currency": "KRW"
+  },
+  "TVD-0172": {
+   "sellingUnitPrice": "48000",
+   "currency": "KRW"
+  },
+  "TVD-0173": {
+   "sellingUnitPrice": "36000",
+   "currency": "KRW"
+  },
+  "TVD-0175": {
+   "sellingUnitPrice": "148000",
+   "currency": "KRW"
+  },
+  "TVD-0176": {
+   "sellingUnitPrice": "202000",
+   "currency": "KRW"
+  },
+  "TVD-0177": {
+   "sellingUnitPrice": "166000",
+   "currency": "KRW"
+  },
+  "TVD-0179": {
+   "sellingUnitPrice": "65000",
+   "currency": "KRW"
+  },
+  "TVD-0181": {
+   "sellingUnitPrice": "550000",
+   "currency": "KRW"
+  },
+  "TVD-0182": {
+   "sellingUnitPrice": "55000",
+   "currency": "KRW"
+  },
+  "TVD-0183": {
+   "sellingUnitPrice": "510000",
+   "currency": "KRW"
+  },
+  "TVD-0185": {
+   "sellingUnitPrice": "287000",
+   "currency": "KRW"
+  },
+  "TVD-0186": {
+   "sellingUnitPrice": "361000",
+   "currency": "KRW"
+  },
+  "TVD-0188": {
+   "sellingUnitPrice": "321000",
+   "currency": "KRW"
+  },
+  "TVD-0189": {
+   "sellingUnitPrice": "30000",
+   "currency": "KRW"
+  },
+  "TVD-0190": {
+   "sellingUnitPrice": "725000",
+   "currency": "KRW"
+  },
+  "TVD-0191": {
+   "sellingUnitPrice": "80000",
+   "currency": "KRW"
+  },
+  "TVD-0192": {
+   "sellingUnitPrice": "70000",
+   "currency": "KRW"
+  },
+  "TVD-0193": {
+   "sellingUnitPrice": "50000",
+   "currency": "KRW"
+  },
+  "TVD-0194": {
+   "sellingUnitPrice": "30000",
+   "currency": "KRW"
+  },
+  "TVD-0196": {
+   "sellingUnitPrice": "1235000",
+   "currency": "KRW"
+  },
+  "TVD-0199": {
+   "sellingUnitPrice": "139000",
+   "currency": "KRW"
+  },
+  "TVD-0200": {
+   "sellingUnitPrice": "149000",
+   "currency": "KRW"
+  },
+  "TVD-0201": {
+   "sellingUnitPrice": "230000",
+   "currency": "KRW"
+  },
+  "TVD-0202": {
+   "sellingUnitPrice": "1450000",
+   "currency": "KRW"
+  },
+  "TVD-0203": {
+   "sellingUnitPrice": "25000",
+   "currency": "KRW"
+  },
+  "TVD-0205": {
+   "sellingUnitPrice": "60000",
+   "currency": "KRW"
+  },
+  "TVD-0206": {
+   "sellingUnitPrice": "80000",
+   "currency": "KRW"
+  },
+  "HEC-0006": {
+   "sellingUnitPrice": "3950000",
+   "currency": "KRW"
+  },
+  "HEC-0007": {
+   "sellingUnitPrice": "1386000",
+   "currency": "KRW"
+  },
+  "HEC-0009": {
+   "sellingUnitPrice": "5460000",
+   "currency": "KRW"
+  },
+  "HEC-0010": {
+   "sellingUnitPrice": "349000",
+   "currency": "KRW"
+  },
+  "HEC-0011": {
+   "sellingUnitPrice": "298000",
+   "currency": "KRW"
+  },
+  "HEC-0012": {
+   "sellingUnitPrice": "2600",
+   "currency": "KRW"
+  },
+  "HEC-0013": {
+   "sellingUnitPrice": "7000",
+   "currency": "KRW"
+  },
+  "HEC-0014": {
+   "sellingUnitPrice": "5000",
+   "currency": "KRW"
+  },
+  "HEC-0016": {
+   "sellingUnitPrice": "2835000",
+   "currency": "KRW"
+  },
+  "HEC-0017": {
+   "sellingUnitPrice": "2850000",
+   "currency": "KRW"
+  },
+  "HEC-0018": {
+   "sellingUnitPrice": "2700000",
+   "currency": "KRW"
+  },
+  "HEC-0019": {
+   "sellingUnitPrice": "2250000",
+   "currency": "KRW"
+  },
+  "HEC-0021": {
+   "sellingUnitPrice": "550000",
+   "currency": "KRW"
+  },
+  "HEC-0023": {
+   "sellingUnitPrice": "180000",
+   "currency": "KRW"
+  },
+  "HEC-0024": {
+   "sellingUnitPrice": "120000",
+   "currency": "KRW"
+  },
+  "HEC-0025": {
+   "sellingUnitPrice": "150000",
+   "currency": "KRW"
+  },
+  "HEC-0026": {
+   "sellingUnitPrice": "210000",
+   "currency": "KRW"
+  },
+  "HEC-0028": {
+   "sellingUnitPrice": "99000",
+   "currency": "KRW"
+  },
+  "HEC-0029": {
+   "sellingUnitPrice": "95000",
+   "currency": "KRW"
+  },
+  "HEC-0031": {
+   "sellingUnitPrice": "3000",
+   "currency": "KRW"
+  },
+  "HEC-0032": {
+   "sellingUnitPrice": "5000",
+   "currency": "KRW"
+  },
+  "HEC-0033": {
+   "sellingUnitPrice": "5000",
+   "currency": "KRW"
+  },
+  "HEC-0034": {
+   "sellingUnitPrice": "5500",
+   "currency": "KRW"
+  },
+  "HEC-0035": {
+   "sellingUnitPrice": "6000",
+   "currency": "KRW"
+  },
+  "HEC-0036": {
+   "sellingUnitPrice": "4000",
+   "currency": "KRW"
+  },
+  "HEC-0037": {
+   "sellingUnitPrice": "5500",
+   "currency": "KRW"
+  },
+  "HEC-0038": {
+   "sellingUnitPrice": "6000",
+   "currency": "KRW"
+  },
+  "HEC-0039": {
+   "sellingUnitPrice": "7000",
+   "currency": "KRW"
+  },
+  "HEC-0041": {
+   "sellingUnitPrice": "1080000",
+   "currency": "KRW"
+  },
+  "HEC-0042": {
+   "sellingUnitPrice": "2250000",
+   "currency": "KRW"
+  },
+  "HEC-0043": {
+   "sellingUnitPrice": "630000",
+   "currency": "KRW"
+  },
+  "HEC-0044": {
+   "sellingUnitPrice": "2250000",
+   "currency": "KRW"
+  },
+  "HEC-0045": {
+   "sellingUnitPrice": "1800000",
+   "currency": "KRW"
+  },
+  "HEC-0046": {
+   "sellingUnitPrice": "2250000",
+   "currency": "KRW"
+  },
+  "HEC-0047": {
+   "sellingUnitPrice": "3000000",
+   "currency": "KRW"
+  },
+  "HEC-0048": {
+   "sellingUnitPrice": "750000",
+   "currency": "KRW"
+  },
+  "HEC-0049": {
+   "sellingUnitPrice": "900000",
+   "currency": "KRW"
+  },
+  "HEC-0050": {
+   "sellingUnitPrice": "1050000",
+   "currency": "KRW"
+  },
+  "HEC-0051": {
+   "sellingUnitPrice": "690000",
+   "currency": "KRW"
+  },
+  "HEC-0052": {
+   "sellingUnitPrice": "750000",
+   "currency": "KRW"
+  },
+  "HEC-0053": {
+   "sellingUnitPrice": "2250000",
+   "currency": "KRW"
+  },
+  "HEC-0054": {
+   "sellingUnitPrice": "2400000",
+   "currency": "KRW"
+  },
+  "HEC-0055": {
+   "sellingUnitPrice": "180000",
+   "currency": "KRW"
+  },
+  "HEC-0056": {
+   "sellingUnitPrice": "225000",
+   "currency": "KRW"
+  },
+  "HEC-0057": {
+   "sellingUnitPrice": "270000",
+   "currency": "KRW"
+  },
+  "HEC-0059": {
+   "sellingUnitPrice": "135600",
+   "currency": "KRW"
+  },
+  "HEC-0060": {
+   "sellingUnitPrice": "37300",
+   "currency": "KRW"
+  },
+  "CTL-0006": {
+   "sellingUnitPrice": "6168000",
+   "currency": "KRW"
+  },
+  "CTL-0007": {
+   "sellingUnitPrice": "3996000",
+   "currency": "KRW"
+  },
+  "CTL-0008": {
+   "sellingUnitPrice": "2172000",
+   "currency": "KRW"
+  },
+  "CTL-0009": {
+   "sellingUnitPrice": "3060000",
+   "currency": "KRW"
+  },
+  "CTL-0010": {
+   "sellingUnitPrice": "3996000",
+   "currency": "KRW"
+  },
+  "CTL-0011": {
+   "sellingUnitPrice": "3612000",
+   "currency": "KRW"
+  },
+  "CTL-0012": {
+   "sellingUnitPrice": "1716000",
+   "currency": "KRW"
+  },
+  "CTL-0013": {
+   "sellingUnitPrice": "1332000",
+   "currency": "KRW"
+  },
+  "CTL-0014": {
+   "sellingUnitPrice": "1044000",
+   "currency": "KRW"
+  },
+  "CTL-0015": {
+   "sellingUnitPrice": "780000",
+   "currency": "KRW"
+  },
+  "CTL-0017": {
+   "sellingUnitPrice": "4932000",
+   "currency": "KRW"
+  },
+  "CTL-0018": {
+   "sellingUnitPrice": "3480000",
+   "currency": "KRW"
+  },
+  "CTL-0019": {
+   "sellingUnitPrice": "3036000",
+   "currency": "KRW"
+  },
+  "CTL-0020": {
+   "sellingUnitPrice": "2292000",
+   "currency": "KRW"
+  },
+  "CTL-0021": {
+   "sellingUnitPrice": "2640000",
+   "currency": "KRW"
+  },
+  "CTL-0022": {
+   "sellingUnitPrice": "2640000",
+   "currency": "KRW"
+  },
+  "CTL-0024": {
+   "sellingUnitPrice": "1400000",
+   "currency": "KRW"
+  },
+  "CTL-0025": {
+   "sellingUnitPrice": "8500000",
+   "currency": "KRW"
+  },
+  "CTL-0037": {
+   "sellingUnitPrice": "2160000",
+   "currency": "KRW"
+  },
+  "CTL-0039": {
+   "sellingUnitPrice": "66000",
+   "currency": "KRW"
+  },
+  "CTL-0040": {
+   "sellingUnitPrice": "74000",
+   "currency": "KRW"
+  },
+  "CTL-0041": {
+   "sellingUnitPrice": "105000",
+   "currency": "KRW"
+  },
+  "CTL-0043": {
+   "sellingUnitPrice": "85000",
+   "currency": "KRW"
+  },
+  "CTL-0046": {
+   "sellingUnitPrice": "1078000",
+   "currency": "KRW"
+  },
+  "CTL-0048": {
+   "sellingUnitPrice": "1441000",
+   "currency": "KRW"
+  },
+  "CTL-0051": {
+   "sellingUnitPrice": "1430000",
+   "currency": "KRW"
+  },
+  "CTL-0053": {
+   "sellingUnitPrice": "2640000",
+   "currency": "KRW"
+  },
+  "CTL-0056": {
+   "sellingUnitPrice": "1056000",
+   "currency": "KRW"
+  },
+  "CTL-0058": {
+   "sellingUnitPrice": "1265000",
+   "currency": "KRW"
+  },
+  "CTL-0060": {
+   "sellingUnitPrice": "31000",
+   "currency": "KRW"
+  },
+  "CTL-0062": {
+   "sellingUnitPrice": "920000",
+   "currency": "KRW"
+  },
+  "CTL-0063": {
+   "sellingUnitPrice": "200000",
+   "currency": "KRW"
+  },
+  "CTL-0068": {
+   "sellingUnitPrice": "3000000",
+   "currency": "KRW"
+  },
+  "CTL-0069": {
+   "sellingUnitPrice": "1100000",
+   "currency": "KRW"
+  },
+  "CTL-0070": {
+   "sellingUnitPrice": "799000",
+   "currency": "KRW"
+  },
+  "CTL-0071": {
+   "sellingUnitPrice": "2516000",
+   "currency": "KRW"
+  },
+  "CTL-0072": {
+   "sellingUnitPrice": "346500",
+   "currency": "KRW"
+  },
+  "CTL-0074": {
+   "sellingUnitPrice": "370000",
+   "currency": "KRW"
+  },
+  "CTL-0075": {
+   "sellingUnitPrice": "304000",
+   "currency": "KRW"
+  },
+  "CTL-0076": {
+   "sellingUnitPrice": "190000",
+   "currency": "KRW"
+  },
+  "CTL-0077": {
+   "sellingUnitPrice": "169000",
+   "currency": "KRW"
+  },
+  "CTL-0082": {
+   "sellingUnitPrice": "1560000",
+   "currency": "KRW"
+  },
+  "CTL-0083": {
+   "sellingUnitPrice": "2015000",
+   "currency": "KRW"
+  },
+  "CTL-0084": {
+   "sellingUnitPrice": "1690000",
+   "currency": "KRW"
+  },
+  "CTL-0085": {
+   "sellingUnitPrice": "2015000",
+   "currency": "KRW"
+  },
+  "CTL-0086": {
+   "sellingUnitPrice": "2730000",
+   "currency": "KRW"
+  },
+  "CTL-0087": {
+   "sellingUnitPrice": "3250000",
+   "currency": "KRW"
+  },
+  "CTL-0088": {
+   "sellingUnitPrice": "3640000",
+   "currency": "KRW"
+  },
+  "CTL-0089": {
+   "sellingUnitPrice": "5460000",
+   "currency": "KRW"
+  },
+  "CTL-0090": {
+   "sellingUnitPrice": "6110000",
+   "currency": "KRW"
+  },
+  "CTL-0091": {
+   "sellingUnitPrice": "6760000",
+   "currency": "KRW"
+  },
+  "CTL-0092": {
+   "sellingUnitPrice": "10790000",
+   "currency": "KRW"
+  },
+  "CTL-0093": {
+   "sellingUnitPrice": "2405000",
+   "currency": "KRW"
+  },
+  "CTL-0095": {
+   "sellingUnitPrice": "5330000",
+   "currency": "KRW"
+  },
+  "CTL-0096": {
+   "sellingUnitPrice": "7280000",
+   "currency": "KRW"
+  },
+  "CTL-0097": {
+   "sellingUnitPrice": "5460000",
+   "currency": "KRW"
+  },
+  "CTL-0098": {
+   "sellingUnitPrice": "6500000",
+   "currency": "KRW"
+  },
+  "CTL-0099": {
+   "sellingUnitPrice": "10270000",
+   "currency": "KRW"
+  },
+  "CTL-0100": {
+   "sellingUnitPrice": "6110000",
+   "currency": "KRW"
+  },
+  "CTL-0101": {
+   "sellingUnitPrice": "15210000",
+   "currency": "KRW"
+  },
+  "CTL-0102": {
+   "sellingUnitPrice": "13650000",
+   "currency": "KRW"
+  },
+  "CTL-0103": {
+   "sellingUnitPrice": "22750000",
+   "currency": "KRW"
+  },
+  "CTL-0104": {
+   "sellingUnitPrice": "11960000",
+   "currency": "KRW"
+  },
+  "CTL-0105": {
+   "sellingUnitPrice": "17290000",
+   "currency": "KRW"
+  },
+  "CTL-0106": {
+   "sellingUnitPrice": "780000",
+   "currency": "KRW"
+  },
+  "CTL-0107": {
+   "sellingUnitPrice": "1209000",
+   "currency": "KRW"
+  },
+  "CTL-0108": {
+   "sellingUnitPrice": "1209000",
+   "currency": "KRW"
+  },
+  "CTL-0109": {
+   "sellingUnitPrice": "1365000",
+   "currency": "KRW"
+  },
+  "CTL-0110": {
+   "sellingUnitPrice": "1755000",
+   "currency": "KRW"
+  },
+  "CTL-0111": {
+   "sellingUnitPrice": "2275000",
+   "currency": "KRW"
+  },
+  "CTL-0112": {
+   "sellingUnitPrice": "2275000",
+   "currency": "KRW"
+  },
+  "CTL-0114": {
+   "sellingUnitPrice": "39000",
+   "currency": "KRW"
+  },
+  "CTL-0115": {
+   "sellingUnitPrice": "36000",
+   "currency": "KRW"
+  },
+  "CTL-0116": {
+   "sellingUnitPrice": "127000",
+   "currency": "KRW"
+  },
+  "CTL-0118": {
+   "sellingUnitPrice": "123000",
+   "currency": "KRW"
+  },
+  "CTL-0119": {
+   "sellingUnitPrice": "98000",
+   "currency": "KRW"
+  },
+  "CTL-0121": {
+   "sellingUnitPrice": "205000",
+   "currency": "KRW"
+  },
+  "CTL-0122": {
+   "sellingUnitPrice": "179000",
+   "currency": "KRW"
+  },
+  "CTL-0123": {
+   "sellingUnitPrice": "231000",
+   "currency": "KRW"
+  },
+  "PWR-0006": {
+   "sellingUnitPrice": "325000",
+   "currency": "KRW"
+  },
+  "PWR-0007": {
+   "sellingUnitPrice": "1677000",
+   "currency": "KRW"
+  },
+  "PWR-0008": {
+   "sellingUnitPrice": "2132000",
+   "currency": "KRW"
+  },
+  "PWR-0009": {
+   "sellingUnitPrice": "60000",
+   "currency": "KRW"
+  },
+  "PWR-0010": {
+   "sellingUnitPrice": "75000",
+   "currency": "KRW"
+  },
+  "PWR-0012": {
+   "sellingUnitPrice": "23000",
+   "currency": "KRW"
+  },
+  "PWR-0013": {
+   "sellingUnitPrice": "25000",
+   "currency": "KRW"
+  },
+  "PWR-0014": {
+   "sellingUnitPrice": "29000",
+   "currency": "KRW"
+  },
+  "PWR-0015": {
+   "sellingUnitPrice": "50000",
+   "currency": "KRW"
+  },
+  "PWR-0016": {
+   "sellingUnitPrice": "29000",
+   "currency": "KRW"
+  },
+  "PWR-0017": {
+   "sellingUnitPrice": "31000",
+   "currency": "KRW"
+  },
+  "PWR-0018": {
+   "sellingUnitPrice": "36000",
+   "currency": "KRW"
+  },
+  "PWR-0019": {
+   "sellingUnitPrice": "52000",
+   "currency": "KRW"
+  },
+  "PWR-0021": {
+   "sellingUnitPrice": "126000",
+   "currency": "KRW"
+  },
+  "PWR-0022": {
+   "sellingUnitPrice": "75000",
+   "currency": "KRW"
+  },
+  "PWR-0023": {
+   "sellingUnitPrice": "168000",
+   "currency": "KRW"
+  },
+  "PWR-0024": {
+   "sellingUnitPrice": "90000",
+   "currency": "KRW"
+  },
+  "PWR-0025": {
+   "sellingUnitPrice": "224000",
+   "currency": "KRW"
+  },
+  "PWR-0026": {
+   "sellingUnitPrice": "105000",
+   "currency": "KRW"
+  },
+  "PWR-0027": {
+   "sellingUnitPrice": "300000",
+   "currency": "KRW"
+  },
+  "PWR-0029": {
+   "sellingUnitPrice": "20000",
+   "currency": "KRW"
+  },
+  "PWR-0030": {
+   "sellingUnitPrice": "30000",
+   "currency": "KRW"
+  },
+  "PWR-0031": {
+   "sellingUnitPrice": "40000",
+   "currency": "KRW"
+  },
+  "PWR-0033": {
+   "sellingUnitPrice": "45000",
+   "currency": "KRW"
+  },
+  "PWR-0034": {
+   "sellingUnitPrice": "50000",
+   "currency": "KRW"
+  },
+  "PWR-0036": {
+   "sellingUnitPrice": "150000",
+   "currency": "KRW"
+  },
+  "PWR-0037": {
+   "sellingUnitPrice": "180000",
+   "currency": "KRW"
+  },
+  "PWR-0039": {
+   "sellingUnitPrice": "1299200",
+   "currency": "KRW"
+  },
+  "PWR-0040": {
+   "sellingUnitPrice": "644000",
+   "currency": "KRW"
+  },
+  "PWR-0041": {
+   "sellingUnitPrice": "210000",
+   "currency": "KRW"
+  },
+  "PWR-0044": {
+   "sellingUnitPrice": "210000",
+   "currency": "KRW"
+  },
+  "PWR-0045": {
+   "sellingUnitPrice": "450000",
+   "currency": "KRW"
+  },
+  "PWR-0046": {
+   "sellingUnitPrice": "570000",
+   "currency": "KRW"
+  },
+  "PWR-0047": {
+   "sellingUnitPrice": "590000",
+   "currency": "KRW"
+  },
+  "PWR-0048": {
+   "sellingUnitPrice": "620000",
+   "currency": "KRW"
+  },
+  "PWR-0049": {
+   "sellingUnitPrice": "640000",
+   "currency": "KRW"
+  },
+  "PWR-0050": {
+   "sellingUnitPrice": "660000",
+   "currency": "KRW"
+  },
+  "PWR-0051": {
+   "sellingUnitPrice": "690000",
+   "currency": "KRW"
+  },
+  "PWR-0052": {
+   "sellingUnitPrice": "740000",
+   "currency": "KRW"
+  },
+  "PWR-0054": {
+   "sellingUnitPrice": "590000",
+   "currency": "KRW"
+  },
+  "PWR-0055": {
+   "sellingUnitPrice": "710000",
+   "currency": "KRW"
+  },
+  "PWR-0056": {
+   "sellingUnitPrice": "740000",
+   "currency": "KRW"
+  },
+  "PWR-0057": {
+   "sellingUnitPrice": "760000",
+   "currency": "KRW"
+  },
+  "PWR-0058": {
+   "sellingUnitPrice": "780000",
+   "currency": "KRW"
+  },
+  "PWR-0059": {
+   "sellingUnitPrice": "810000",
+   "currency": "KRW"
+  },
+  "PWR-0060": {
+   "sellingUnitPrice": "830000",
+   "currency": "KRW"
+  },
+  "PWR-0061": {
+   "sellingUnitPrice": "880000",
+   "currency": "KRW"
+  },
+  "PWR-0063": {
+   "sellingUnitPrice": "1140000",
+   "currency": "KRW"
+  },
+  "PWR-0064": {
+   "sellingUnitPrice": "1170000",
+   "currency": "KRW"
+  },
+  "PWR-0065": {
+   "sellingUnitPrice": "1200000",
+   "currency": "KRW"
+  },
+  "PWR-0066": {
+   "sellingUnitPrice": "1280000",
+   "currency": "KRW"
+  },
+  "PWR-0068": {
+   "sellingUnitPrice": "160000",
+   "currency": "KRW"
+  },
+  "PWR-0070": {
+   "sellingUnitPrice": "270000",
+   "currency": "KRW"
+  },
+  "PWR-0071": {
+   "sellingUnitPrice": "290000",
+   "currency": "KRW"
+  },
+  "PWR-0072": {
+   "sellingUnitPrice": "320000",
+   "currency": "KRW"
+  },
+  "PWR-0074": {
+   "sellingUnitPrice": "1250000",
+   "currency": "KRW"
+  },
+  "PWR-0075": {
+   "sellingUnitPrice": "1500000",
+   "currency": "KRW"
+  },
+  "PWR-0076": {
+   "sellingUnitPrice": "2800000",
+   "currency": "KRW"
+  },
+  "PWR-0077": {
+   "sellingUnitPrice": "70000",
+   "currency": "KRW"
+  },
+  "PWR-0078": {
+   "sellingUnitPrice": "180000",
+   "currency": "KRW"
+  },
+  "PWR-0079": {
+   "sellingUnitPrice": "216000",
+   "currency": "KRW"
+  },
+  "PWR-0081": {
+   "sellingUnitPrice": "3900",
+   "currency": "KRW"
+  },
+  "PWR-0082": {
+   "sellingUnitPrice": "3900",
+   "currency": "KRW"
+  },
+  "PWR-0083": {
+   "sellingUnitPrice": "3900",
+   "currency": "KRW"
+  },
+  "PWR-0084": {
+   "sellingUnitPrice": "110000",
+   "currency": "KRW"
+  },
+  "PWR-0085": {
+   "sellingUnitPrice": "27000",
+   "currency": "KRW"
+  },
+  "PWR-0086": {
+   "sellingUnitPrice": "50000",
+   "currency": "KRW"
+  },
+  "PWR-0087": {
+   "sellingUnitPrice": "30000",
+   "currency": "KRW"
+  },
+  "PWR-0088": {
+   "sellingUnitPrice": "30000",
+   "currency": "KRW"
+  },
+  "PWR-0089": {
+   "sellingUnitPrice": "73000",
+   "currency": "KRW"
+  },
+  "PWR-0090": {
+   "sellingUnitPrice": "132000",
+   "currency": "KRW"
+  },
+  "PWR-0091": {
+   "sellingUnitPrice": "95000",
+   "currency": "KRW"
+  },
+  "PWR-0094": {
+   "sellingUnitPrice": "4300",
+   "currency": "KRW"
+  },
+  "PWR-0095": {
+   "sellingUnitPrice": "7800",
+   "currency": "KRW"
+  },
+  "PWR-0097": {
+   "sellingUnitPrice": "2000",
+   "currency": "KRW"
+  },
+  "PWR-0098": {
+   "sellingUnitPrice": "2800",
+   "currency": "KRW"
+  },
+  "PWR-0100": {
+   "sellingUnitPrice": "29000",
+   "currency": "KRW"
+  },
+  "PWR-0101": {
+   "sellingUnitPrice": "15000",
+   "currency": "KRW"
+  },
+  "PWR-0102": {
+   "sellingUnitPrice": "11000",
+   "currency": "KRW"
+  },
+  "PWR-0103": {
+   "sellingUnitPrice": "12000",
+   "currency": "KRW"
+  },
+  "PWR-0105": {
+   "sellingUnitPrice": "35900",
+   "currency": "KRW"
+  },
+  "PWR-0107": {
+   "sellingUnitPrice": "40000",
+   "currency": "KRW"
+  },
+  "PWR-0109": {
+   "sellingUnitPrice": "22000",
+   "currency": "KRW"
+  },
+  "PWR-0110": {
+   "sellingUnitPrice": "82000",
+   "currency": "KRW"
+  },
+  "VCF-0006": {
+   "sellingUnitPrice": "5640000",
+   "currency": "KRW"
+  },
+  "VCF-0007": {
+   "sellingUnitPrice": "1700000",
+   "currency": "KRW"
+  },
+  "VCF-0008": {
+   "sellingUnitPrice": "440000",
+   "currency": "KRW"
+  },
+  "VCF-0009": {
+   "sellingUnitPrice": "93000",
+   "currency": "KRW"
+  },
+  "VCF-0010": {
+   "sellingUnitPrice": "264000",
+   "currency": "KRW"
+  },
+  "VCF-0011": {
+   "sellingUnitPrice": "154000",
+   "currency": "KRW"
+  },
+  "VCF-0012": {
+   "sellingUnitPrice": "209000",
+   "currency": "KRW"
+  },
+  "VCF-0013": {
+   "sellingUnitPrice": "380000",
+   "currency": "KRW"
+  },
+  "VCF-0014": {
+   "sellingUnitPrice": "198000",
+   "currency": "KRW"
+  },
+  "VCF-0015": {
+   "sellingUnitPrice": "95000",
+   "currency": "KRW"
+  },
+  "VCF-0017": {
+   "sellingUnitPrice": "4320000",
+   "currency": "KRW"
+  },
+  "VCF-0018": {
+   "sellingUnitPrice": "440000",
+   "currency": "KRW"
+  },
+  "VCF-0019": {
+   "sellingUnitPrice": "93000",
+   "currency": "KRW"
+  },
+  "VCF-0020": {
+   "sellingUnitPrice": "264000",
+   "currency": "KRW"
+  },
+  "VCF-0021": {
+   "sellingUnitPrice": "154000",
+   "currency": "KRW"
+  },
+  "VCF-0022": {
+   "sellingUnitPrice": "209000",
+   "currency": "KRW"
+  },
+  "VCF-0023": {
+   "sellingUnitPrice": "380000",
+   "currency": "KRW"
+  },
+  "VCF-0024": {
+   "sellingUnitPrice": "198000",
+   "currency": "KRW"
+  },
+  "VCF-0025": {
+   "sellingUnitPrice": "95000",
+   "currency": "KRW"
+  },
+  "VCF-0027": {
+   "sellingUnitPrice": "4200000",
+   "currency": "KRW"
+  },
+  "VCF-0028": {
+   "sellingUnitPrice": "440000",
+   "currency": "KRW"
+  },
+  "VCF-0029": {
+   "sellingUnitPrice": "93000",
+   "currency": "KRW"
+  },
+  "VCF-0030": {
+   "sellingUnitPrice": "264000",
+   "currency": "KRW"
+  },
+  "VCF-0031": {
+   "sellingUnitPrice": "154000",
+   "currency": "KRW"
+  },
+  "VCF-0032": {
+   "sellingUnitPrice": "209000",
+   "currency": "KRW"
+  },
+  "VCF-0033": {
+   "sellingUnitPrice": "380000",
+   "currency": "KRW"
+  },
+  "VCF-0034": {
+   "sellingUnitPrice": "83000",
+   "currency": "KRW"
+  },
+  "VCF-0035": {
+   "sellingUnitPrice": "0",
+   "currency": "KRW"
+  },
+  "VCF-0036": {
+   "sellingUnitPrice": "84000",
+   "currency": "KRW"
+  },
+  "VCF-0037": {
+   "sellingUnitPrice": "108000",
+   "currency": "KRW"
+  },
+  "VCF-0038": {
+   "sellingUnitPrice": "70000",
+   "currency": "KRW"
+  },
+  "VCF-0039": {
+   "sellingUnitPrice": "198000",
+   "currency": "KRW"
+  },
+  "VCF-0040": {
+   "sellingUnitPrice": "191000",
+   "currency": "KRW"
+  },
+  "VCF-0042": {
+   "sellingUnitPrice": "1668000",
+   "currency": "KRW"
+  },
+  "VCF-0043": {
+   "sellingUnitPrice": "418000",
+   "currency": "KRW"
+  },
+  "VCF-0044": {
+   "sellingUnitPrice": "138000",
+   "currency": "KRW"
+  },
+  "VCF-0045": {
+   "sellingUnitPrice": "278000",
+   "currency": "KRW"
+  },
+  "VCF-0047": {
+   "sellingUnitPrice": "1470000",
+   "currency": "KRW"
+  },
+  "VCF-0048": {
+   "sellingUnitPrice": "341000",
+   "currency": "KRW"
+  },
+  "VCF-0049": {
+   "sellingUnitPrice": "132000",
+   "currency": "KRW"
+  },
+  "VCF-0050": {
+   "sellingUnitPrice": "121000",
+   "currency": "KRW"
+  },
+  "VCF-0051": {
+   "sellingUnitPrice": "169000",
+   "currency": "KRW"
+  },
+  "VCF-0054": {
+   "sellingUnitPrice": "2880000",
+   "currency": "KRW"
+  },
+  "VCF-0055": {
+   "sellingUnitPrice": "309000",
+   "currency": "KRW"
+  },
+  "VCF-0056": {
+   "sellingUnitPrice": "539000",
+   "currency": "KRW"
+  },
+  "VCF-0057": {
+   "sellingUnitPrice": "715000",
+   "currency": "KRW"
+  },
+  "VCF-0058": {
+   "sellingUnitPrice": "1815000",
+   "currency": "KRW"
+  },
+  "VCF-0059": {
+   "sellingUnitPrice": "128000",
+   "currency": "KRW"
+  },
+  "VCF-0060": {
+   "sellingUnitPrice": "240000",
+   "currency": "KRW"
+  },
+  "VCF-0062": {
+   "sellingUnitPrice": "3960000",
+   "currency": "KRW"
+  },
+  "VCF-0063": {
+   "sellingUnitPrice": "419000",
+   "currency": "KRW"
+  },
+  "VCF-0064": {
+   "sellingUnitPrice": "100000",
+   "currency": "KRW"
+  },
+  "VCF-0065": {
+   "sellingUnitPrice": "539000",
+   "currency": "KRW"
+  },
+  "VCF-0066": {
+   "sellingUnitPrice": "715000",
+   "currency": "KRW"
+  },
+  "VCF-0067": {
+   "sellingUnitPrice": "1815000",
+   "currency": "KRW"
+  },
+  "VCF-0068": {
+   "sellingUnitPrice": "195000",
+   "currency": "KRW"
+  },
+  "VCF-0069": {
+   "sellingUnitPrice": "847000",
+   "currency": "KRW"
+  },
+  "VCF-0070": {
+   "sellingUnitPrice": "90000",
+   "currency": "KRW"
+  },
+  "VCF-0071": {
+   "sellingUnitPrice": "440000",
+   "currency": "KRW"
+  },
+  "VCF-0072": {
+   "sellingUnitPrice": "3520000",
+   "currency": "KRW"
+  },
+  "VCF-0073": {
+   "sellingUnitPrice": "128000",
+   "currency": "KRW"
+  },
+  "VCF-0074": {
+   "sellingUnitPrice": "240000",
+   "currency": "KRW"
+  },
+  "VCF-0076": {
+   "sellingUnitPrice": "3408000",
+   "currency": "KRW"
+  },
+  "VCF-0077": {
+   "sellingUnitPrice": "379000",
+   "currency": "KRW"
+  },
+  "VCF-0078": {
+   "sellingUnitPrice": "20300",
+   "currency": "KRW"
+  },
+  "VCF-0079": {
+   "sellingUnitPrice": "100000",
+   "currency": "KRW"
+  },
+  "VCF-0080": {
+   "sellingUnitPrice": "957000",
+   "currency": "KRW"
+  },
+  "VCF-0081": {
+   "sellingUnitPrice": "102000",
+   "currency": "KRW"
+  },
+  "VCF-0082": {
+   "sellingUnitPrice": "638000",
+   "currency": "KRW"
+  },
+  "VCF-0083": {
+   "sellingUnitPrice": "72000",
+   "currency": "KRW"
+  },
+  "VCF-0084": {
+   "sellingUnitPrice": "132000",
+   "currency": "KRW"
+  },
+  "VCF-0086": {
+   "sellingUnitPrice": "2280000",
+   "currency": "KRW"
+  },
+  "VCF-0087": {
+   "sellingUnitPrice": "539000",
+   "currency": "KRW"
+  },
+  "VCF-0088": {
+   "sellingUnitPrice": "715000",
+   "currency": "KRW"
+  },
+  "VCF-0089": {
+   "sellingUnitPrice": "1815000",
+   "currency": "KRW"
+  },
+  "VCF-0090": {
+   "sellingUnitPrice": "195000",
+   "currency": "KRW"
+  },
+  "VCF-0091": {
+   "sellingUnitPrice": "847000",
+   "currency": "KRW"
+  },
+  "VCF-0092": {
+   "sellingUnitPrice": "90000",
+   "currency": "KRW"
+  },
+  "VCF-0093": {
+   "sellingUnitPrice": "440000",
+   "currency": "KRW"
+  },
+  "VCF-0094": {
+   "sellingUnitPrice": "128000",
+   "currency": "KRW"
+  },
+  "VCF-0095": {
+   "sellingUnitPrice": "240000",
+   "currency": "KRW"
+  },
+  "VCF-0097": {
+   "sellingUnitPrice": "1920000",
+   "currency": "KRW"
+  },
+  "VCF-0098": {
+   "sellingUnitPrice": "5880000",
+   "currency": "KRW"
+  },
+  "VCF-0099": {
+   "sellingUnitPrice": "2880000",
+   "currency": "KRW"
+  },
+  "VCF-0100": {
+   "sellingUnitPrice": "1045000",
+   "currency": "KRW"
+  },
+  "VCF-0101": {
+   "sellingUnitPrice": "825000",
+   "currency": "KRW"
+  },
+  "VCF-0102": {
+   "sellingUnitPrice": "605000",
+   "currency": "KRW"
+  },
+  "VCF-0105": {
+   "sellingUnitPrice": "17325000",
+   "currency": "KRW"
+  },
+  "VCF-0106": {
+   "sellingUnitPrice": "32000",
+   "currency": "KRW"
+  },
+  "VCF-0107": {
+   "sellingUnitPrice": "2365000",
+   "currency": "KRW"
+  },
+  "VCF-0108": {
+   "sellingUnitPrice": "182000",
+   "currency": "KRW"
+  },
+  "VCF-0109": {
+   "sellingUnitPrice": "375000",
+   "currency": "KRW"
+  },
+  "VCF-0110": {
+   "sellingUnitPrice": "55000",
+   "currency": "KRW"
+  },
+  "VCF-0112": {
+   "sellingUnitPrice": "1850000",
+   "currency": "KRW"
+  },
+  "VCF-0113": {
+   "sellingUnitPrice": "79000",
+   "currency": "KRW"
+  },
+  "VCF-0114": {
+   "sellingUnitPrice": "79000",
+   "currency": "KRW"
+  },
+  "VCF-0115": {
+   "sellingUnitPrice": "109000",
+   "currency": "KRW"
+  },
+  "VCF-0116": {
+   "sellingUnitPrice": "59000",
+   "currency": "KRW"
+  },
+  "VCF-0117": {
+   "sellingUnitPrice": "139000",
+   "currency": "KRW"
+  },
+  "VCF-0119": {
+   "sellingUnitPrice": "449000",
+   "currency": "KRW"
+  },
+  "VCF-0121": {
+   "sellingUnitPrice": "726000",
+   "currency": "KRW"
+  },
+  "VCF-0122": {
+   "sellingUnitPrice": "666000",
+   "currency": "KRW"
+  },
+  "VCF-0124": {
+   "sellingUnitPrice": "2000000",
+   "currency": "KRW"
+  },
+  "VCF-0125": {
+   "sellingUnitPrice": "385000",
+   "currency": "KRW"
+  },
+  "VCF-0127": {
+   "sellingUnitPrice": "5875000",
+   "currency": "KRW"
+  },
+  "VCF-0128": {
+   "sellingUnitPrice": "385000",
+   "currency": "KRW"
+  },
+  "VCF-0129": {
+   "sellingUnitPrice": "143000",
+   "currency": "KRW"
+  },
+  "VCF-0130": {
+   "sellingUnitPrice": "341000",
+   "currency": "KRW"
+  },
+  "VCF-0132": {
+   "sellingUnitPrice": "11250000",
+   "currency": "KRW"
+  },
+  "VCF-0133": {
+   "sellingUnitPrice": "10625000",
+   "currency": "KRW"
+  },
+  "VCF-0134": {
+   "sellingUnitPrice": "385000",
+   "currency": "KRW"
+  },
+  "VCF-0135": {
+   "sellingUnitPrice": "132000",
+   "currency": "KRW"
+  },
+  "VCF-0136": {
+   "sellingUnitPrice": "385000",
+   "currency": "KRW"
+  },
+  "VCF-0138": {
+   "sellingUnitPrice": "7375000",
+   "currency": "KRW"
+  },
+  "VCF-0139": {
+   "sellingUnitPrice": "715000",
+   "currency": "KRW"
+  },
+  "VCF-0140": {
+   "sellingUnitPrice": "242000",
+   "currency": "KRW"
+  },
+  "VCF-0142": {
+   "sellingUnitPrice": "13125000",
+   "currency": "KRW"
+  },
+  "VCF-0143": {
+   "sellingUnitPrice": "8000000",
+   "currency": "KRW"
+  },
+  "VCF-0144": {
+   "sellingUnitPrice": "6875000",
+   "currency": "KRW"
+  },
+  "VCF-0146": {
+   "sellingUnitPrice": "12125000",
+   "currency": "KRW"
+  },
+  "VCF-0147": {
+   "sellingUnitPrice": "7125000",
+   "currency": "KRW"
+  },
+  "VCF-0148": {
+   "sellingUnitPrice": "5625000",
+   "currency": "KRW"
+  },
+  "VCF-0150": {
+   "sellingUnitPrice": "10625000",
+   "currency": "KRW"
+  },
+  "VCF-0151": {
+   "sellingUnitPrice": "6125000",
+   "currency": "KRW"
+  },
+  "VCF-0152": {
+   "sellingUnitPrice": "4125000",
+   "currency": "KRW"
+  },
+  "VCF-0154": {
+   "sellingUnitPrice": "495000",
+   "currency": "KRW"
+  },
+  "VCF-0155": {
+   "sellingUnitPrice": "143000",
+   "currency": "KRW"
+  },
+  "VCF-0156": {
+   "sellingUnitPrice": "242000",
+   "currency": "KRW"
+  },
+  "VCF-0157": {
+   "sellingUnitPrice": "3125000",
+   "currency": "KRW"
+  },
+  "VCF-0158": {
+   "sellingUnitPrice": "2125000",
+   "currency": "KRW"
+  },
+  "VCF-0159": {
+   "sellingUnitPrice": "242000",
+   "currency": "KRW"
+  },
+  "VCF-0160": {
+   "sellingUnitPrice": "154000",
+   "currency": "KRW"
+  },
+  "VCF-0161": {
+   "sellingUnitPrice": "121000",
+   "currency": "KRW"
+  },
+  "VCF-0162": {
+   "sellingUnitPrice": "308000",
+   "currency": "KRW"
+  },
+  "VCF-0163": {
+   "sellingUnitPrice": "220000",
+   "currency": "KRW"
+  },
+  "VCF-0164": {
+   "sellingUnitPrice": "88000",
+   "currency": "KRW"
+  },
+  "VCF-0165": {
+   "sellingUnitPrice": "1980000",
+   "currency": "KRW"
+  },
+  "VCF-0166": {
+   "sellingUnitPrice": "1870000",
+   "currency": "KRW"
+  },
+  "VCF-0167": {
+   "sellingUnitPrice": "1100000",
+   "currency": "KRW"
+  },
+  "PRJ-0006": {
+   "sellingUnitPrice": "704000",
+   "currency": "KRW"
+  },
+  "PRJ-0007": {
+   "sellingUnitPrice": "792000",
+   "currency": "KRW"
+  },
+  "PRJ-0008": {
+   "sellingUnitPrice": "1122000",
+   "currency": "KRW"
+  },
+  "PRJ-0009": {
+   "sellingUnitPrice": "1364000",
+   "currency": "KRW"
+  },
+  "PRJ-0010": {
+   "sellingUnitPrice": "1694000",
+   "currency": "KRW"
+  },
+  "PRJ-0011": {
+   "sellingUnitPrice": "2244000",
+   "currency": "KRW"
+  },
+  "PRJ-0013": {
+   "sellingUnitPrice": "1440000",
+   "currency": "KRW"
+  },
+  "PRJ-0014": {
+   "sellingUnitPrice": "2028000",
+   "currency": "KRW"
+  },
+  "PRJ-0015": {
+   "sellingUnitPrice": "2208000",
+   "currency": "KRW"
+  },
+  "PRJ-0016": {
+   "sellingUnitPrice": "2688000",
+   "currency": "KRW"
+  },
+  "PRJ-0017": {
+   "sellingUnitPrice": "3408000",
+   "currency": "KRW"
+  },
+  "PRJ-0018": {
+   "sellingUnitPrice": "3888000",
+   "currency": "KRW"
+  },
+  "PRJ-0020": {
+   "sellingUnitPrice": "1540000",
+   "currency": "KRW"
+  },
+  "PRJ-0021": {
+   "sellingUnitPrice": "2134000",
+   "currency": "KRW"
+  },
+  "PRJ-0022": {
+   "sellingUnitPrice": "2464000",
+   "currency": "KRW"
+  },
+  "PRJ-0023": {
+   "sellingUnitPrice": "2794000",
+   "currency": "KRW"
+  },
+  "PRJ-0024": {
+   "sellingUnitPrice": "3564000",
+   "currency": "KRW"
+  },
+  "PRJ-0025": {
+   "sellingUnitPrice": "4004000",
+   "currency": "KRW"
+  },
+  "PRJ-0027": {
+   "sellingUnitPrice": "756000",
+   "currency": "KRW"
+  },
+  "PRJ-0028": {
+   "sellingUnitPrice": "864000",
+   "currency": "KRW"
+  },
+  "PRJ-0029": {
+   "sellingUnitPrice": "924000",
+   "currency": "KRW"
+  },
+  "PRJ-0030": {
+   "sellingUnitPrice": "1728000",
+   "currency": "KRW"
+  },
+  "PRJ-0032": {
+   "sellingUnitPrice": "768000",
+   "currency": "KRW"
+  },
+  "PRJ-0033": {
+   "sellingUnitPrice": "1032000",
+   "currency": "KRW"
+  },
+  "PRJ-0034": {
+   "sellingUnitPrice": "1368000",
+   "currency": "KRW"
+  },
+  "PRJ-0036": {
+   "sellingUnitPrice": "84000",
+   "currency": "KRW"
+  },
+  "PRJ-0037": {
+   "sellingUnitPrice": "144000",
+   "currency": "KRW"
+  },
+  "PRJ-0038": {
+   "sellingUnitPrice": "360000",
+   "currency": "KRW"
+  },
+  "PRJ-0039": {
+   "sellingUnitPrice": "504000",
+   "currency": "KRW"
+  },
+  "PRJ-0043": {
+   "sellingUnitPrice": "484000",
+   "currency": "KRW"
+  },
+  "PRJ-0044": {
+   "sellingUnitPrice": "604000",
+   "currency": "KRW"
+  },
+  "PRJ-0045": {
+   "sellingUnitPrice": "665000",
+   "currency": "KRW"
+  },
+  "PRJ-0046": {
+   "sellingUnitPrice": "1133000",
+   "currency": "KRW"
+  },
+  "PRJ-0047": {
+   "sellingUnitPrice": "1284000",
+   "currency": "KRW"
+  },
+  "PRJ-0049": {
+   "sellingUnitPrice": "600000",
+   "currency": "KRW"
+  },
+  "PRJ-0050": {
+   "sellingUnitPrice": "840000",
+   "currency": "KRW"
+  },
+  "PRJ-0051": {
+   "sellingUnitPrice": "1620000",
+   "currency": "KRW"
+  },
+  "PRJ-0052": {
+   "sellingUnitPrice": "1800000",
+   "currency": "KRW"
+  },
+  "PRJ-0054": {
+   "sellingUnitPrice": "1350000",
+   "currency": "KRW"
+  },
+  "PRJ-0055": {
+   "sellingUnitPrice": "1425000",
+   "currency": "KRW"
+  },
+  "PRJ-0057": {
+   "sellingUnitPrice": "124000",
+   "currency": "KRW"
+  },
+  "PRJ-0058": {
+   "sellingUnitPrice": "163000",
+   "currency": "KRW"
+  },
+  "PRJ-0061": {
+   "sellingUnitPrice": "57330000",
+   "currency": "KRW"
+  },
+  "PRJ-0062": {
+   "sellingUnitPrice": "35880000",
+   "currency": "KRW"
+  },
+  "PRJ-0063": {
+   "sellingUnitPrice": "24960000",
+   "currency": "KRW"
+  },
+  "PRJ-0064": {
+   "sellingUnitPrice": "22750000",
+   "currency": "KRW"
+  },
+  "PRJ-0065": {
+   "sellingUnitPrice": "17550000",
+   "currency": "KRW"
+  },
+  "PRJ-0066": {
+   "sellingUnitPrice": "5850000",
+   "currency": "KRW"
+  },
+  "PRJ-0067": {
+   "sellingUnitPrice": "4940000",
+   "currency": "KRW"
+  },
+  "PRJ-0068": {
+   "sellingUnitPrice": "6370000",
+   "currency": "KRW"
+  },
+  "PRJ-0070": {
+   "sellingUnitPrice": "22750000",
+   "currency": "KRW"
+  },
+  "PRJ-0071": {
+   "sellingUnitPrice": "17550000",
+   "currency": "KRW"
+  },
+  "PRJ-0072": {
+   "sellingUnitPrice": "13520000",
+   "currency": "KRW"
+  },
+  "PRJ-0074": {
+   "sellingUnitPrice": "6500000",
+   "currency": "KRW"
+  },
+  "PRJ-0075": {
+   "sellingUnitPrice": "5200000",
+   "currency": "KRW"
+  },
+  "PRJ-0077": {
+   "sellingUnitPrice": "4680000",
+   "currency": "KRW"
+  },
+  "PRJ-0078": {
+   "sellingUnitPrice": "4200000",
+   "currency": "KRW"
+  },
+  "PRJ-0079": {
+   "sellingUnitPrice": "4080000",
+   "currency": "KRW"
+  },
+  "PRJ-0080": {
+   "sellingUnitPrice": "3240000",
+   "currency": "KRW"
+  },
+  "PRJ-0081": {
+   "sellingUnitPrice": "2090000",
+   "currency": "KRW"
+  },
+  "PRJ-0082": {
+   "sellingUnitPrice": "1650000",
+   "currency": "KRW"
+  },
+  "PRJ-0084": {
+   "sellingUnitPrice": "605000",
+   "currency": "KRW"
+  },
+  "PRJ-0085": {
+   "sellingUnitPrice": "638000",
+   "currency": "KRW"
+  },
+  "PRJ-0086": {
+   "sellingUnitPrice": "1045000",
+   "currency": "KRW"
+  },
+  "PRJ-0087": {
+   "sellingUnitPrice": "880000",
+   "currency": "KRW"
+  },
+  "PRJ-0088": {
+   "sellingUnitPrice": "1364000",
+   "currency": "KRW"
+  },
+  "PRJ-0090": {
+   "sellingUnitPrice": "1080000",
+   "currency": "KRW"
+  },
+  "PRJ-0091": {
+   "sellingUnitPrice": "2760000",
+   "currency": "KRW"
+  },
+  "PRJ-0092": {
+   "sellingUnitPrice": "1560000",
+   "currency": "KRW"
+  },
+  "PRJ-0093": {
+   "sellingUnitPrice": "7200000",
+   "currency": "KRW"
+  },
+  "PRJ-0094": {
+   "sellingUnitPrice": "1080000",
+   "currency": "KRW"
+  },
+  "PRJ-0096": {
+   "sellingUnitPrice": "919000",
+   "currency": "KRW"
+  },
+  "PRJ-0097": {
+   "sellingUnitPrice": "85000",
+   "currency": "KRW"
+  },
+  "PRJ-0098": {
+   "sellingUnitPrice": "215000",
+   "currency": "KRW"
+  },
+  "PRJ-0099": {
+   "sellingUnitPrice": "165000",
+   "currency": "KRW"
+  },
+  "PRJ-0100": {
+   "sellingUnitPrice": "121000",
+   "currency": "KRW"
+  },
+  "PRJ-0103": {
+   "sellingUnitPrice": "24050000",
+   "currency": "KRW"
+  },
+  "PRJ-0104": {
+   "sellingUnitPrice": "18200000",
+   "currency": "KRW"
+  },
+  "PRJ-0105": {
+   "sellingUnitPrice": "14300000",
+   "currency": "KRW"
+  },
+  "PRJ-0107": {
+   "sellingUnitPrice": "8060000",
+   "currency": "KRW"
+  },
+  "PRJ-0108": {
+   "sellingUnitPrice": "3780000",
+   "currency": "KRW"
+  },
+  "PRJ-0109": {
+   "sellingUnitPrice": "3120000",
+   "currency": "KRW"
+  },
+  "PRJ-0110": {
+   "sellingUnitPrice": "2520000",
+   "currency": "KRW"
+  },
+  "PRJ-0112": {
+   "sellingUnitPrice": "2640000",
+   "currency": "KRW"
+  },
+  "PRJ-0113": {
+   "sellingUnitPrice": "5500000",
+   "currency": "KRW"
+  },
+  "PRJ-0114": {
+   "sellingUnitPrice": "5500000",
+   "currency": "KRW"
+  },
+  "PRJ-0115": {
+   "sellingUnitPrice": "5500000",
+   "currency": "KRW"
+  },
+  "PRJ-0118": {
+   "sellingUnitPrice": "20000",
+   "currency": "KRW"
+  },
+  "PRJ-0119": {
+   "sellingUnitPrice": "50000",
+   "currency": "KRW"
+  },
+  "PRJ-0120": {
+   "sellingUnitPrice": "450000",
+   "currency": "KRW"
+  },
+  "PRJ-0121": {
+   "sellingUnitPrice": "95000",
+   "currency": "KRW"
+  },
+  "PRJ-0123": {
+   "sellingUnitPrice": "1425000",
+   "currency": "KRW"
+  },
+  "PRJ-0125": {
+   "sellingUnitPrice": "75000",
+   "currency": "KRW"
+  },
+  "PRJ-0126": {
+   "sellingUnitPrice": "48000",
+   "currency": "KRW"
+  },
+  "PRJ-0127": {
+   "sellingUnitPrice": "15000",
+   "currency": "KRW"
+  },
+  "PRJ-0128": {
+   "sellingUnitPrice": "24000",
+   "currency": "KRW"
+  },
+  "PRJ-0129": {
+   "sellingUnitPrice": "30000",
+   "currency": "KRW"
+  },
+  "PRJ-0130": {
+   "sellingUnitPrice": "36000",
+   "currency": "KRW"
+  },
+  "PRJ-0131": {
+   "sellingUnitPrice": "12000",
+   "currency": "KRW"
+  },
+  "PRJ-0132": {
+   "sellingUnitPrice": "18000",
+   "currency": "KRW"
+  },
+  "PRJ-0133": {
+   "sellingUnitPrice": "30000",
+   "currency": "KRW"
+  },
+  "PRJ-0135": {
+   "sellingUnitPrice": "60000",
+   "currency": "KRW"
+  },
+  "PRJ-0136": {
+   "sellingUnitPrice": "30000",
+   "currency": "KRW"
+  },
+  "CMS-0005": {
+   "sellingUnitPrice": "600000",
+   "currency": "KRW"
+  },
+  "CMS-0006": {
+   "sellingUnitPrice": "500000",
+   "currency": "KRW"
+  },
+  "CMS-0007": {
+   "sellingUnitPrice": "800000",
+   "currency": "KRW"
+  },
+  "CMS-0008": {
+   "sellingUnitPrice": "500000",
+   "currency": "KRW"
+  },
+  "CMS-0009": {
+   "sellingUnitPrice": "4500000",
+   "currency": "KRW"
+  },
+  "CMS-0010": {
+   "sellingUnitPrice": "800000",
+   "currency": "KRW"
+  },
+  "CMS-0011": {
+   "sellingUnitPrice": "3900000",
+   "currency": "KRW"
+  },
+  "CMS-0012": {
+   "sellingUnitPrice": "5850000",
+   "currency": "KRW"
+  },
+  "CMS-0013": {
+   "sellingUnitPrice": "13500000",
+   "currency": "KRW"
+  },
+  "CMS-0017": {
+   "sellingUnitPrice": "22000000",
+   "currency": "KRW"
+  },
+  "CMS-0018": {
+   "sellingUnitPrice": "1200000",
+   "currency": "KRW"
+  },
+  "CMS-0019": {
+   "sellingUnitPrice": "4550000",
+   "currency": "KRW"
+  },
+  "CMS-0020": {
+   "sellingUnitPrice": "5382000",
+   "currency": "KRW"
+  },
+  "CMS-0035": {
+   "sellingUnitPrice": "230000",
+   "currency": "KRW"
+  },
+  "CMS-0037": {
+   "sellingUnitPrice": "300000",
+   "currency": "KRW"
+  },
+  "CMS-0038": {
+   "sellingUnitPrice": "300000",
+   "currency": "KRW"
+  },
+  "CMS-0039": {
+   "sellingUnitPrice": "1296000",
+   "currency": "KRW"
+  },
+  "CMS-0040": {
+   "sellingUnitPrice": "48000",
+   "currency": "KRW"
+  },
+  "CMS-0041": {
+   "sellingUnitPrice": "18000",
+   "currency": "KRW"
+  },
+  "CCT-0006": {
+   "sellingUnitPrice": "654000",
+   "currency": "KRW"
+  },
+  "CCT-0007": {
+   "sellingUnitPrice": "38600",
+   "currency": "KRW"
+  },
+  "CCT-0008": {
+   "sellingUnitPrice": "17800",
+   "currency": "KRW"
+  },
+  "CCT-0009": {
+   "sellingUnitPrice": "769000",
+   "currency": "KRW"
+  },
+  "CCT-0011": {
+   "sellingUnitPrice": "606000",
+   "currency": "KRW"
+  },
+  "CCT-0012": {
+   "sellingUnitPrice": "887000",
+   "currency": "KRW"
+  },
+  "CCT-0013": {
+   "sellingUnitPrice": "1671000",
+   "currency": "KRW"
+  },
+  "CCT-0014": {
+   "sellingUnitPrice": "3413000",
+   "currency": "KRW"
+  },
+  "CCT-0016": {
+   "sellingUnitPrice": "253000",
+   "currency": "KRW"
+  },
+  "CCT-0017": {
+   "sellingUnitPrice": "430000",
+   "currency": "KRW"
+  },
+  "CCT-0018": {
+   "sellingUnitPrice": "431000",
+   "currency": "KRW"
+  },
+  "CCT-0020": {
+   "sellingUnitPrice": "20800",
+   "currency": "KRW"
+  },
+  "ETC-0006": {
+   "sellingUnitPrice": "44900",
+   "currency": "KRW"
+  },
+  "ETC-0007": {
+   "sellingUnitPrice": "29900",
+   "currency": "KRW"
+  },
+  "ETC-0008": {
+   "sellingUnitPrice": "118900",
+   "currency": "KRW"
+  },
+  "ETC-0009": {
+   "sellingUnitPrice": "54800",
+   "currency": "KRW"
+  }
+ }
+}
