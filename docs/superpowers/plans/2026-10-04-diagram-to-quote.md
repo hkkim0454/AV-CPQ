@@ -22,7 +22,7 @@
 - **`undefined` 는 미등록, `0` 은 0원** (설계서 §5.6). 구성도에 있는 장비인데 카탈로그에 없으면 `sellingUnitPrice` 를 **넣지 않는다.** 0 으로 채우지 않는다.
 - **추측해서 채우지 않는다.** 매칭이 모호하면 `evidence: 'review-required'` + 경고를 남긴다. 설계서 §7.5 의 "미확인을 확인 완료로 바꾸는 우회 버튼을 만들지 않는다" 와 같은 원칙이다.
 - **같은 JSON 을 두 번 불러도 결과가 같아야 한다** (설계서 §7.3 멱등성). 수량이 누적되지 않는다.
-- **모르는 필드는 무시한다.** av-builder 가 필드를 추가해도 깨지지 않는다 (`docs/interface/av-builder.md` §5).
+- **모르는 필드는 거부하지 않는다 — 그리고 버리지도 않는다.** av-builder 가 필드를 추가해도 깨지지 않아야 하고(`docs/interface/av-builder.md` §5), 나중에 그 중 하나가 필요해졌을 때 다시 파싱하지 않도록 index signature 로 들고 간다. 실물에 `series`·`dimmed`·`imageUrl`·`isReused` 가 있었다.
 - **`lineTypes` 의 id 를 하드코딩하지 않는다.** 사용자가 새 선 종류를 추가할 수 있다. 모르는 id 는 경고만 세우고 진행한다.
 - 금액·수량은 전부 `DecimalText`(string). `Decimal` 문자열화는 `toFixed()` 로 통일한다.
 - Task 완료 조건은 **`npm run verify`** (typecheck → test → audit:exports). "테스트 통과"만 쓰지 않는다 — 없는 값은 테스트가 쳐다보지 않는다.
@@ -890,8 +890,19 @@ describe('실물 파일', () => {
 Run: `npm run verify && npx vitest run tests/integration/diagramToQuote.test.ts`
 Expected: FAIL → PASS
 
-간접비 9항목의 기본값은 `docs/stage-status.md` 의 "간접비 28~30행" 절을 그대로 따른다.
-요율과 `applied` 를 **새로 만들지 않는다** — 기존 코드에 기본 프로파일이 있으면 그것을 쓰고, 없으면 그 문서의 값을 쓴다.
+간접비 9항목은 **반드시 아래에서 가져온다.** 요율을 이 계획 안에 다시 적지 않는다.
+
+```ts
+import { standardIndirectCosts } from '@/domain/quote/indirectCosts';
+```
+
+커밋 `b128205` 에서 테스트 픽스처(`tests/fixtures/syntheticQuote.ts`)에만 있던 정의를
+제품 코드로 옮겼고, 픽스처가 그것을 re-export 한다. 두 곳이 **같은 함수 객체인지**를
+테스트가 직접 비교하므로(`expect(fixture.standardIndirectCosts).toBe(standardIndirectCosts)`),
+누군가 요율을 다시 적으면 테스트가 깨진다.
+
+호출마다 새 배열을 만든다 — 한 견적에서 `applied` 를 바꿔도 다른 견적에 번지지 않는다.
+기본값은 원본과 같다(적용 6 / 미적용 3). 연금·건강·노인장기요양은 미적용이고 요율은 보존한다.
 
 - [ ] **Step 3: 실물로 Excel 까지 내보내 확인**
 
