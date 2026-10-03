@@ -3,11 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AV 견적 — 화면 초안</title>
+<title>AV 견적 — 화면 초안 v2</title>
 <style>
-/* ────────────────────────────────────────────────────────────
-   토큰 — docs/design/reference-map.md §2 실측값. 추정값 없음.
-   ──────────────────────────────────────────────────────────── */
 :root{
   --q-bg:#fff; --q-soft:#f3f6fb; --q-ink:#1f2532; --q-muted:#687386;
   --q-line:#dfe6f0; --q-accent:#3978ee; --q-tint:#edf4ff;
@@ -17,353 +14,399 @@
   --q-page-wash:radial-gradient(circle at 8% 0,#dceaff 0,transparent 34%),radial-gradient(circle at 92% 4%,#f0e1ff 0,transparent 32%),linear-gradient(135deg,#f7fbff,#fbf8ff);
   --q-glass-fill:#ffffffd9; --q-glass-stroke:#ffffffc7; --q-glass-shadow:0 18px 50px #53698a14; --q-glass-blur:blur(18px);
   --q-r-shell:24px; --q-r-panel:22px; --q-r-main:28px; --q-r-card:20px; --q-r-chip:14px; --q-r-pill:999px; --q-r-seg:11px;
-  --q-gutter:16px; --q-pad-main:34px; --q-pad-shell:18px 22px;
-  --q-h-control:42px; --q-h-input:40px;
+  --q-gutter:16px; --q-h-control:42px; --q-h-input:40px;
   --q-mark-grad:linear-gradient(135deg,#347ff2,#8268f3); --q-mark-shadow:0 11px 24px #4f6df43d;
   --q-btn-face:#edf2f8; --q-btn-ink:#456181; --q-btn-face-hover:#e3ebf7; --q-btn-ink-hover:#326bd5;
   --q-fw-strong:750; --q-fw-medium:650; --q-max-w:1440px;
-  --q-err:#c64545; --q-ok:#34835b;
-  --q-v-rec:#007AFF;
+  --q-err:#c64545; --q-ok:#34835b; --q-v-rec:#007AFF; --q-v-cond:#E08A20;
   --q-field-fill:rgba(118,118,128,.10); --q-focus-ring:0 0 0 4px rgba(57,120,238,.12);
   --q-seg-track:rgba(118,118,128,.14); --q-seg-thumb:#fff; --q-seg-thumb-shadow:0 3px 8px rgba(0,0,0,.14),0 1px 2px rgba(0,0,0,.10);
 }
 *,*::before,*::after{box-sizing:border-box}
 html{background:var(--q-page-bg)}
-body{margin:0;background:var(--q-page-wash);font-family:var(--q-font);color:var(--q-ink);
-     font-size:14px;-webkit-font-smoothing:antialiased}
+body{margin:0;background:var(--q-page-wash);font-family:var(--q-font);color:var(--q-ink);font-size:14px;-webkit-font-smoothing:antialiased}
 .shell{max-width:var(--q-max-w);margin-inline:auto;padding:var(--q-gutter);overflow-x:clip}
-
-/* 모형 안내 띠 */
-.mock{background:#1f2532;color:#fff;border-radius:var(--q-r-chip);padding:10px 16px;
-      margin-bottom:var(--q-gutter);font-size:12.5px;line-height:1.6}
+.mock{background:#1f2532;color:#fff;border-radius:var(--q-r-chip);padding:11px 16px;margin-bottom:var(--q-gutter);font-size:12.5px;line-height:1.65}
 .mock b{color:#8fb7ff}
 
-/* 헤더 */
-.top{display:flex;align-items:center;gap:14px;background:var(--q-glass-fill);
-     border:1px solid var(--q-glass-stroke);box-shadow:var(--q-glass-shadow);
-     backdrop-filter:var(--q-glass-blur);border-radius:var(--q-r-shell);padding:var(--q-pad-shell)}
-.mark{width:38px;height:38px;border-radius:12px;background:var(--q-mark-grad);box-shadow:var(--q-mark-shadow);
-      display:grid;place-items:center;color:#fff;font-weight:var(--q-fw-strong);font-size:13px;letter-spacing:.5px}
+.top{display:flex;align-items:center;gap:14px;background:var(--q-glass-fill);border:1px solid var(--q-glass-stroke);
+     box-shadow:var(--q-glass-shadow);backdrop-filter:var(--q-glass-blur);border-radius:var(--q-r-shell);padding:18px 22px}
+.mark{width:38px;height:38px;border-radius:12px;background:var(--q-mark-grad);box-shadow:var(--q-mark-shadow);display:grid;place-items:center;color:#fff;font-weight:var(--q-fw-strong);font-size:13px}
 .brand{font-weight:var(--q-fw-strong);font-size:18px}
-.brand small{display:block;font-weight:500;font-size:11.5px;color:var(--q-muted);letter-spacing:.3px}
-.top .sp{flex:1}
+.brand small{display:block;font-weight:500;font-size:11.5px;color:var(--q-muted)}
+.sp{flex:1}
 .portal{color:var(--q-btn-ink);text-decoration:none;font-weight:var(--q-fw-medium);font-size:13px}
-.portal:hover{color:var(--q-btn-ink-hover)}
 
-/* 툴바 */
-.tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:var(--q-gutter);
-       background:var(--q-glass-fill);border:1px solid var(--q-glass-stroke);box-shadow:var(--q-glass-shadow);
-       backdrop-filter:var(--q-glass-blur);border-radius:var(--q-r-panel);padding:12px 14px}
-.btn{min-height:var(--q-h-control);padding:0 18px;border:none;border-radius:var(--q-r-pill);
-     background:var(--q-btn-face);color:var(--q-btn-ink);font-family:inherit;font-size:13.5px;
-     font-weight:var(--q-fw-medium);cursor:pointer}
+.tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:var(--q-gutter);background:var(--q-glass-fill);border:1px solid var(--q-glass-stroke);
+       box-shadow:var(--q-glass-shadow);backdrop-filter:var(--q-glass-blur);border-radius:var(--q-r-panel);padding:12px 14px}
+.btn{min-height:var(--q-h-control);padding:0 18px;border:none;border-radius:var(--q-r-pill);background:var(--q-btn-face);
+     color:var(--q-btn-ink);font-family:inherit;font-size:13.5px;font-weight:var(--q-fw-medium);cursor:pointer}
 .btn:hover{background:var(--q-btn-face-hover);color:var(--q-btn-ink-hover)}
 .btn-cta{background:var(--q-cta);color:var(--q-cta-ink)}
 .btn[disabled]{opacity:.45;cursor:not-allowed;background:var(--q-btn-face);color:var(--q-btn-ink)}
-.tools .sp{flex:1}
 
-/* 알림 */
-.notice{margin-top:var(--q-gutter);border-radius:var(--q-r-card);padding:14px 18px;font-size:13.5px;line-height:1.7}
+.notice{margin-top:var(--q-gutter);border-radius:var(--q-r-card);padding:13px 18px;font-size:13.5px;line-height:1.7}
 .notice-error{background:#fdf2f2;border:1px solid #f0c9c9;color:#8c2f2f}
 .notice-error b{color:var(--q-err)}
-.notice-info{background:var(--q-tint);border:1px solid #cfe0fb;color:#2b4f86}
 
-/* 기본정보 */
-.meta{margin-top:var(--q-gutter);background:var(--q-glass-fill);border:1px solid var(--q-glass-stroke);
-      box-shadow:var(--q-glass-shadow);backdrop-filter:var(--q-glass-blur);
-      border-radius:var(--q-r-panel);padding:16px 18px;display:grid;
-      grid-template-columns:repeat(4,minmax(0,1fr));gap:12px 16px}
+.meta{margin-top:var(--q-gutter);background:var(--q-glass-fill);border:1px solid var(--q-glass-stroke);box-shadow:var(--q-glass-shadow);
+      backdrop-filter:var(--q-glass-blur);border-radius:var(--q-r-panel);padding:16px 18px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px 16px}
 .f label{display:block;font-size:11.5px;color:var(--q-muted);font-weight:var(--q-fw-medium);margin-bottom:5px}
-.f input{width:100%;min-height:var(--q-h-input);border:1px solid var(--q-line);border-radius:var(--q-r-chip);
-         background:var(--q-field-fill);padding:0 12px;font-family:inherit;font-size:13.5px;color:var(--q-ink)}
-.f input:focus{outline:none;background:#fff;box-shadow:var(--q-focus-ring);border-color:var(--q-accent)}
+.f input,.f select{width:100%;min-height:var(--q-h-input);border:1px solid var(--q-line);border-radius:var(--q-r-chip);
+  background:var(--q-field-fill);padding:0 12px;font-family:inherit;font-size:13.5px;color:var(--q-ink)}
+.f input:focus,.f select:focus{outline:none;background:#fff;box-shadow:var(--q-focus-ring);border-color:var(--q-accent)}
 
-/* 2단 그리드 */
-.stage{display:grid;grid-template-columns:320px minmax(0,1fr);gap:var(--q-gutter);margin-top:var(--q-gutter)}
-.panel{background:var(--q-glass-fill);border:1px solid var(--q-glass-stroke);box-shadow:var(--q-glass-shadow);
-       backdrop-filter:var(--q-glass-blur);border-radius:var(--q-r-panel);padding:18px}
-.main{background:var(--q-glass-fill);border:1px solid var(--q-glass-stroke);box-shadow:var(--q-glass-shadow);
-      backdrop-filter:var(--q-glass-blur);border-radius:var(--q-r-main);padding:22px}
-h2{margin:0 0 14px;font-size:15px;font-weight:var(--q-fw-strong)}
+.stage{display:grid;grid-template-columns:392px minmax(0,1fr);gap:var(--q-gutter);margin-top:var(--q-gutter)}
+.panel,.main{background:var(--q-glass-fill);border:1px solid var(--q-glass-stroke);box-shadow:var(--q-glass-shadow);backdrop-filter:var(--q-glass-blur)}
+.panel{border-radius:var(--q-r-panel);padding:18px}
+.main{border-radius:var(--q-r-main);padding:22px}
+h2{margin:0 0 6px;font-size:15px;font-weight:var(--q-fw-strong)}
 h2 span{float:right;font-size:11.5px;color:var(--q-muted);font-weight:500}
+.sub{font-size:12px;color:var(--q-muted);margin:0 0 14px;line-height:1.6}
 
-/* 제품 검색 */
-.search{width:100%;min-height:var(--q-h-input);border:1px solid var(--q-line);border-radius:var(--q-r-pill);
-        background:var(--q-field-fill);padding:0 16px;font-family:inherit;font-size:13.5px;margin-bottom:12px}
-.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
-.chip{border:1px solid var(--q-line);background:#fff;border-radius:var(--q-r-pill);padding:5px 11px;
-      font-size:11.5px;color:var(--q-muted);cursor:pointer}
-.chip.on{background:var(--q-tint);border-color:#b9d3fb;color:var(--q-accent);font-weight:var(--q-fw-medium)}
-.plist{display:flex;flex-direction:column;gap:7px;max-height:430px;overflow-y:auto}
-.pitem{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--q-line);border-radius:var(--q-r-chip);
-       padding:9px 11px;background:#fff;cursor:pointer}
-.pitem:hover{border-color:#b9d3fb;background:var(--q-tint)}
-.pitem input{margin-top:2px;accent-color:var(--q-accent)}
-.pitem .nm{font-size:12.5px;font-weight:var(--q-fw-medium);line-height:1.4}
-.pitem .sp2{font-size:11px;color:var(--q-muted);margin-top:2px}
-.pitem .pr{margin-left:auto;font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap;padding-left:6px}
-.pitem .unreg{color:var(--q-err);font-weight:var(--q-fw-medium)}
+/* ── 구성 단계 ── */
+.steps{display:flex;flex-direction:column;gap:9px}
+.step{border:1px solid var(--q-line);border-radius:var(--q-r-card);background:#fff;overflow:hidden}
+.step.done{border-color:#bcd8c6}
+.step.todo{border-style:dashed}
+.step.must{border-color:#f0c9c9}
+.sh{display:flex;align-items:center;gap:9px;padding:11px 13px;cursor:pointer}
+.no{width:21px;height:21px;border-radius:50%;background:var(--q-soft);color:var(--q-muted);display:grid;place-items:center;font-size:11px;font-weight:var(--q-fw-strong);flex:none}
+.step.done .no{background:var(--q-ok);color:#fff}
+.step.must .no{background:var(--q-err);color:#fff}
+.sh .t{font-size:13.5px;font-weight:var(--q-fw-medium)}
+.sh .c{margin-left:auto;font-size:11.5px;color:var(--q-muted)}
+.sb{border-top:1px solid var(--q-line);padding:10px 13px;background:#fcfdff}
+.pick{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:12.5px}
+.pick+.pick{border-top:1px dashed var(--q-line)}
+.pick .nm{flex:1;line-height:1.45}
+.pick .nm i{display:block;font-style:normal;font-size:11px;color:var(--q-muted)}
+.pick .qty{width:52px;text-align:right;border:1px solid var(--q-line);border-radius:9px;background:var(--q-field-fill);
+           padding:4px 7px;font-family:inherit;font-size:12px;font-variant-numeric:tabular-nums}
+.pick .u{font-size:11px;color:var(--q-muted);width:24px}
+.auto{margin-left:14px;border-left:2px solid var(--q-tint);padding-left:10px}
+.tag{display:inline-block;font-size:10px;padding:2px 7px;border-radius:var(--q-r-pill);font-weight:var(--q-fw-medium);vertical-align:1px}
+.tag-auto{background:var(--q-tint);color:var(--q-accent)}
+.tag-ask{background:#fdf4e6;color:#C7590A}
+.tag-un{background:#fdeaea;color:var(--q-err)}
+.add{width:100%;margin-top:8px;border:1px dashed var(--q-line);background:#fff;border-radius:10px;padding:8px;
+     font-family:inherit;font-size:12px;color:var(--q-muted);cursor:pointer}
+.add:hover{border-color:var(--q-accent);color:var(--q-accent);background:var(--q-tint)}
 
-/* 탭 */
-.seg{display:inline-flex;background:var(--q-seg-track);border-radius:var(--q-r-seg);padding:3px;gap:2px;margin-bottom:16px}
-.seg button{border:none;background:transparent;border-radius:9px;padding:7px 16px;font-family:inherit;
-            font-size:13px;font-weight:var(--q-fw-medium);color:var(--q-muted);cursor:pointer}
+/* ── 표 ── */
+.seg{display:inline-flex;background:var(--q-seg-track);border-radius:var(--q-r-seg);padding:3px;gap:2px;margin-bottom:14px}
+.seg button{border:none;background:transparent;border-radius:9px;padding:7px 15px;font-family:inherit;font-size:13px;font-weight:var(--q-fw-medium);color:var(--q-muted);cursor:pointer}
 .seg button.on{background:var(--q-seg-thumb);box-shadow:var(--q-seg-thumb-shadow);color:var(--q-ink)}
-
-/* 표 */
 .hscroll{overflow-x:auto;max-width:100%;border:1px solid var(--q-line);border-radius:var(--q-r-card);background:#fff}
 table{border-collapse:collapse;min-width:max-content;width:100%;font-size:12.5px}
-th,td{border:1px solid var(--q-line);padding:7px 9px;white-space:nowrap}
-thead th{background:var(--q-soft);font-weight:var(--q-fw-medium);text-align:center;position:sticky;top:0;z-index:1}
+th,td{border:1px solid var(--q-line);padding:6px 9px;white-space:nowrap}
+thead th{background:var(--q-soft);font-weight:var(--q-fw-medium);text-align:center}
 td.num{text-align:right;font-variant-numeric:tabular-nums}
 td.ctr{text-align:center}
 tr.grp td{background:#f8fafd;font-weight:var(--q-fw-medium)}
-tr.sub td{background:var(--q-tint);font-weight:var(--q-fw-strong)}
-tr.tot td{background:#e7eefb;font-weight:var(--q-fw-strong)}
+tr.st td{background:var(--q-tint);font-weight:var(--q-fw-strong)}
+tr.tt td{background:#e7eefb;font-weight:var(--q-fw-strong)}
 tr.off td{color:#9aa3b2}
 td[data-unregistered]{color:var(--q-err);font-weight:var(--q-fw-medium);background:#fdf5f5}
-.rate{color:var(--q-muted);font-variant-numeric:tabular-nums}
-
-/* 갑지 하단 */
-.sumcard{margin-top:16px;border:1px solid var(--q-line);border-radius:var(--q-r-card);background:#fff;padding:16px 18px}
-.sumrow{display:flex;justify-content:space-between;padding:7px 0;font-size:13.5px}
+td[data-need]{color:#C7590A;font-weight:var(--q-fw-medium);background:#fdf8f1}
+.rate{color:var(--q-muted)}
+.legend{margin-top:12px;font-size:11.5px;color:var(--q-muted);line-height:1.85}
+.legend em{font-style:normal;color:var(--q-err);font-weight:var(--q-fw-medium)}
+.legend u{text-decoration:none;color:#C7590A;font-weight:var(--q-fw-medium)}
+.sumcard{margin-top:14px;border:1px solid var(--q-line);border-radius:var(--q-r-card);background:#fff;padding:14px 18px}
+.sumrow{display:flex;justify-content:space-between;padding:6px 0;font-size:13.5px}
 .sumrow+.sumrow{border-top:1px dashed var(--q-line)}
 .sumrow .v{font-variant-numeric:tabular-nums;font-weight:var(--q-fw-medium)}
-.sumrow.fin{border-top:2px solid var(--q-accent);margin-top:6px;padding-top:12px;font-size:16px;font-weight:var(--q-fw-strong)}
+.sumrow.fin{border-top:2px solid var(--q-accent);margin-top:6px;padding-top:11px;font-size:16px;font-weight:var(--q-fw-strong)}
 .sumrow.fin .v{color:var(--q-accent)}
-.hangul{margin-top:12px;background:var(--q-tint);border-radius:var(--q-r-chip);padding:12px 14px;
-        font-size:13.5px;font-weight:var(--q-fw-medium);color:#2b4f86;text-align:center}
-.legend{margin-top:12px;font-size:11.5px;color:var(--q-muted);line-height:1.8}
-.legend em{font-style:normal;color:var(--q-err);font-weight:var(--q-fw-medium)}
-@media(max-width:1100px){.stage{grid-template-columns:1fr}.meta{grid-template-columns:repeat(2,1fr)}}
+.hangul{margin-top:11px;background:var(--q-tint);border-radius:var(--q-r-chip);padding:11px 14px;font-size:13.5px;font-weight:var(--q-fw-medium);color:#2b4f86;text-align:center}
+
+/* 로드맵 */
+.road{margin-top:var(--q-gutter);display:grid;grid-template-columns:repeat(3,1fr);gap:var(--q-gutter)}
+.rc{border-radius:var(--q-r-card);padding:16px 18px;font-size:12.5px;line-height:1.7}
+.rc h3{margin:0 0 7px;font-size:13.5px}
+.rc.now{background:#fff;border:2px solid var(--q-accent)}
+.rc.now h3{color:var(--q-accent)}
+.rc.next{background:#fff;border:1px solid var(--q-line);color:var(--q-muted)}
+.rc.goal{background:#1f2532;color:#cfd8e6;border:1px solid #1f2532}
+.rc.goal h3{color:#8fb7ff}
+.rc .lab{display:inline-block;font-size:10.5px;padding:2px 8px;border-radius:var(--q-r-pill);margin-bottom:8px;font-weight:var(--q-fw-medium)}
+.rc.now .lab{background:var(--q-tint);color:var(--q-accent)}
+.rc.next .lab{background:var(--q-soft);color:var(--q-muted)}
+.rc.goal .lab{background:#2d3a4f;color:#8fb7ff}
+@media(max-width:1180px){.stage{grid-template-columns:1fr}.meta{grid-template-columns:repeat(2,1fr)}.road{grid-template-columns:1fr}}
 @media(max-width:520px){.meta{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <div class="shell">
 
-  <div class="mock">
-    <b>화면 초안입니다.</b> 모양을 보시는 용도이고 버튼은 동작하지 않습니다.
-    숫자는 실제 카탈로그(제품 1,468개)에서 가져온 진짜 제품·단가이고, 합계·간접비·절사는 실제 계산 규칙대로 맞춰 두었습니다.
-    색·글꼴·모서리·버튼 높이는 RTCOM 구성기에서 측정한 값 그대로입니다.
+<div class="mock">
+  <b>화면 초안 v2 — 모양 확인용입니다.</b> 버튼은 동작하지 않습니다.
+  제품·단가는 실제 카탈로그 1,468개에서 가져온 진짜 값이고, 합계·간접비·절사·한글 금액은 실제 계산 규칙대로 맞췄습니다.
+  <b>바뀐 점:</b> 왼쪽이 검색창이 아니라 <b>굵직한 아이템 순서대로 고르는 단계</b>입니다.
+</div>
+
+<header class="top">
+  <div class="mark">AV</div>
+  <div class="brand">AV 견적<small>서울영상테크</small></div>
+  <div class="sp"></div>
+  <a class="portal" href="#">포털로 돌아가기 →</a>
+</header>
+
+<div class="tools">
+  <button class="btn">샘플 선택</button>
+  <button class="btn">새 견적</button>
+  <button class="btn">작업 파일 열기</button>
+  <button class="btn">저장</button>
+  <div class="sp"></div>
+  <button class="btn">원가표 불러오기 · 이 기기에서만 처리</button>
+  <button class="btn btn-cta" disabled>Excel 다운로드</button>
+</div>
+
+<div class="notice notice-error">
+  <b>미해결 2건이 남아 Excel 다운로드를 막았습니다.</b><br>
+  ① <b>TV 벽부 브라켓</b> — 판매 단가 미등록 &nbsp;·&nbsp; ② <b>UTP Cable (CAT6)</b> — 필수인데 수량 미입력
+</div>
+
+<div class="meta">
+  <div class="f"><label>공사명</label><input value="○○빌딩 7층 중회의실 AV시스템"></div>
+  <div class="f"><label>고객명</label><input value="○○건설(주)"></div>
+  <div class="f"><label>공간 유형</label>
+    <select><option>중회의실</option><option>소회의실</option><option>대회의실</option><option>교육장</option><option>상황실</option><option>대강당</option></select></div>
+  <div class="f"><label>수용 인원</label><input value="22"></div>
+  <div class="f"><label>견적번호</label><input value="SAV-26-1003-01"></div>
+</div>
+
+<div class="stage">
+
+  <!-- 좌: 구성 단계 -->
+  <aside class="panel">
+    <h2>구성<span>7단계 중 6 완료</span></h2>
+    <p class="sub">굵직한 것부터 순서대로 고르시면 됩니다. 딸려가는 품목은 <span class="tag tag-auto">자동</span>으로 붙고, 고르셔야 하는 건 <span class="tag tag-ask">선택</span>으로 물어봅니다.</p>
+
+    <div class="steps">
+
+      <div class="step done">
+        <div class="sh"><span class="no">1</span><span class="t">디스플레이</span><span class="c">2품목 · 2,484,000</span></div>
+        <div class="sb">
+          <div class="pick"><span class="nm">삼성 65인치 TV<i>HG65U800FNFXKR · 1,242,000</i></span><input class="qty" value="2"><span class="u">EA</span></div>
+          <div class="pick auto"><span class="nm"><span class="tag tag-auto">자동</span> 벽부 브라켓<i>제작사양(Steel) · <span class="tag tag-un">단가 미등록</span></i></span><input class="qty" value="2"><span class="u">EA</span></div>
+          <button class="add">+ 디스플레이 추가</button>
+        </div>
+      </div>
+
+      <div class="step done">
+        <div class="sh"><span class="no">2</span><span class="t">카메라</span><span class="c">1품목 · 3,552,000</span></div>
+        <div class="sb">
+          <div class="pick"><span class="nm">HD PTZ Camera<i>SRG-X40UH · 3,552,000</i></span><input class="qty" value="1"><span class="u">EA</span></div>
+          <button class="add">+ 카메라 추가</button>
+        </div>
+      </div>
+
+      <div class="step done">
+        <div class="sh"><span class="no">3</span><span class="t">매트릭스 · 비디오 스위처</span><span class="c">3품목 · 7,950,000</span></div>
+        <div class="sb">
+          <div class="pick"><span class="nm">UHD Matrix Frame<i>XDM-12 · 5,300,000</i></span><input class="qty" value="1"><span class="u">EA</span></div>
+          <div class="pick auto"><span class="nm"><span class="tag tag-auto">자동</span> HDMI 4채널 input card<i>XDM-HI100 · 742,000</i></span><input class="qty" value="1"><span class="u">EA</span></div>
+          <div class="pick auto"><span class="nm"><span class="tag tag-auto">자동</span> HDBaseT 4채널 output card<i>XDM-COS100 · 1,908,000</i></span><input class="qty" value="1"><span class="u">EA</span></div>
+          <button class="add">+ 카드 추가</button>
+        </div>
+      </div>
+
+      <div class="step done">
+        <div class="sh"><span class="no">4</span><span class="t">음향</span><span class="c">1품목 · 4,590,000</span></div>
+        <div class="sb">
+          <div class="pick"><span class="nm">오디오 Digital Signal Processor<i>Core Nano · 4,590,000</i></span><input class="qty" value="1"><span class="u">EA</span></div>
+          <button class="add">+ 스피커 · 마이크 · 앰프 추가</button>
+        </div>
+      </div>
+
+      <div class="step done">
+        <div class="sh"><span class="no">5</span><span class="t">제어</span><span class="c">2품목 · 5,232,000</span></div>
+        <div class="sb">
+          <div class="pick"><span class="nm">Main Controller<i>NX-1200 · 2,172,000</i></span><input class="qty" value="1"><span class="u">EA</span></div>
+          <div class="pick auto"><span class="nm"><span class="tag tag-auto">자동</span> 7" Tabletop Touch Panel<i>MT-702 · 3,060,000</i></span><input class="qty" value="1"><span class="u">EA</span></div>
+          <button class="add">+ 제어기기 추가</button>
+        </div>
+      </div>
+
+      <div class="step must">
+        <div class="sh"><span class="no">6</span><span class="t">전송 · 케이블</span><span class="c" style="color:#C7590A">수량 미입력</span></div>
+        <div class="sb">
+          <div class="pick"><span class="nm"><span class="tag tag-ask">필수</span> UTP Cable (CAT6)<i>7814A · 8,400 / 10M &nbsp;·&nbsp; HDBaseT 구간에 반드시 필요</i></span><input class="qty" value="" placeholder="?" style="border-color:#C7590A"><span class="u">10M</span></div>
+          <div class="pick"><span class="nm">HDMI 케이블<i>5m · 지급자재(0원)</i></span><input class="qty" value="2"><span class="u">EA</span></div>
+          <button class="add">+ 케이블 추가</button>
+        </div>
+      </div>
+
+      <div class="step done">
+        <div class="sh"><span class="no">7</span><span class="t">랙 · 전원</span><span class="c">1품목 · 325,000</span></div>
+        <div class="sb">
+          <div class="pick"><span class="nm">순차전원공급기<i>DS-8S · 325,000</i></span><input class="qty" value="1"><span class="u">EA</span></div>
+          <button class="add">+ 랙 · 전원 추가</button>
+        </div>
+      </div>
+
+    </div>
+  </aside>
+
+  <!-- 우: 견적 -->
+  <section class="main">
+    <div class="seg">
+      <button onclick="go('cover')" id="t-cover">갑지</button>
+      <button class="on" onclick="go('sys')" id="t-sys">시스템별 내역</button>
+      <button onclick="go('labor')" id="t-labor">일위대가</button>
+      <button onclick="go('total')" id="t-total">합계</button>
+    </div>
+
+    <div id="p-sys">
+      <h2>중회의실 AV시스템<span>품목 11 · 미해결 2</span></h2>
+      <div class="hscroll">
+      <table>
+        <thead>
+          <tr><th rowspan="2">번호</th><th rowspan="2">품&nbsp;&nbsp;명</th><th rowspan="2">규&nbsp;격</th><th rowspan="2">단위</th><th rowspan="2">수량</th>
+              <th colspan="2">재료비</th><th colspan="2">노무비</th><th rowspan="2">합&nbsp;계</th><th rowspan="2">비&nbsp;고</th></tr>
+          <tr><th>단&nbsp;가</th><th>금&nbsp;액</th><th>단&nbsp;가</th><th>금&nbsp;액</th></tr>
+        </thead>
+        <tbody>
+          <tr class="grp"><td class="ctr"></td><td>[ 디스플레이 ]</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td class="ctr">1</td><td>삼성 65인치 TV</td><td>HG65U800FNFXKR</td><td class="ctr">EA</td><td class="num">2</td><td class="num">1,242,000</td><td class="num">2,484,000</td><td class="num">62,000</td><td class="num">124,000</td><td class="num">2,608,000</td><td></td></tr>
+          <tr><td class="ctr">2</td><td>- 벽부 브라켓</td><td>제작사양(Steel)</td><td class="ctr">EA</td><td class="num">2</td><td class="num" data-unregistered="true">미등록</td><td class="num" data-unregistered="true">미등록</td><td class="num">35,000</td><td class="num">70,000</td><td class="num" data-unregistered="true">미등록</td><td>자동</td></tr>
+
+          <tr class="grp"><td class="ctr"></td><td>[ 카메라 ]</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td class="ctr">3</td><td>HD PTZ Camera</td><td>SRG-X40UH</td><td class="ctr">EA</td><td class="num">1</td><td class="num">3,552,000</td><td class="num">3,552,000</td><td class="num">180,000</td><td class="num">180,000</td><td class="num">3,732,000</td><td></td></tr>
+
+          <tr class="grp"><td class="ctr"></td><td>[ 매트릭스 · 비디오 스위처 ]</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td class="ctr">4</td><td>UHD Matrix Frame</td><td>XDM-12</td><td class="ctr">EA</td><td class="num">1</td><td class="num">5,300,000</td><td class="num">5,300,000</td><td class="num">350,000</td><td class="num">350,000</td><td class="num">5,650,000</td><td></td></tr>
+          <tr><td class="ctr">5</td><td>- HDMI 4채널 input card</td><td>XDM-HI100</td><td class="ctr">EA</td><td class="num">1</td><td class="num">742,000</td><td class="num">742,000</td><td class="num">60,000</td><td class="num">60,000</td><td class="num">802,000</td><td>자동</td></tr>
+          <tr><td class="ctr">6</td><td>- HDBaseT 4채널 output card</td><td>XDM-COS100</td><td class="ctr">EA</td><td class="num">1</td><td class="num">1,908,000</td><td class="num">1,908,000</td><td class="num">60,000</td><td class="num">60,000</td><td class="num">1,968,000</td><td>자동</td></tr>
+
+          <tr class="grp"><td class="ctr"></td><td>[ 음향 ]</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td class="ctr">7</td><td>오디오 Digital Signal Processor</td><td>Core Nano</td><td class="ctr">EA</td><td class="num">1</td><td class="num">4,590,000</td><td class="num">4,590,000</td><td class="num">420,000</td><td class="num">420,000</td><td class="num">5,010,000</td><td></td></tr>
+
+          <tr class="grp"><td class="ctr"></td><td>[ 제어 ]</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td class="ctr">8</td><td>Main Controller</td><td>NX-1200</td><td class="ctr">EA</td><td class="num">1</td><td class="num">2,172,000</td><td class="num">2,172,000</td><td class="num">220,000</td><td class="num">220,000</td><td class="num">2,392,000</td><td></td></tr>
+          <tr><td class="ctr">9</td><td>- 7" Tabletop Touch Panel</td><td>MT-702</td><td class="ctr">EA</td><td class="num">1</td><td class="num">3,060,000</td><td class="num">3,060,000</td><td class="num">150,000</td><td class="num">150,000</td><td class="num">3,210,000</td><td>자동</td></tr>
+
+          <tr class="grp"><td class="ctr"></td><td>[ 전송 · 케이블 ]</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td class="ctr">10</td><td>UTP Cable (CAT6)</td><td>7814A</td><td class="ctr">10M</td><td class="num" data-need="true">?</td><td class="num">8,400</td><td class="num" data-need="true">수량 필요</td><td class="num">4,000</td><td class="num" data-need="true">수량 필요</td><td class="num" data-need="true">수량 필요</td><td>필수</td></tr>
+          <tr><td class="ctr">11</td><td>HDMI 케이블</td><td>5m</td><td class="ctr">EA</td><td class="num">2</td><td class="num">0</td><td class="num">0</td><td class="num">5,000</td><td class="num">10,000</td><td class="num">10,000</td><td>지급자재</td></tr>
+
+          <tr class="grp"><td class="ctr"></td><td>[ 랙 · 전원 ]</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td class="ctr">12</td><td>순차전원공급기</td><td>DS-8S</td><td class="ctr">EA</td><td class="num">1</td><td class="num">325,000</td><td class="num">325,000</td><td class="num">80,000</td><td class="num">80,000</td><td class="num">405,000</td><td></td></tr>
+          <tr><td class="ctr">13</td><td>잡자재비</td><td>자재비의 2%</td><td class="ctr">식</td><td class="num">1</td><td class="num">482,660</td><td class="num">482,660</td><td class="num">—</td><td class="num">—</td><td class="num">482,660</td><td></td></tr>
+
+          <tr class="st"><td></td><td colspan="4">직 접 비 계</td><td></td><td class="num">24,615,660</td><td></td><td class="num">1,714,000</td><td class="num">26,329,660</td><td></td></tr>
+
+          <tr><td class="ctr"></td><td>간접노무비</td><td>노무비 대비</td><td class="ctr">식</td><td class="num rate">15.00%</td><td></td><td></td><td></td><td></td><td class="num">257,100</td><td></td></tr>
+          <tr><td class="ctr"></td><td>고용보험료</td><td>노무비 대비</td><td class="ctr">식</td><td class="num rate">0.87%</td><td></td><td></td><td></td><td></td><td class="num">14,911</td><td></td></tr>
+          <tr><td class="ctr"></td><td>산재보험료</td><td>노무비 대비</td><td class="ctr">식</td><td class="num rate">3.60%</td><td></td><td></td><td></td><td></td><td class="num">61,704</td><td></td></tr>
+          <tr class="off"><td class="ctr"></td><td>연금보험료</td><td>노무비 대비</td><td class="ctr">식</td><td class="num rate">1.215%</td><td></td><td></td><td></td><td></td><td class="num">0</td><td>미적용</td></tr>
+          <tr class="off"><td class="ctr"></td><td>건강보험료</td><td>노무비 대비</td><td class="ctr">식</td><td class="num rate">0.957%</td><td></td><td></td><td></td><td></td><td class="num">0</td><td>미적용</td></tr>
+          <tr class="off"><td class="ctr"></td><td>노인장기요양보험료</td><td>노무비 대비</td><td class="ctr">식</td><td class="num rate">0.124%</td><td></td><td></td><td></td><td></td><td class="num">0</td><td>미적용</td></tr>
+          <tr><td class="ctr"></td><td>산업안전보건관리비</td><td>직접비 대비</td><td class="ctr">식</td><td class="num rate">2.93%</td><td></td><td></td><td></td><td></td><td class="num">771,459</td><td></td></tr>
+          <tr><td class="ctr"></td><td>퇴직공제부금비</td><td>노무비 대비</td><td class="ctr">식</td><td class="num rate">0.23%</td><td></td><td></td><td></td><td></td><td class="num">3,942</td><td></td></tr>
+          <tr><td class="ctr"></td><td>공과잡비</td><td>직접비+간접노무비+산업안전</td><td class="ctr">식</td><td class="num rate">5.00%</td><td></td><td></td><td></td><td></td><td class="num">1,367,910</td><td></td></tr>
+
+          <tr class="st"><td></td><td colspan="4">간 접 비 계</td><td></td><td></td><td></td><td></td><td class="num">2,477,026</td><td></td></tr>
+          <tr class="tt"><td></td><td colspan="4">합&nbsp;&nbsp;계</td><td></td><td></td><td></td><td></td><td class="num">28,806,686</td><td></td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="legend">
+        <em>미등록</em> — 단가가 카탈로그에 없습니다. <b>0원과 다릅니다.</b> 11번 지급자재의 0은 정상 값입니다.<br>
+        <u>수량 필요</u> — 반드시 들어가야 하는데 수량이 현장마다 달라 프로그램이 못 정하는 것입니다. 비워두면 Excel을 못 받습니다.<br>
+        <span style="color:#9aa3b2">회색 행</span> — 이 공사에서 적용하지 않는 간접비. 요율은 남기고 금액만 0 — 원본 견적서와 같은 방식입니다.<br>
+        <b>자동</b> — 주 제품을 고르면 같이 들어온 품목입니다. 수량을 고치거나 지우셔도 다시 늘어나지 않습니다.
+      </div>
+    </div>
+
+    <div id="p-cover" style="display:none">
+      <h2>갑지<span>시스템 1개</span></h2>
+      <div class="hscroll">
+      <table>
+        <thead><tr><th>순위</th><th>품&nbsp;명</th><th>규&nbsp;격</th><th>단위</th><th>수량</th><th>금&nbsp;액</th><th>합&nbsp;계</th><th>비&nbsp;고</th></tr></thead>
+        <tbody>
+          <tr><td class="ctr">1</td><td>중회의실 AV시스템</td><td>65" 2대 / PTZ / 매트릭스 / 제어</td><td class="ctr">식</td><td class="num">1</td><td class="num">28,806,686</td><td class="num">28,806,686</td><td></td></tr>
+          <tr class="st"><td></td><td colspan="4">절사 전 합계</td><td></td><td class="num">28,806,686</td><td></td></tr>
+          <tr><td></td><td colspan="4">만원미만절사</td><td></td><td class="num">28,800,000</td><td></td></tr>
+          <tr><td></td><td colspan="4">NEGO</td><td></td><td class="num">-300,000</td><td>웹 입력 300,000</td></tr>
+          <tr class="tt"><td></td><td colspan="4">최종 공급금액</td><td></td><td class="num">28,500,000</td><td>V.A.T 별도</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="hangul">일금이천팔백오십만원정(₩28,500,000) V.A.T별도</div>
+      <div class="legend">갑지는 시스템별 내역과 <b>열 구성이 다릅니다</b>(재료비·노무비 2단 머리글 없음). 원본 견적서와 같습니다.<br>NEGO는 화면에서 <b>양수</b>로 입력받고 Excel에는 <b>음수</b>로 씁니다.</div>
+    </div>
+
+    <div id="p-labor" style="display:none">
+      <h2>일위대가 — 삼성 65인치 TV<span>품셈 7-11-1</span></h2>
+      <div class="hscroll">
+      <table>
+        <thead><tr><th>직종</th><th>단위</th><th>품</th><th>노임(26년 상반기)</th><th>금액</th></tr></thead>
+        <tbody>
+          <tr><td>통신관련기사</td><td class="ctr">M/D</td><td class="num">0.08</td><td class="num">320,449</td><td class="num">25,635</td></tr>
+          <tr><td>통신설비공</td><td class="ctr">M/D</td><td class="num">0.07</td><td class="num">315,528</td><td class="num">22,086</td></tr>
+          <tr><td>보통인부</td><td class="ctr">M/D</td><td class="num">0.05</td><td class="num">172,068</td><td class="num">8,603</td></tr>
+          <tr class="st"><td colspan="4">표준 노무단가</td><td class="num">56,324</td></tr>
+          <tr><td colspan="4">할증 0% · 품목별 요율 110%</td><td class="num">61,956</td></tr>
+          <tr class="tt"><td colspan="4">적용 노무단가 <span style="font-weight:500;color:#687386">= INT(표준 × (1+할증) × 요율)</span></td><td class="num">62,000</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="legend">출처: 표준품셈 통합문서 · 개정 26년 상반기 · 품셈코드 7-11-1<br>
+        <em>확인 필요</em> — 품셈 연결 1,331건은 전부 <b>미확인</b> 상태입니다. 사람이 확인하기 전에는 «품셈 검증 완료»로 표시하지 않습니다.</div>
+    </div>
+
+    <div id="p-total" style="display:none">
+      <h2>합계</h2>
+      <div class="sumcard">
+        <div class="sumrow"><span>직접비 — 재료비</span><span class="v">24,615,660</span></div>
+        <div class="sumrow"><span>직접비 — 노무비</span><span class="v">1,714,000</span></div>
+        <div class="sumrow"><span>직접비계</span><span class="v">26,329,660</span></div>
+        <div class="sumrow"><span>간접비계 <span style="color:#687386;font-weight:400">(9개 중 6개 적용)</span></span><span class="v">2,477,026</span></div>
+        <div class="sumrow"><span>절사 전 합계</span><span class="v">28,806,686</span></div>
+        <div class="sumrow"><span>만원미만절사</span><span class="v">-6,686</span></div>
+        <div class="sumrow"><span>NEGO 차감</span><span class="v">-300,000</span></div>
+        <div class="sumrow fin"><span>최종 공급금액 (V.A.T 별도)</span><span class="v">28,500,000</span></div>
+      </div>
+      <div class="hangul">일금이천팔백오십만원정(₩28,500,000) V.A.T별도</div>
+      <div class="legend" style="color:#8c2f2f">미해결 2건이 남아 있어 이 금액은 <b>확정이 아닙니다.</b> 브라켓 단가와 UTP 수량을 채우면 바뀝니다.</div>
+    </div>
+
+  </section>
+</div>
+
+<!-- 로드맵 -->
+<div class="road">
+  <div class="rc now">
+    <span class="lab">① 지금 만드는 것</span>
+    <h3>굵직한 아이템 순서대로 고르기</h3>
+    디스플레이 → 카메라 → 매트릭스 → 음향 → 제어 → 케이블 → 랙.<br>
+    고르면 딸림 품목이 따라오고 견적이 차오릅니다.<br>
+    <b>케이블 수량은 직접 넣으십니다.</b>
   </div>
-
-  <!-- 헤더 -->
-  <header class="top">
-    <div class="mark">AV</div>
-    <div class="brand">AV 견적<small>서울영상테크</small></div>
-    <div class="sp"></div>
-    <a class="portal" href="#">포털로 돌아가기 →</a>
-  </header>
-
-  <!-- 툴바 -->
-  <div class="tools">
-    <button class="btn">샘플 선택</button>
-    <button class="btn">새 견적</button>
-    <button class="btn">작업 파일 열기</button>
-    <button class="btn">저장</button>
-    <div class="sp"></div>
-    <button class="btn">원가표 불러오기 · 이 기기에서만 처리</button>
-    <button class="btn btn-cta" disabled>Excel 다운로드</button>
+  <div class="rc next">
+    <span class="lab">② 다음</span>
+    <h3>공간 정보로 케이블 추정</h3>
+    «22인 중회의실»을 고르면, 과거 같은 규모 공사에서 실제로 들어간 양을 근거로 케이블 수량을 제시합니다.<br>
+    <b>추정치로 표시하고 확인을 받습니다.</b> 사장님이 주실 샘플 견적서가 그 근거입니다.
   </div>
-
-  <!-- 차단 알림 -->
-  <div class="notice notice-error">
-    <b>미해결 항목이 1건 있어 Excel 다운로드를 막았습니다.</b><br>
-    2번 <b>TV 벽부 브라켓</b> — 판매 단가가 미등록입니다. 단가를 입력하거나 <u>지급자재·별도공사</u> 사유를 남겨 주세요.
+  <div class="rc goal">
+    <span class="lab">③ 최종 목표</span>
+    <h3>구성도를 그리면 견적이 나온다</h3>
+    PC → 매트릭스 → TV 를 선으로 이으면, <b>그은 선이 곧 케이블 한 가닥</b>입니다.<br>
+    추측이 없습니다. 구간 길이만 적으면 수량이 정해집니다.<br>
+    ①·② 위에 얹히는 구조라 버리는 작업이 없습니다.
   </div>
-
-  <!-- 기본 정보 -->
-  <div class="meta">
-    <div class="f"><label>공사명</label><input value="○○빌딩 7층 중회의실 AV시스템 납품설치"></div>
-    <div class="f"><label>고객명</label><input value="○○건설(주)"></div>
-    <div class="f"><label>작성일</label><input value="2026-10-03"></div>
-    <div class="f"><label>견적번호</label><input value="SAV-26-1003-01"></div>
-  </div>
-
-  <!-- 본문 -->
-  <div class="stage">
-
-    <!-- 좌: 제품 검색 -->
-    <aside class="panel">
-      <h2>제품 검색<span>1,468개</span></h2>
-      <input class="search" placeholder="품명 · 규격 · 모델로 검색">
-      <div class="chips">
-        <span class="chip on">전체</span><span class="chip">영상</span><span class="chip">오디오</span>
-        <span class="chip">TV</span><span class="chip">화상회의</span><span class="chip">제어</span>
-        <span class="chip">케이블</span><span class="chip">전원·랙</span><span class="chip">프로젝터</span>
-      </div>
-      <div class="plist">
-        <label class="pitem"><input type="checkbox"><span><span class="nm">삼성 65인치 TV</span><span class="sp2">HG65U800FNFXKR · EA</span></span><span class="pr">1,242,000</span></label>
-        <label class="pitem"><input type="checkbox"><span><span class="nm">삼성 55인치 TV</span><span class="sp2">HG55U800FNFXKR · EA</span></span><span class="pr">1,035,000</span></label>
-        <label class="pitem"><input type="checkbox"><span><span class="nm">Video Conference Cam</span><span class="sp2">Logitech Rallybar_All in one · EA</span></span><span class="pr">5,640,000</span></label>
-        <label class="pitem"><input type="checkbox"><span><span class="nm">확장용 마이크</span><span class="sp2">Rally Mic Pod · EA</span></span><span class="pr">440,000</span></label>
-        <label class="pitem"><input type="checkbox"><span><span class="nm">Main Controller</span><span class="sp2">NX-1200 · EA</span></span><span class="pr">2,172,000</span></label>
-        <label class="pitem"><input type="checkbox"><span><span class="nm">7" Tabletop Touch Panel</span><span class="sp2">MT-702 · EA</span></span><span class="pr">3,060,000</span></label>
-        <label class="pitem"><input type="checkbox"><span><span class="nm">1" Exmor R PTZ Camera</span><span class="sp2">12배줌, BRC-H800 · EA</span></span><span class="pr">11,475,000</span></label>
-        <label class="pitem"><input type="checkbox"><span><span class="nm">오디오 DSP</span><span class="sp2">Core Nano · EA</span></span><span class="pr">4,590,000</span></label>
-        <label class="pitem"><input type="checkbox"><span><span class="nm">순차전원공급기</span><span class="sp2">DS-8S · EA</span></span><span class="pr">325,000</span></label>
-        <label class="pitem"><input type="checkbox"><span><span class="nm">DP to HDMI 변환젠더</span><span class="sp2">4K 60p 지원 · EA</span></span><span class="pr">12,300</span></label>
-        <label class="pitem"><input type="checkbox"><span><span class="nm">TV 벽부 브라켓</span><span class="sp2">제작사양(Steel) · EA</span></span><span class="pr unreg">미등록</span></label>
-      </div>
-    </aside>
-
-    <!-- 우: 견적 표 -->
-    <section class="main">
-      <div class="seg">
-        <button onclick="go('cover')" id="t-cover">갑지</button>
-        <button class="on" onclick="go('sys')" id="t-sys">시스템별 내역</button>
-        <button onclick="go('labor')" id="t-labor">일위대가</button>
-        <button onclick="go('total')" id="t-total">합계</button>
-      </div>
-
-      <!-- 시스템별 내역 -->
-      <div id="p-sys">
-        <h2>영상회의 시스템<span>품목 10 · 1 / 1 시스템</span></h2>
-        <div class="hscroll">
-        <table>
-          <thead>
-            <tr>
-              <th rowspan="2">번호</th><th rowspan="2">품&nbsp;&nbsp;명</th><th rowspan="2">규&nbsp;격</th>
-              <th rowspan="2">단위</th><th rowspan="2">수량</th>
-              <th colspan="2">재료비</th><th colspan="2">노무비</th>
-              <th rowspan="2">합&nbsp;계</th><th rowspan="2">비&nbsp;고</th>
-            </tr>
-            <tr><th>단&nbsp;가</th><th>금&nbsp;액</th><th>단&nbsp;가</th><th>금&nbsp;액</th></tr>
-          </thead>
-          <tbody>
-            <tr class="grp"><td class="ctr"></td><td>[ 영상 ]</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-            <tr><td class="ctr">1</td><td>삼성 65인치 TV</td><td>HG65U800FNFXKR</td><td class="ctr">EA</td><td class="num">2</td>
-                <td class="num">1,242,000</td><td class="num">2,484,000</td><td class="num">62,000</td><td class="num">124,000</td><td class="num">2,608,000</td><td></td></tr>
-            <tr><td class="ctr">2</td><td>TV 벽부 브라켓</td><td>제작사양(Steel)</td><td class="ctr">EA</td><td class="num">2</td>
-                <td class="num" data-unregistered="true">미등록</td><td class="num" data-unregistered="true">미등록</td>
-                <td class="num">35,000</td><td class="num">70,000</td><td class="num" data-unregistered="true">미등록</td><td></td></tr>
-
-            <tr class="grp"><td class="ctr"></td><td>[ 화상회의 ]</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-            <tr><td class="ctr">3</td><td>Video Conference Cam</td><td>Logitech Rallybar_All in one</td><td class="ctr">EA</td><td class="num">1</td>
-                <td class="num">5,640,000</td><td class="num">5,640,000</td><td class="num">180,000</td><td class="num">180,000</td><td class="num">5,820,000</td><td></td></tr>
-            <tr><td class="ctr">4</td><td>확장용 마이크</td><td>Rally Mic Pod</td><td class="ctr">EA</td><td class="num">2</td>
-                <td class="num">440,000</td><td class="num">880,000</td><td class="num">45,000</td><td class="num">90,000</td><td class="num">970,000</td><td></td></tr>
-            <tr><td class="ctr">5</td><td>- 확장용 마이크 Mount Kit</td><td>Rally Mic Pod 전용</td><td class="ctr">EA</td><td class="num">2</td>
-                <td class="num">93,000</td><td class="num">186,000</td><td class="num">12,000</td><td class="num">24,000</td><td class="num">210,000</td><td></td></tr>
-
-            <tr class="grp"><td class="ctr"></td><td>[ 제어 ]</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-            <tr><td class="ctr">6</td><td>Main Controller</td><td>NX-1200</td><td class="ctr">EA</td><td class="num">1</td>
-                <td class="num">2,172,000</td><td class="num">2,172,000</td><td class="num">220,000</td><td class="num">220,000</td><td class="num">2,392,000</td><td></td></tr>
-            <tr><td class="ctr">7</td><td>- 7" Tabletop Touch Panel</td><td>MT-702</td><td class="ctr">EA</td><td class="num">1</td>
-                <td class="num">3,060,000</td><td class="num">3,060,000</td><td class="num">150,000</td><td class="num">150,000</td><td class="num">3,210,000</td><td></td></tr>
-
-            <tr class="grp"><td class="ctr"></td><td>[ 전원 및 배선 ]</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-            <tr><td class="ctr">8</td><td>순차전원공급기</td><td>DS-8S</td><td class="ctr">EA</td><td class="num">1</td>
-                <td class="num">325,000</td><td class="num">325,000</td><td class="num">80,000</td><td class="num">80,000</td><td class="num">405,000</td><td></td></tr>
-            <tr><td class="ctr">9</td><td>DP to HDMI 변환젠더</td><td>4K 60p 지원</td><td class="ctr">EA</td><td class="num">2</td>
-                <td class="num">12,300</td><td class="num">24,600</td><td class="num">5,000</td><td class="num">10,000</td><td class="num">34,600</td><td></td></tr>
-            <tr><td class="ctr">10</td><td>HDMI 케이블</td><td>5m</td><td class="ctr">EA</td><td class="num">2</td>
-                <td class="num">0</td><td class="num">0</td><td class="num">5,000</td><td class="num">10,000</td><td class="num">10,000</td><td>지급자재</td></tr>
-            <tr><td class="ctr">11</td><td>잡자재비</td><td>자재비의 2%</td><td class="ctr">식</td><td class="num">1</td>
-                <td class="num">295,432</td><td class="num">295,432</td><td class="num">—</td><td class="num">—</td><td class="num">295,432</td><td></td></tr>
-
-            <tr class="sub"><td></td><td colspan="4">직 접 비 계</td><td></td><td class="num">15,067,032</td><td></td><td class="num">958,000</td><td class="num">16,025,032</td><td></td></tr>
-
-            <tr><td class="ctr"></td><td>간접노무비</td><td>노무비 대비</td><td class="ctr">식</td><td class="num rate">15.00%</td><td></td><td></td><td></td><td></td><td class="num">143,700</td><td></td></tr>
-            <tr><td class="ctr"></td><td>고용보험료</td><td>노무비 대비</td><td class="ctr">식</td><td class="num rate">0.87%</td><td></td><td></td><td></td><td></td><td class="num">8,334</td><td></td></tr>
-            <tr><td class="ctr"></td><td>산재보험료</td><td>노무비 대비</td><td class="ctr">식</td><td class="num rate">3.60%</td><td></td><td></td><td></td><td></td><td class="num">34,488</td><td></td></tr>
-            <tr class="off"><td class="ctr"></td><td>연금보험료</td><td>노무비 대비</td><td class="ctr">식</td><td class="num rate">1.215%</td><td></td><td></td><td></td><td></td><td class="num">0</td><td>미적용</td></tr>
-            <tr class="off"><td class="ctr"></td><td>건강보험료</td><td>노무비 대비</td><td class="ctr">식</td><td class="num rate">0.957%</td><td></td><td></td><td></td><td></td><td class="num">0</td><td>미적용</td></tr>
-            <tr class="off"><td class="ctr"></td><td>노인장기요양보험료</td><td>노무비 대비</td><td class="ctr">식</td><td class="num rate">0.124%</td><td></td><td></td><td></td><td></td><td class="num">0</td><td>미적용</td></tr>
-            <tr><td class="ctr"></td><td>산업안전보건관리비</td><td>직접비 대비</td><td class="ctr">식</td><td class="num rate">2.93%</td><td></td><td></td><td></td><td></td><td class="num">469,533</td><td></td></tr>
-            <tr><td class="ctr"></td><td>퇴직공제부금비</td><td>노무비 대비</td><td class="ctr">식</td><td class="num rate">0.23%</td><td></td><td></td><td></td><td></td><td class="num">2,203</td><td></td></tr>
-            <tr><td class="ctr"></td><td>공과잡비</td><td>직접비+간접노무비+산업안전</td><td class="ctr">식</td><td class="num rate">5.00%</td><td></td><td></td><td></td><td></td><td class="num">831,913</td><td></td></tr>
-
-            <tr class="sub"><td></td><td colspan="4">간 접 비 계</td><td></td><td></td><td></td><td></td><td class="num">1,490,171</td><td></td></tr>
-            <tr class="tot"><td></td><td colspan="4">합&nbsp;&nbsp;계</td><td></td><td></td><td></td><td></td><td class="num">17,515,203</td><td></td></tr>
-          </tbody>
-        </table>
-        </div>
-        <div class="legend">
-          <em>미등록</em> — 단가가 카탈로그에 없습니다. 0원과 구분합니다. 하나라도 남아 있으면 Excel 다운로드가 막힙니다.<br>
-          <b>0</b> — 명시적으로 0원인 항목입니다(지급자재 등). 정상 값입니다.<br>
-          <span style="color:#9aa3b2">회색 행</span> — 이 공사에서 적용하지 않는 간접비입니다. 요율은 남겨 두고 금액만 0으로 둡니다. 원본 견적서와 같은 방식입니다.
-        </div>
-      </div>
-
-      <!-- 갑지 -->
-      <div id="p-cover" style="display:none">
-        <h2>갑지<span>시스템 1개</span></h2>
-        <div class="hscroll">
-        <table>
-          <thead><tr><th>순위</th><th>품&nbsp;명</th><th>규&nbsp;격</th><th>단위</th><th>수량</th><th>금&nbsp;액</th><th>합&nbsp;계</th><th>비&nbsp;고</th></tr></thead>
-          <tbody>
-            <tr><td class="ctr">1</td><td>영상회의 시스템</td><td>65" 디스플레이 2대 / 화상회의 / 제어</td><td class="ctr">식</td><td class="num">1</td>
-                <td class="num">17,515,203</td><td class="num">17,515,203</td><td></td></tr>
-            <tr class="sub"><td></td><td colspan="4">절사 전 합계</td><td></td><td class="num">17,515,203</td><td></td></tr>
-            <tr><td></td><td colspan="4">만원미만절사</td><td></td><td class="num">17,510,000</td><td></td></tr>
-            <tr><td></td><td colspan="4">NEGO</td><td></td><td class="num">-10,000</td><td>웹 입력 10,000</td></tr>
-            <tr class="tot"><td></td><td colspan="4">최종 공급금액</td><td></td><td class="num">17,500,000</td><td>V.A.T 별도</td></tr>
-          </tbody>
-        </table>
-        </div>
-        <div class="hangul">일금일천칠백오십만원정(₩17,500,000) V.A.T별도</div>
-        <div class="legend">
-          갑지는 시스템별 내역과 <b>열 구성이 다릅니다</b>(재료비·노무비 2단 머리글이 없습니다). 원본 견적서와 같습니다.<br>
-          NEGO는 화면에서 <b>양수</b>로 입력받고 Excel에는 <b>음수</b>로 씁니다.
-        </div>
-      </div>
-
-      <!-- 일위대가 -->
-      <div id="p-labor" style="display:none">
-        <h2>일위대가 — 삼성 65인치 TV<span>품셈 7-11-1</span></h2>
-        <div class="hscroll">
-        <table>
-          <thead><tr><th>직종</th><th>단위</th><th>품</th><th>노임(26년 상반기)</th><th>금액</th></tr></thead>
-          <tbody>
-            <tr><td>통신관련기사</td><td class="ctr">M/D</td><td class="num">0.08</td><td class="num">320,449</td><td class="num">25,635</td></tr>
-            <tr><td>통신설비공</td><td class="ctr">M/D</td><td class="num">0.07</td><td class="num">315,528</td><td class="num">22,086</td></tr>
-            <tr><td>보통인부</td><td class="ctr">M/D</td><td class="num">0.05</td><td class="num">172,068</td><td class="num">8,603</td></tr>
-            <tr class="sub"><td colspan="4">표준 노무단가</td><td class="num">56,324</td></tr>
-            <tr><td colspan="4">할증 0% · 품목별 요율 110%</td><td class="num">61,956</td></tr>
-            <tr class="tot"><td colspan="4">적용 노무단가 <span style="font-weight:500;color:#687386">= INT(표준 × (1+할증) × 요율)</span></td><td class="num">62,000</td></tr>
-          </tbody>
-        </table>
-        </div>
-        <div class="legend">
-          출처: 표준품셈 통합문서 · 개정 26년 상반기 · 품셈코드 7-11-1<br>
-          <em>확인 필요</em> — 품셈 연결 1,331건은 전부 <b>미확인</b> 상태입니다. 사람이 확인하기 전에는 «품셈 검증 완료»로 표시하지 않습니다.
-        </div>
-      </div>
-
-      <!-- 합계 -->
-      <div id="p-total" style="display:none">
-        <h2>합계</h2>
-        <div class="sumcard">
-          <div class="sumrow"><span>직접비 — 재료비</span><span class="v">15,067,032</span></div>
-          <div class="sumrow"><span>직접비 — 노무비</span><span class="v">958,000</span></div>
-          <div class="sumrow"><span>직접비계</span><span class="v">16,025,032</span></div>
-          <div class="sumrow"><span>간접비계 <span style="color:#687386;font-weight:400">(9개 항목 중 6개 적용)</span></span><span class="v">1,490,171</span></div>
-          <div class="sumrow"><span>절사 전 합계</span><span class="v">17,515,203</span></div>
-          <div class="sumrow"><span>만원미만절사</span><span class="v">-5,203</span></div>
-          <div class="sumrow"><span>NEGO 차감</span><span class="v">-10,000</span></div>
-          <div class="sumrow fin"><span>최종 공급금액 (V.A.T 별도)</span><span class="v">17,500,000</span></div>
-        </div>
-        <div class="hangul">일금일천칠백오십만원정(₩17,500,000) V.A.T별도</div>
-      </div>
-
-    </section>
-  </div>
-
-  <div class="mock" style="margin-top:var(--q-gutter);background:#eef3fb;color:#3a4a63">
-    <b style="color:#2b4f86">아직 없는 것</b> — 행 추가·삭제·이동, 실행 취소, 샘플 선택, 원가표 적용 화면, 공간 정보 기반 케이블 산출.
-    엑셀 생성 기능은 <b style="color:#2b4f86">이미 완성</b>되어 실제 Excel에서 검증까지 끝났습니다(수식 유지·재계산·인쇄 5페이지).
-  </div>
+</div>
 
 </div>
 <script>
-function go(k){
-  for(const x of ['cover','sys','labor','total']){
-    document.getElementById('p-'+x).style.display = (x===k)?'':'none';
-    document.getElementById('t-'+x).className = (x===k)?'on':'';
-  }
-}
+function go(k){for(const x of ['cover','sys','labor','total']){
+  document.getElementById('p-'+x).style.display=(x===k)?'':'none';
+  document.getElementById('t-'+x).className=(x===k)?'on':'';}}
 </script>
 </body>
 </html>
