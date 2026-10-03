@@ -6,50 +6,19 @@
  */
 import type {
   QuoteDocument,
-  IndirectCostRule,
   SheetRow,
   DerivedRow,
   QuoteSystem,
 } from '@/domain/quote/types';
+import { standardIndirectCosts as indirectCosts } from '@/domain/quote/indirectCosts';
 
-/** 원본에서 확인한 간접비 9항목. mapping.md §3.6. */
-export function standardIndirectCosts(): IndirectCostRule[] {
-  const of = (
-    itemId: string,
-    name: string,
-    basisLabel: string,
-    basis: IndirectCostRule['basis'],
-    rate: string,
-    applied: boolean,
-  ): IndirectCostRule => ({
-    itemId,
-    name,
-    basisLabel,
-    basis,
-    rate,
-    applied,
-    source: '원본 양식 2026-08 기준',
-  });
-
-  return [
-    of('i1', '간접노무비', '노무비 대비', { kind: 'labor' }, '0.0486', true),
-    of('i2', '고용보험료', '노무비 대비', { kind: 'labor' }, '0.00424', true),
-    of('i3', '산재보험료', '노무비 대비', { kind: 'labor' }, '0.00961', true),
-    of('i4', '연금보험료', '노무비 대비', { kind: 'labor' }, '0.01215', false),
-    of('i5', '건강보험료', '노무비 대비', { kind: 'labor' }, '0.00957', false),
-    of('i6', '노인장기요양보험료', '노무비 대비', { kind: 'labor' }, '0.00124', false),
-    of('i7', '산업안전보건관리비', '직접비 대비', { kind: 'direct' }, '0.0311', true),
-    of('i8', '퇴직공제부금비', '노무비 대비', { kind: 'labor' }, '0.00621', true),
-    of(
-      'i9',
-      '공과잡비',
-      '직접비+간접노무비+산업안전관리비',
-      { kind: 'composite', plusItemIds: ['i1', 'i7'] },
-      '0.1',
-      true,
-    ),
-  ];
-}
+/**
+ * 간접비 9항목 — **제품 코드의 것을 그대로 쓴다.**
+ *
+ * 여기서 다시 적으면 요율이 두 곳에서 관리되고, 한쪽만 고치면 조용히 어긋난다.
+ * 출처는 `src/domain/quote/indirectCosts.ts`다.
+ */
+export { standardIndirectCosts } from '@/domain/quote/indirectCosts';
 
 /** ZIP 감사에서 찾을 sentinel 값. 고객 파일에 절대 나오면 안 되는 것들. */
 export const SENTINEL_COST = '7777777';
@@ -64,7 +33,7 @@ function system(systemId: string, name: string, summarySpec: string): QuoteSyste
     unit: '식',
     quantity: '1',
     remark: '',
-    indirectCosts: standardIndirectCosts(),
+    indirectCosts: indirectCosts(),
   };
 }
 

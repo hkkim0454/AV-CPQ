@@ -30,8 +30,16 @@ const REQUIRED = ['products.json', 'labor-items.json', 'wage-table.json', 'labor
 export function approvedDataPlugin(root = process.cwd()): Plugin {
   const sourcePath = resolve(root, SOURCE_DIR);
 
+  // `vite-node`로 스크립트를 돌릴 때도 `closeBundle`이 불린다. `apply: 'build'`를 쓰면
+  // dev 미들웨어까지 꺼지므로, 명령을 보고 복사만 건너뛴다.
+  let isBuild = false;
+
   return {
     name: 'avcpq-approved-data',
+
+    configResolved(config) {
+      isBuild = config.command === 'build';
+    },
 
     // --- dev: 디스크에서 바로 내준다 ---
     configureServer(server) {
@@ -66,34 +74,39 @@ export function approvedDataPlugin(root = process.cwd()): Plugin {
     },
 
     // --- build: dist로 복사한다 ---
-    closeBundle() {
-      const outDir = resolve(root, 'dist', SOURCE_DIR);
+    closeBundle: {
+      sequential: true,
+      handler() {
+        if (!isBuild) return;
 
-      const missing = REQUIRED.filter((name) => !existsSync(join(sourcePath, name)));
-      if (missing.length > 0) {
-        throw new Error(
-          `배포 데이터가 없다: ${missing.join(', ')}\n` +
-            `먼저 \`npm run build:approved\`를 돌린다.`,
-        );
-      }
+        const outDir = resolve(root, 'dist', SOURCE_DIR);
 
-      mkdirSync(outDir, { recursive: true });
-      const copied: string[] = [];
-      for (const name of readdirSync(sourcePath)) {
-        if (!name.endsWith('.json')) continue;
-        copyFileSync(join(sourcePath, name), join(outDir, name));
-        copied.push(name);
-      }
+        const missing = REQUIRED.filter((name) => !existsSync(join(sourcePath, name)));
+        if (missing.length > 0) {
+          throw new Error(
+            `배포 데이터가 없다: ${missing.join(', ')}\n` +
+              `먼저 \`npm run build:approved\`를 돌린다.`,
+          );
+        }
 
-      const skipped = [...OPTIONAL].filter((name) => !copied.includes(name));
-      // eslint-disable-next-line no-console
-      console.log(`\n배포 데이터 ${copied.length}개 복사: ${copied.join(', ')}`);
-      if (skipped.length > 0) {
+        mkdirSync(outDir, { recursive: true });
+        const copied: string[] = [];
+        for (const name of readdirSync(sourcePath)) {
+          if (!name.endsWith('.json')) continue;
+          copyFileSync(join(sourcePath, name), join(outDir, name));
+          copied.push(name);
+        }
+
+        const skipped = [...OPTIONAL].filter((name) => !copied.includes(name));
         // eslint-disable-next-line no-console
-        console.log(
-          `  빠진 선택 파일: ${skipped.join(', ')} — 앱은 해당 단가를 '미등록'으로 표시한다 (결정 D3)`,
-        );
-      }
+        console.log(`\n배포 데이터 ${copied.length}개 복사: ${copied.join(', ')}`);
+        if (skipped.length > 0) {
+          // eslint-disable-next-line no-console
+          console.log(
+            `  빠진 선택 파일: ${skipped.join(', ')} — 앱은 해당 단가를 '미등록'으로 표시한다 (결정 D3)`,
+          );
+        }
+      },
     },
   };
 }
