@@ -56,6 +56,11 @@ export interface DeviceLine {
   quantity: DecimalText;
   /** 미등록이면 **없다**. `0`으로 채우지 않는다. */
   sellingUnitPrice?: DecimalText;
+  /**
+   * 품셈 연결 id. 카탈로그 제품이 품셈을 갖고 있으면 그 SKU다.
+   * 없으면 노무비를 **0으로 두지 않고** `unresolved`로 막는다.
+   */
+  laborMappingId?: string;
   /** 옵션 카드는 주 장비 아래 `- `로 붙는다 — 견적서 관행. */
   isAccessory: boolean;
   /** 합쳐진 노드 전부. 나중에 되돌릴 수 있게 남긴다. */
@@ -167,6 +172,9 @@ export function buildDeviceLines(
       ...(match.sellingUnitPrice !== undefined
         ? { sellingUnitPrice: match.sellingUnitPrice }
         : {}),
+      ...(match.product?.laborMappingId !== undefined
+        ? { laborMappingId: match.product.laborMappingId }
+        : {}),
       isAccessory: false,
       sourceNodeIds: [node.id],
       matchedBy: match.matchedBy,
@@ -240,6 +248,9 @@ export function buildDeviceLines(
           quantity: String(rawQuantity),
           ...(optionMatch.sellingUnitPrice !== undefined
             ? { sellingUnitPrice: optionMatch.sellingUnitPrice }
+            : {}),
+          ...(optionMatch.product?.laborMappingId !== undefined
+            ? { laborMappingId: optionMatch.product.laborMappingId }
             : {}),
           isAccessory: true,
           sourceNodeIds: [node.id],

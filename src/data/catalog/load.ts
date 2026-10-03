@@ -13,7 +13,14 @@
  */
 import { z } from 'zod';
 import type { DecimalText } from '../../domain/quote/types';
-import { productsFileSchema, pricesFileSchema } from './schema';
+import type { LaborItem, LaborMapping, WageTable } from '../../domain/labor/types';
+import {
+  productsFileSchema,
+  pricesFileSchema,
+  laborItemsFileSchema,
+  wageTableFileSchema,
+  laborMappingsFileSchema,
+} from './schema';
 
 export type CatalogProduct = z.infer<typeof productsFileSchema>['products'][number];
 
@@ -111,4 +118,49 @@ export async function loadCatalog(options: LoadCatalogOptions = {}): Promise<Cat
   }
 
   return buildCatalog(productsRaw, pricesRaw);
+}
+
+
+// ---------------------------------------------------------------------------
+// 품셈·노임
+// ---------------------------------------------------------------------------
+
+export interface LaborReference {
+  items: LaborItem[];
+  mappings: LaborMapping[];
+  wages: WageTable;
+  /** 품셈을 붙일 수 없는 SKU. 숨기지 않고 함께 들고 다닌다. */
+  unmappedSkus: string[];
+}
+
+/**
+ * 품셈 세 파일을 읽는다.
+ *
+ * 가격과 달리 **셋 다 필수다.** 품셈이 없으면 노무비가 0이 되고, 간접비가
+ * 노무비 대비로 계산되므로 간접비까지 0이 된다. 조용히 틀린 견적이 나간다.
+ */
+export function buildLaborReference(
+  itemsRaw: unknown,
+  wageRaw: unknown,
+  mappingsRaw: unknown,
+): LaborReference {
+  const items = laborItemsFileSchema.parse(itemsRaw);
+  const wage = wageTableFileSchema.parse(wageRaw);
+  const mappings = laborMappingsFileSchema.parse(mappingsRaw);
+
+  if (
+    items.sourceSha256 !== wage.sourceSha256 ||
+    items.sourceSha256 !== mappings.sourceSha256
+  ) {
+    throw new Error(
+      '품셈·노임·매핑이 서로 다른 원본에서 나왔다. 섞어 쓰면 노무비가 틀린다.',
+    );
+  }
+
+  return {
+    items: items.laborItems,
+    mappings: mappings.mappings,
+    wages: wage.wageTable,
+    unmappedSkus: mappings.unmappedSkus,
+  };
 }

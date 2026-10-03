@@ -966,6 +966,215 @@ git commit -m "구성도: QuoteDocument 생성 — 계산 엔진·exporter 무�
 
 ---
 
+### Task 7: 매트릭스 프레임 용량 검사 (D10) — ⏸ **보류. 구현하지 않는다**
+
+> 사용자 판단 (2026-10-04):
+>
+> > 이 부분은 **저한테 구성도를 그려서 주기 때문에 이미 그런 오류는 찾아낼 수 있었어.**
+>
+> 구성도는 사용자를 거쳐 들어온다. 프레임·카드 불일치는 **그 단계에서 이미 걸러진다.**
+> 프로그램이 뒤에서 같은 것을 다시 검사할 값어치가 없다.
+>
+> 실제로 샘플의 오류(XDM-12 에 카드 4장)도 **사용자가 바로 "구성도가 틀린 거야" 라고 짚었다.**
+> 기계가 알려주기 전에 사람이 안다.
+>
+> **아래 내용은 지우지 않고 남긴다.** 조사와 규칙 확정에 든 시간이 있고, 나중에
+> 구성도가 사용자를 거치지 않고 들어오는 경로가 생기면(예: 다른 사람이 그린 것을 직접 불러오기)
+> 그때 되살린다. 규칙은 결정 D10 에 전부 적혀 있다.
+>
+> **Task 1~6 만 구현한다.**
+
+<details>
+<summary>보류된 Task 7 내용 (기록)</summary>
+
+**Files:**
+- Create: `src/import/diagram/matrixCapacity.ts`
+- Test: `tests/unit/matrixCapacity.test.ts`
+- Modify: `src/import/diagram/toQuote.ts` (경고 합류)
+
+**Interfaces:**
+- Consumes: `DiagramFile`, Task 3 의 `ImportWarning`
+- Produces:
+  ```ts
+  /** 프레임 모델 → 한쪽 슬롯 수. 사용자 확인 완료 (D10). */
+  export const XDM_SLOTS: Readonly<Record<string, number>>;
+  export interface MatrixCheck {
+    nodeId: string;
+    frameModel: string;
+    slotsPerSide: number;
+    installedInputCards: number;
+    installedOutputCards: number;
+    /** 정보 표시용. 경고를 세우지 않는다. */
+    usedInputPorts: number;
+    usedOutputPorts: number;
+    /** 유일한 오류 판정: 카드 > 슬롯. */
+    overCapacity: boolean;
+    /** **장착 카드 수**에 맞는 최소 프레임. 연결 수가 아니다. 충분하면 현재 모델. */
+    suggestedFrame: string;
+  }
+  export function checkMatrices(diagram: DiagramFile): { checks: MatrixCheck[]; warnings: ImportWarning[] };
+  ```
+
+**옵션 카드 정의(O15)가 없어도 된다.** 입력/출력 구분은 포트 id 와 노드의 `inputs`/`outputs`
+배열에 이미 있다.
+
+#### ⚠ 카드 1장 = 4포트는 **XDM 전용**이다. 상수로 박지 말 것
+
+품셈 파일 실측 — 카드 품명에 **포트 수가 적혀 있다**:
+
+```
+- HDMI      4채널 input card    XDM-HIS100     954,000
+- 4K HDMI   8채널 input card    SPX-HIS-8    1,060,000
+- 4K HDMI  10채널 output card   SPX-HOS-10   1,484,000
+- 4K HDMI  12채널 output card   SPX-HOS-12   1,484,000
+```
+
+→ **포트 수를 카드 품명의 `N채널` 에서 읽는다.** 코드에 숫자를 두지 않는다.
+   읽지 못하면 그 매트릭스는 **검사를 건너뛴다**(추측으로 막지 않는다).
+
+#### 프레임 — 세 계열이 품셈 파일에 있다
+
+| 계열 | 프레임 (SKU) | 입×출력 |
+|---|---|---|
+| **XDM** 4K | `XDM-12`(VID-0138) · `XDM-20`(0137) · `XDM-36`(0136) | 12×12 · 20×20 · 36×36 |
+| **SPX** 4K | `SPX-M810`(0159) · `SPX-M16x20`(0158) · `SPX-M3236`(0157) · `SPX-M2472`(0156) · `SPX-M24120`(0155) | **모델명에 들어 있음** |
+| **VDM** FHD | `VDM-8X`(0169) · `VDM-16X`(0168) · `VDM-32X`(0167) · `VDM-48X`(0166) · `VDM-64X`(0165) | 8×8 … 64×64 |
+
+⚠ **SPX 는 입력과 출력 채널이 다르다.** `SPX-M16x20` = 입력 16 / 출력 20.
+XDM·VDM 은 같다. 한쪽 수만 들고 양쪽에 쓰면 SPX 에서 틀린다.
+
+#### 이 계획에서 확정한 것 / 안 한 것
+
+**확정 (사용자 확인, D10):** XDM 슬롯 수 = 채널 ÷ 4
+
+| XDM-12 | XDM-20 | XDM-36 | XDM-72 | XDM-144 | XDM-216 |
+|---:|---:|---:|---:|---:|---:|
+| 3 | 5 | 9 | 18 | 36 | 54 |
+
+> 사용자: "만약 입력이 20개 출력이 20개면 XDM-20 을 써야지."
+
+**미확정:** SPX·VDM 의 슬롯 수. 모델명에서 채널 수는 읽히지만 **카드 포트 수가 계열마다
+다르므로**(SPX 8/10/12) 슬롯 수를 단정할 수 없다.
+
+→ **XDM 만 검사한다.** SPX·VDM 은 `checks` 에 넣지 않고 조용히 건너뛴다.
+   나중에 사용자 확인을 받으면 표만 늘리면 된다. 구조는 계열을 받도록 만든다.
+
+- [ ] **Step 1: 실패하는 테스트 작성**
+
+```ts
+// tests/unit/matrixCapacity.test.ts
+import { describe, expect, it } from 'vitest';
+import { checkMatrices, XDM_SLOTS } from '../../src/import/diagram/matrixCapacity.js';
+
+describe('슬롯 표 — D10, 사용자 확인', () => {
+  it.each([['XDM-12', 3], ['XDM-20', 5], ['XDM-36', 9], ['XDM-72', 18], ['XDM-144', 36], ['XDM-216', 54]])(
+    '%s → 한쪽 %s장', (m, n) => expect(XDM_SLOTS[m]).toBe(n));
+
+  it('채널 ÷ 4 규칙과 일치한다', () => {
+    for (const [m, slots] of Object.entries(XDM_SLOTS)) {
+      const ch = Number(m.replace('XDM-', ''));
+      expect(slots).toBe(ch / 4);
+    }
+  });
+});
+
+describe('용량 초과', () => {
+  it('XDM-12 에 입력 4장이면 초과다 — 실물 구성도가 그랬다', () => {
+    const { checks, warnings } = checkMatrices(matrix('XDM-12', { in: 4, out: 4 }, { in: 3, out: 1 }));
+    expect(checks[0]).toMatchObject({ slotsPerSide: 3, installedInputCards: 4, overCapacity: true });
+    expect(warnings.some((w) => w.blocking)).toBe(true);
+  });
+
+  it('XDM-12 에 3장씩이면 정상이다', () => {
+    const { checks, warnings } = checkMatrices(matrix('XDM-12', { in: 3, out: 3 }, { in: 3, out: 3 }));
+    expect(checks[0].overCapacity).toBe(false);
+    expect(warnings.filter((w) => w.blocking)).toHaveLength(0);
+  });
+
+  it('모르는 프레임이면 검사를 건너뛴다 — 추측으로 막지 않는다', () => {
+    const { checks, warnings } = checkMatrices(matrix('XDM-999', { in: 9, out: 9 }, { in: 1, out: 1 }));
+    expect(checks).toHaveLength(0);
+    expect(warnings.filter((w) => w.blocking)).toHaveLength(0);
+  });
+});
+
+describe('슬롯을 덜 채우는 것은 정상이다 — 블랭크로 메워 출고된다', () => {
+  it('XDM-12 에 입력 2장만 꽂아 8×8 로 써도 경고가 없다', () => {
+    const { checks, warnings } = checkMatrices(matrix('XDM-12', { in: 2, out: 2 }, { in: 8, out: 8 }));
+    expect(checks[0].overCapacity).toBe(false);
+    expect(warnings).toHaveLength(0);
+  });
+
+  it('블랭크 슬롯 행을 만들지 않는다 — 견적서에 없는 품목이다', () => {
+    const { checks } = checkMatrices(matrix('XDM-12', { in: 1, out: 1 }, { in: 1, out: 1 }));
+    expect(JSON.stringify(checks)).not.toMatch(/블랭크|blank/i);
+  });
+
+  it('카드 포트가 연결보다 많아도 경고하지 않는다 — 카드 수는 사용자가 정한다', () => {
+    const { warnings } = checkMatrices(matrix('XDM-20', { in: 4, out: 4 }, { in: 3, out: 1 }));
+    expect(warnings).toHaveLength(0);
+  });
+
+  it('연결 수는 정보로만 들고 있다', () => {
+    const { checks } = checkMatrices(matrix('XDM-20', { in: 4, out: 4 }, { in: 3, out: 1 }));
+    expect(checks[0]).toMatchObject({ usedInputPorts: 3, usedOutputPorts: 1 });
+  });
+});
+
+describe('프레임 제안 — 장착 카드 수 기준이다', () => {
+  it('카드 5장이면 XDM-20 이다 — 20채널', () => {
+    expect(checkMatrices(matrix('XDM-12', { in: 5, out: 5 }, { in: 1, out: 1 })).checks[0].suggestedFrame).toBe('XDM-20');
+  });
+
+  it('카드 4장이면 XDM-20 이다 — XDM-12 는 3장까지', () => {
+    expect(checkMatrices(matrix('XDM-12', { in: 4, out: 4 }, { in: 3, out: 1 })).checks[0].suggestedFrame).toBe('XDM-20');
+  });
+
+  it('연결 수는 제안에 영향을 주지 않는다 — 카드 2장이면 연결이 많아도 현재 프레임', () => {
+    const many = checkMatrices(matrix('XDM-12', { in: 2, out: 2 }, { in: 99, out: 99 })).checks[0];
+    expect(many.suggestedFrame).toBe('XDM-12');
+    expect(many.overCapacity).toBe(false);
+  });
+
+  it('현재 프레임으로 충분하면 현재 모델을 그대로 준다', () => {
+    expect(checkMatrices(matrix('XDM-36', { in: 1, out: 1 }, { in: 3, out: 1 })).checks[0].suggestedFrame).toBe('XDM-36');
+  });
+
+  it('216 으로도 모자라면 가장 큰 프레임을 주고 막는다', () => {
+    const { checks, warnings } = checkMatrices(matrix('XDM-12', { in: 60, out: 60 }, { in: 1, out: 1 }));
+    expect(checks[0].suggestedFrame).toBe('XDM-216');
+    expect(warnings.some((w) => w.blocking)).toBe(true);
+  });
+});
+```
+
+> `matrix(frameModel, cards, connections)` 헬퍼는 `tests/fixtures/diagram.ts` 에 추가한다.
+> `cards` 는 장착 카드 장수, `connections` 는 그 매트릭스에 걸린 엣지 수다.
+
+- [ ] **Step 2: 실패 확인 → 구현 → 통과 확인**
+
+Run: `npm run verify && npx vitest run tests/unit/matrixCapacity.test.ts`
+Expected: FAIL → PASS
+
+- [ ] **Step 3: `toQuote.ts` 에 합류**
+
+`checkMatrices` 의 경고를 `ImportResult.warnings` 에 합친다. **용량 초과는 `blocking: true`**,
+과다 구성은 `blocking: false`.
+
+사용자가 "현재대로 간다" 를 고르면 사유와 함께 통과하는 경로는 **화면 쪽 일**이다
+(설계서 §7.5 의 "사유를 명시하면 통과"). 이 계획은 경고를 세우는 데까지만 한다.
+
+- [ ] **Step 4: 커밋**
+
+```bash
+git add src/import/diagram/matrixCapacity.ts tests/unit/matrixCapacity.test.ts src/import/diagram/toQuote.ts
+git commit -m "구성도: 매트릭스 프레임 용량 검사와 프레임 제안 (D10)"
+```
+
+</details>
+
+---
+
 ## 이 계획이 끝나면
 
 ```
