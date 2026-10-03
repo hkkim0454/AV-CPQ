@@ -28,6 +28,21 @@
 - **localStorage 에 견적을 저장하지 않는다** (설계서 §8.8 — RTCOM 자동 저장은 계승하지 않는 것). Task 0 의 정적 검사가 강제한다.
 - **Task 완료 조건은 `npm run verify`** (typecheck → test → audit:exports). "테스트 통과"만 쓰지 않는다 — 없는 값은 테스트가 쳐다보지 않는다(`docs/stage-status.md` 참조).
 - 새 npm 런타임 의존성을 추가하지 않는다. 테스트용 `@testing-library/react` + `@testing-library/user-event` + `jsdom` 은 devDependency 로 추가한다.
+- **`Decimal` 의 문자열화는 `toFixed()` 로 통일한다.** 기존 코드가 전부 그렇다. `toString()` 도 같은 결과를 내지만(`rounding.ts` 가 `toExpNeg:-40, toExpPos:40` 을 설정해 지수 표기가 안 나온다) 섞지 않는다.
+
+### 쓸 수 있는 픽스처
+
+`tests/fixtures/document.ts` 에는 **빌더만** 있다(`system`, `itemRow`, `groupRow`, `makeDocument`).
+완성된 문서는 아래에 있다. **새로 만들지 말고 이것을 쓴다.**
+
+| 픽스처 | 위치 | 내용 |
+|---|---|---|
+| `syntheticQuote()` | `tests/fixtures/syntheticQuote.ts` | **`blocking: false`, 경고 0.** 2시스템 · 그룹 머리글 · 설명 행 · 파생 행(배관 기타자재·잡자재비) · 간접비 9항목 · 소수 수량(120.5) · 노무비 있는 행과 없는 행. **exporter 통합 테스트가 같은 문서를 쓴다** — 화면과 Excel 산출물을 같은 입력으로 대조할 수 있다 |
+| `emptySystemQuote()` | 같음 | 품목 0개 시스템 — 빈 상태 렌더 |
+| `longQuote(100)` | 같음 | 합성 100행 — 스크롤 |
+| `catalogQuote(100)` | `tests/fixtures/catalogQuote.ts` | **실제 카탈로그 품명 100행.** 긴 품명·줄바꿈·특수문자 포함. 열 폭 테스트에 가장 가혹하다 |
+
+기본값은 `syntheticQuote()` 다. `sampleDocument()` 라는 이름은 **없다.**
 - 커밋 메시지는 한국어 한 줄.
 
 ### 작업 공간
@@ -72,7 +87,24 @@ UI 워크트리(`AV-CPQ-ui`, `ui-work`)에서 한다면 **먼저 `git merge main
 
 ---
 
-### Task 0: 배포 경로와 정적 검사 범위 (main 전용)
+### Task 0: 배포 경로와 정적 검사 범위 (main 전용) — ✅ 완료 (커밋 `a5536c3`)
+
+> **이 Task 는 끝났다. 다시 하지 않는다.** 아래는 기록이다. Task 1 부터 시작한다.
+>
+> 구현은 계획과 다르다 — `tools/vite-approved-data.ts` 플러그인 하나로 dev(`configureServer`
+> 미들웨어, 경로 탈출 차단, `Cache-Control: no-store`)와 build(`closeBundle` 복사)를 모두 처리한다.
+> 필수 4개(`products`/`labor-items`/`wage-table`/`labor-mappings`)가 없으면 빌드를 멈추고,
+> `prices.json` 은 선택이다. **실제로 빼고 빌드해 결정 D3 이 코드로 성립함을 확인했다.**
+>
+> 감사기는 `src/features/**`·`src/app/**` 을 검사하며 **외부 origin 만** 막는다 —
+> 같은 origin 의 `data/approved/*.json` fetch 는 통과한다(읽기이고 문서 상태를 밖으로
+> 보내지 않는다). 역방향 검증으로 위반 3건을 실제로 잡는 것까지 확인했다.
+>
+> ⚠ **`index.html` 과 `src/main.tsx` 에 자리표시자가 이미 있다.** `vite build` 에 진입점이
+> 필요해 만든 것이다. **Task 2 가 덮어쓸 파일이다.** 충돌로 보지 말고 교체한다.
+
+<details>
+<summary>원래 Task 0 내용 (기록)</summary>
 
 **Files:**
 - Modify: `vite.config.ts`
@@ -228,6 +260,8 @@ Expected: 전부 PASS.
 git add vite.config.ts tools/audit-exports.mjs tests/integration/buildOutput.test.ts tests/unit/auditExports.test.ts .gitignore
 git commit -m "빌드: 승인 데이터 배포 경로와 UI 금지 패턴 정적 검사"
 ```
+
+</details>
 
 ---
 
@@ -398,27 +432,27 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { App } from '../../src/app/App.js';
 import { calculateQuote } from '../../src/domain/calculation/calculate.js';
-import { sampleDocument } from '../fixtures/document.js';
+import { syntheticQuote } from '../fixtures/syntheticQuote.js';
 
 const noop = () => {};
 
 describe('앱 셸', () => {
   it('헤더에 제목과 포털 복귀 링크가 있다 — 설계서 §2.3', () => {
-    const doc = sampleDocument();
+    const doc = syntheticQuote();
     render(<App document={doc} calculation={calculateQuote(doc)} tab="system" onTabChange={noop} />);
     expect(screen.getByRole('banner')).toHaveTextContent('AV 견적');
     expect(screen.getByRole('link', { name: '포털로 돌아가기' })).toBeTruthy();
   });
 
   it('툴바 버튼 5개가 설계서 §2.3 순서로 있다', () => {
-    const doc = sampleDocument();
+    const doc = syntheticQuote();
     render(<App document={doc} calculation={calculateQuote(doc)} tab="system" onTabChange={noop} />);
     const labels = screen.getAllByRole('button').map((b) => b.textContent);
     expect(labels).toEqual(['샘플 선택', '새 견적', '작업 파일 열기', '저장', 'Excel 다운로드']);
   });
 
   it('탭 4개가 있다', () => {
-    const doc = sampleDocument();
+    const doc = syntheticQuote();
     render(<App document={doc} calculation={calculateQuote(doc)} tab="system" onTabChange={noop} />);
     for (const t of ['갑지', '시스템별 내역', '일위대가', '합계']) {
       expect(screen.getByRole('tab', { name: t })).toBeTruthy();
@@ -428,7 +462,7 @@ describe('앱 셸', () => {
 
 describe('blocking 경고와 Excel 다운로드 — 설계서 §5.6 / §7.5', () => {
   it('blocking 이 없으면 Excel 버튼이 활성이다', () => {
-    const doc = sampleDocument();
+    const doc = syntheticQuote();
     const calc = calculateQuote(doc);
     expect(calc.blocking).toBe(false);
     render(<App document={doc} calculation={calc} tab="system" onTabChange={noop} />);
@@ -436,7 +470,7 @@ describe('blocking 경고와 Excel 다운로드 — 설계서 §5.6 / §7.5', ()
   });
 
   it('blocking 이면 Excel 버튼이 비활성이다', () => {
-    const doc = sampleDocument();
+    const doc = syntheticQuote();
     const calc = { ...calculateQuote(doc), blocking: true,
       warnings: [{ code: 'price-not-registered' as const, blocking: true, message: '판매 단가가 미등록이다.' }] };
     render(<App document={doc} calculation={calc} tab="system" onTabChange={noop} />);
@@ -444,7 +478,7 @@ describe('blocking 경고와 Excel 다운로드 — 설계서 §5.6 / §7.5', ()
   });
 
   it('비활성 사유를 화면에 보여준다 — 왜 못 받는지 알 수 있어야 한다', () => {
-    const doc = sampleDocument();
+    const doc = syntheticQuote();
     const calc = { ...calculateQuote(doc), blocking: true,
       warnings: [{ code: 'price-not-registered' as const, blocking: true, message: '판매 단가가 미등록이다.' }] };
     render(<App document={doc} calculation={calc} tab="system" onTabChange={noop} />);
@@ -452,7 +486,7 @@ describe('blocking 경고와 Excel 다운로드 — 설계서 §5.6 / §7.5', ()
   });
 
   it('blocking 이 아닌 경고는 Excel 버튼을 막지 않는다', () => {
-    const doc = sampleDocument();
+    const doc = syntheticQuote();
     const calc = { ...calculateQuote(doc), blocking: false,
       warnings: [{ code: 'empty-system' as const, blocking: false, message: '빈 시스템이 있다.' }] };
     render(<App document={doc} calculation={calc} tab="system" onTabChange={noop} />);
@@ -462,7 +496,7 @@ describe('blocking 경고와 Excel 다운로드 — 설계서 §5.6 / §7.5', ()
 });
 ```
 
-> `sampleDocument()` 가 `tests/fixtures/document.ts` 에 이미 있다. 내보내는 이름과 반환 형태를 먼저 읽고 위 호출을 맞춘다. 없으면 이 Task 에서 추가한다 — blocking 이 `false` 인 완전한 문서여야 한다.
+> `syntheticQuote()` 는 `tests/fixtures/syntheticQuote.ts` 에 있고 **`blocking: false`, 경고 0** 임이 실측됐다. 새 픽스처를 만들지 않는다. 반환 형태를 먼저 읽고 위 호출을 맞춘다.
 
 - [ ] **Step 3: 실패 확인**
 
@@ -531,7 +565,8 @@ git commit -m "화면: 앱 셸과 blocking 시 Excel 다운로드 차단"
 - Produces:
   ```ts
   export interface Catalog {
-    readonly version: string;
+    /** 원본 표준품셈 xlsx 의 SHA-256. 다섯 파일이 같은 원본에서 나왔는지의 기준. */
+    readonly sourceSha256: string;
     readonly products: readonly CatalogProduct[];
     /** SKU → 판매단가. **비어 있을 수 있다** — prices.json 이 배포에서 빠진 경우 (결정 D3). */
     readonly prices: ReadonlyMap<string, DecimalText>;
@@ -551,9 +586,9 @@ git commit -m "화면: 앱 셸과 blocking 시 Excel 다운로드 차단"
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { loadCatalog } from '../../src/data/catalog/load.js';
 
-const VERSION = '0123456789ab-20261003';
+const SHA = 'a'.repeat(64);
 const products = {
-  version: VERSION,
+  sourceSha256: SHA,
   products: [{
     productId: 'VID-6', sku: 'VID-6', brand: '', model: '12배줌',
     quoteName: 'BRC-H800', quoteSpec: '12배줌', unit: 'EA',
@@ -561,7 +596,9 @@ const products = {
     currency: 'KRW', evidence: 'review-required',
   }],
 };
-const prices = { version: VERSION, prices: [{ sku: 'VID-6', sellingUnitPrice: '11475000' }] };
+// ⚠ 위 두 객체의 필드 이름은 `src/data/catalog/schema.ts` 의 실제 스키마에 맞춘다.
+//    산출물에는 `sourceSha256` 과 `generatedOn` 이 있다. `version` 은 없다.
+const prices = { sourceSha256: SHA, prices: [{ sku: 'VID-6', sellingUnitPrice: '11475000' }] };
 
 function mockFetch(routes: Record<string, { status: number; body?: unknown; text?: string }>) {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
@@ -581,7 +618,7 @@ describe('loadCatalog', () => {
   it('제품과 가격을 읽는다', async () => {
     mockFetch({ 'products.json': { status: 200, body: products }, 'prices.json': { status: 200, body: prices } });
     const c = await loadCatalog();
-    expect(c.version).toBe(VERSION);
+    expect(c.sourceSha256).toBe(SHA);
     expect(c.products).toHaveLength(1);
     expect(c.prices.get('VID-6')).toBe('11475000');
     expect(c.pricesAvailable).toBe(true);
@@ -613,16 +650,16 @@ describe('loadCatalog', () => {
   });
 
   it('products.json 이 스키마에 안 맞으면 던진다', async () => {
-    mockFetch({ 'products.json': { status: 200, body: { version: 'bad', products: [] } } });
+    mockFetch({ 'products.json': { status: 200, body: { sourceSha256: 'bad', products: [] } } });
     await expect(loadCatalog()).rejects.toThrow();
   });
 
-  it('제품과 가격의 version 이 다르면 던진다 — 조용한 불일치 방지 (설계서 §6.3)', async () => {
+  it('제품과 가격의 원본 해시가 다르면 던진다 — 조용한 불일치 방지 (설계서 §6.3)', async () => {
     mockFetch({
       'products.json': { status: 200, body: products },
-      'prices.json': { status: 200, body: { ...prices, version: 'ffffffffffff-20261001' } },
+      'prices.json': { status: 200, body: { ...prices, sourceSha256: 'b'.repeat(64) } },
     });
-    await expect(loadCatalog()).rejects.toThrow(/version/);
+    await expect(loadCatalog()).rejects.toThrow(/sourceSha256|원본/);
   });
 
   it('외부 origin 을 부르지 않는다 — 설계서 §8.4', async () => {
@@ -660,7 +697,8 @@ import type { CatalogProduct } from './buildProducts.js';
 import { pricesSchema, productsSchema } from './schema.js';
 
 export interface Catalog {
-  readonly version: string;
+  /** 원본 표준품셈 xlsx 의 SHA-256. 다섯 파일이 같은 원본에서 나왔는지의 기준. */
+  readonly sourceSha256: string;
   readonly products: readonly CatalogProduct[];
   readonly prices: ReadonlyMap<string, DecimalText>;
   readonly pricesAvailable: boolean;
@@ -682,22 +720,23 @@ export async function loadCatalog(baseUrl = './data/approved'): Promise<Catalog>
   // 가격은 선택. 404·깨진 JSON·스키마 불일치 전부 "없음"으로 떨어진다 (결정 D3).
   let prices = new Map<string, DecimalText>();
   let pricesAvailable = false;
-  let priceVersion: string | undefined;
+  let priceSha: string | undefined;
   try {
     const p = pricesSchema.parse(await fetchJson(`${baseUrl}/prices.json`));
-    priceVersion = p.version;
+    priceSha = p.sourceSha256;
     prices = new Map(p.prices.map((e) => [e.sku, e.sellingUnitPrice]));
     pricesAvailable = true;
   } catch {
     // 의도된 경로다. 로그를 남기지 않는다 — 설계서 §8.3: 파서가 파일 정보를 밖으로 내보내지 않는다.
   }
 
-  // 버전이 어긋나면 조용히 섞지 않는다 (설계서 §6.3).
-  if (pricesAvailable && priceVersion !== parsed.version) {
-    throw new Error(`승인 데이터 version 불일치: products ${parsed.version} vs prices ${priceVersion}`);
+  // 서로 다른 원본에서 나온 파일을 조용히 섞지 않는다 (설계서 §6.3).
+  // 날짜가 아니라 원본 해시로 본다 — 같은 날 두 번 빌드해도 원본이 다르면 해시가 다르다.
+  if (pricesAvailable && priceSha !== parsed.sourceSha256) {
+    throw new Error(`승인 데이터 원본 불일치: products ${parsed.sourceSha256} vs prices ${priceSha}`);
   }
 
-  return { version: parsed.version, products: parsed.products, prices, pricesAvailable };
+  return { sourceSha256: parsed.sourceSha256, products: parsed.products, prices, pricesAvailable };
 }
 ```
 
@@ -827,11 +866,11 @@ export function amountText(v: Decimal | undefined): string {
 }
 
 export function quantityText(v: Decimal): string {
-  return v.toString();   // Decimal 은 '2.50' → '2.5' 로 정규화한다
+  return v.toFixed();   // '2.50' → '2.5'. 기존 코드가 toFixed() 로 통일돼 있다
 }
 ```
 
-> `Decimal.toString()` 이 `'2.50'` 을 `'2.5'` 로 정규화하는지 테스트가 확인한다. 아니면 `v.toDecimalPlaces(…)` 등으로 맞추되 **기대값은 바꾸지 않는다.**
+> `Decimal('2.50').toFixed()` 가 `'2.5'` 를 낸다는 것, 그리고 `rounding.ts` 의 `toExpNeg:-40, toExpPos:40` 덕에 큰 금액에서 지수 표기(`1e21`)가 안 나온다는 것이 실측됐다.
 
 - [ ] **Step 3: `QuoteSheet` 실패 테스트**
 
@@ -1070,7 +1109,22 @@ describe('머리 정보 — 설계서 §2.3', () => {
 Run: `npx vitest run tests/unit/CoverSheet.test.tsx`
 Expected: FAIL → 구현 후 PASS (9 tests)
 
-한글 금액은 `src/export/ooxml/koreanAmount.ts` 의 `koreanAmountSentence` 를 **재사용한다.** 화면과 Excel 이 같은 함수를 쓰면 어긋날 수 없다. 함수 이름과 시그니처를 먼저 읽고 맞춘다.
+한글 금액은 **`koreanAmountSentenceForWeb(amount)`** 를 쓴다. `koreanAmountSentence` 를 그대로 쓰면 **화면에 역슬래시가 찍힌다.**
+
+```ts
+export const EXCEL_WON_SIGN = '\\';   // U+005C — 원본 바이트
+export const WEB_WON_SIGN = '₩';      // U+20A9
+
+koreanAmountSentence(amount, wonSign = EXCEL_WON_SIGN): string
+koreanAmountSentenceForWeb(amount): string        // ₩ 를 쓴다
+```
+
+원본 갑지 수식이 `"원정(\"&TEXT(…)` 로 쓰여 있고, 그 문자는 `₩`(U+20A9)가 아니라
+**역슬래시(U+005C)** 다. 한국어 Windows Excel 이 글꼴 매핑으로 `₩` 처럼 보여줄 뿐이고
+**브라우저에는 그 매핑이 없다.** 그대로 쓰면 화면에 `일금삼백오십만원정(\3,500,000) V.A.T별도` 가 나온다.
+
+숫자 변환과 천 단위 구분은 두 함수가 **완전히 같은 코드**를 쓴다 — 기호만 다르다.
+`web.replace('₩','\\') === excel` 을 확인하는 테스트가 이미 있다. 화면과 Excel 이 어긋날 수 없다.
 
 A열 여백은 `<col style={{width:'1.625ch'}}/>` 가 아니라 표 컨테이너의 좌측 패딩으로 표현한다 — 화면에 빈 `<td>` 를 두면 접근성 트리에 빈 셀이 생긴다. 원본의 열 번호와 화면 DOM 이 1:1 일 필요는 없다. **1:1 이어야 하는 것은 exporter 쪽이고 그건 이미 끝났다.**
 
