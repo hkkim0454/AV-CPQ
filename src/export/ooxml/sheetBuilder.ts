@@ -66,6 +66,22 @@ export interface BuiltRow {
   cells: PlannedCell[];
 }
 
+/**
+ * 셀 안의 줄바꿈을 공백 하나로 눕힌다.
+ *
+ * 카탈로그의 규격 칸에 줄바꿈이 든 제품이 있다
+ * (`H_4xHDMI  output  card⏎(HDMI  1.4  -  Dual  Link)`, `5C-CRIMP⏎ F-5C` 등).
+ * 견적 양식은 행 높이가 21pt로 **고정**이라 두 줄짜리 값을 그대로 넣으면
+ * 둘째 줄이 조용히 잘린다. 사람 눈에는 한 줄만 보이고 인쇄물도 그렇게 나간다.
+ *
+ * 줄바꿈을 살리려면 `wrapText` 서식이 필요한데, 그러려면 `xl/styles.xml`을
+ * 건드려야 한다. 원본 서식을 바이트 그대로 옮긴다는 전제(설계서 §9.1)를 깨는 쪽보다
+ * **눕혀서 전부 보이게 하는 쪽**을 택했다. 내용이 사라지지 않는다.
+ */
+export function flattenLineBreaks(value: string): string {
+  return value.replace(/\s*[\r\n]+\s*/g, ' ');
+}
+
 function buildCell(
   reference: string,
   styleIndex: number | undefined,
@@ -87,7 +103,9 @@ function buildCell(
       // 생성 파일에 문자열 풀이 남지 않아 감사하기 쉽다.
       attrs['t'] = 'inlineStr';
       return element('c', attrs, [
-        element('is', {}, [textElement('t', content.value, { 'xml:space': 'preserve' })]),
+        element('is', {}, [
+          textElement('t', flattenLineBreaks(content.value), { 'xml:space': 'preserve' }),
+        ]),
       ]);
 
     case 'formula': {

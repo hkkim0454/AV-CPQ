@@ -134,6 +134,50 @@ foreach ($ws in $wb.Worksheets) {
   }
 }
 
+# --- 행 잘림 측정 (인수 기준 A10) ---
+# 고정 행 높이 때문에 내용이 잘리는지 본다. AutoFit 했을 때 높이가 커지면
+# 지금 높이로는 다 안 보인다는 뜻이다. 파일은 저장하지 않으므로 메모리에서만 바뀐다.
+#
+# **내역 시트만 본다.** 갑지는 길이가 고정된 양식 문구뿐이고, 그 행들은 원본 견적서도
+# 똑같이 AutoFit 기준을 넘는다 (실측: 원본 갑지 8행 24->26.5, 마지막 행 10->17).
+# 회사 양식 자체의 설계이지 생성기의 결함이 아니다. 여기서 잡아야 하는 것은
+# **데이터 길이에 따라 달라지는** 품목 행이다. 내역 시트는 반복 머리글로 식별한다.
+foreach ($ws in $wb.Worksheets) {
+  $area = $ws.PageSetup.PrintArea
+  if (-not $area) { continue }
+  if (-not $ws.PageSetup.PrintTitleRows) {
+    Write-Output "  $($ws.Name): 행 잘림 검사 제외 (양식 고정 시트)"
+    continue
+  }
+  $areaRange = $ws.Range($area)
+  $firstRow = $areaRange.Row
+  $lastRow = $areaRange.Row + $areaRange.Rows.Count - 1
+
+  $clipped = 0
+  $samples = @()
+  for ($r = $firstRow; $r -le $lastRow; $r++) {
+    $rowObj = $ws.Rows.Item($r)
+    # 병합 셀이 있는 행은 AutoFit 결과를 믿을 수 없다 — 건너뛴다
+    if ($ws.Cells.Item($r, 1).MergeCells -or $ws.Cells.Item($r, 2).MergeCells) { continue }
+    $before = [double]$rowObj.RowHeight
+    $rowObj.AutoFit() | Out-Null
+    $after = [double]$rowObj.RowHeight
+    if ($after -gt $before + 0.6) {
+      $clipped++
+      if ($samples.Count -lt 5) {
+        $samples += ("{0}행 (높이 {1} -> {2}) B='{3}'" -f $r, $before, $after, $ws.Cells.Item($r, 2).Text)
+      }
+    }
+    $rowObj.RowHeight = $before
+  }
+  if ($clipped -gt 0) {
+    Fail "$($ws.Name): 고정 행 높이로 잘리는 행 $clipped 개"
+    foreach ($smp in $samples) { Write-Output "      $smp" }
+  } else {
+    Write-Output "  $($ws.Name): 행 잘림 없음"
+  }
+}
+
 # --- 편집 후 재계산 (설계서 §9.7, 인수 기준 A09) ---
 # "Excel에서 다시 편집해도 수식이 작동해야 한다."
 # 첫 내역 시트의 첫 품목 수량을 바꾸고, 갑지 최종 금액과 한글 금액이 따라 바뀌는지 본다.
@@ -159,19 +203,33 @@ else {
     $beforeQty   = [double]$detail.Range("E$itemRow").Value2
     $unit        = [double]$detail.Range("F$itemRow").Value2
 
-    $detail.Range("E$itemRow").Value2 = $beforeQty + 1
+    # 갑지 합계는 만원 미만을 절사한다. 수량을 1만 올리면 변화가 절사에 먹혀
+    # "반영되지 않았다"는 거짓 실패가 난다. 절사 단위를 확실히 넘기도록 흔든다.
+    $delta = 1000
+    $detail.Range("E$itemRow").Value2 = $beforeQty + $delta
     $xl.CalculateFullRebuild()
 
     $afterTotal = [double]$cover2.Range("H$finalRow").Value2
     $afterText  = [string]$cover2.Range("C8").Text
     $rowAmount  = [double]$detail.Range("G$itemRow").Value2
 
+    # 직접비계는 절사가 없다. 여기가 안 움직이면 수식 연쇄 자체가 끊긴 것이다.
+    $directRow = 0
+    for ($r = 5; $r -le 400; $r++) {
+      if ($detail.Range("A$r").Text -like "*직접비계*") { $directRow = $r; break }
+    }
+    if ($directRow -gt 0) {
+      $afterDirect = [double]$detail.Range("G$directRow").Value2
+      Write-Output ("  직접비계 G{0} = {1}" -f $directRow, $afterDirect)
+      if ($afterDirect -le 0) { Fail "직접비계가 0 이하다" }
+    }
+
     Write-Output ""
-    Write-Output "편집 후 재계산 (수량 $beforeQty -> $($beforeQty + 1)):"
-    Write-Output ("  행 금액 G{0} = {1}  (기대 {2})" -f $itemRow, $rowAmount, (($beforeQty + 1) * $unit))
+    Write-Output "편집 후 재계산 (수량 $beforeQty -> $($beforeQty + $delta)):"
+    Write-Output ("  행 금액 G{0} = {1}  (기대 {2})" -f $itemRow, $rowAmount, (($beforeQty + $delta) * $unit))
     Write-Output ("  갑지 최종  = {0}  (편집 전 {1})" -f $afterTotal, $beforeTotal)
 
-    if ($rowAmount -ne (($beforeQty + 1) * $unit)) {
+    if ($rowAmount -ne (($beforeQty + $delta) * $unit)) {
       Fail "수량 수정 후 행 금액이 재계산되지 않았다"
     }
     if ($afterTotal -eq $beforeTotal) {
