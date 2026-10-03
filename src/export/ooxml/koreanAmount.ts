@@ -29,7 +29,8 @@ function groupToKorean(value: number): string {
   for (let position = SMALL_UNITS.length - 1; position >= 0; position -= 1) {
     const digit = Math.floor(value / 10 ** position) % 10;
     if (digit === 0) continue;
-    out += DIGITS[digit] + SMALL_UNITS[position];
+    // digit은 1~9, position은 0~3이라 두 인덱스 모두 범위 안이다.
+    out += `${DIGITS[digit]!}${SMALL_UNITS[position]!}`;
   }
   return out;
 }

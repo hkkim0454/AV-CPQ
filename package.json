@@ -14,7 +14,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "audit:exports": "node --experimental-strip-types tools/audit-exports.ts"
+    "audit:exports": "node tools/audit-exports.mjs"
   },
   "dependencies": {
     "decimal.js": "10.6.0",

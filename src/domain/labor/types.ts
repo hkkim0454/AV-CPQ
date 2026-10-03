@@ -9,6 +9,19 @@ import type { DecimalText } from '../quote/types';
 /** 직종 이름. 노임표의 키. */
 export type Trade = string;
 
+/**
+ * 노임 단위 (결정 문서 D1).
+ *
+ * 품셈 파일의 노임은 대부분 `M/D`(인·일)이지만 CMS 시트 전용 4개 직종만 `M/M`(인·월)이다.
+ * 섞으면 노무비가 약 20배 틀린다. 단위를 값과 함께 들고 다니는 이유다.
+ */
+export type WageUnit = 'M/D' | 'M/M';
+
+export interface Wage {
+  amount: DecimalText;
+  unit: WageUnit;
+}
+
 /** 품셈 항목 하나 — 어떤 직종의 품이 얼마나 드는지. */
 export interface LaborItem {
   laborItemId: string;
@@ -22,6 +35,11 @@ export interface LaborItem {
   source: string;
   /** 개정 표기 (`2026 상반기` 등). */
   revision: string;
+  /**
+   * 이 품셈의 품이 전제하는 노임 단위.
+   * 노임표의 단위와 다르면 계산하지 않고 차단한다 — 조용히 환산하지 않는다.
+   */
+  wageUnit: WageUnit;
   trades: TradeQuantity[];
 }
 
@@ -31,12 +49,12 @@ export interface TradeQuantity {
   quantity: DecimalText;
 }
 
-/** 연도/반기 노임 단가표. */
+/** 연도/반기 노임 단가표. 값마다 단위를 함께 담는다. */
 export interface WageTable {
   wageTableId: string;
   periodLabel: string;
   source: string;
-  wages: Record<Trade, DecimalText>;
+  wages: Record<Trade, Wage>;
 }
 
 /**
@@ -62,6 +80,7 @@ export interface LaborMapping {
 
 export type LaborWarningCode =
   | 'wage-missing'
+  | 'wage-unit-mismatch'
   | 'mapping-missing'
   | 'mapping-unconfirmed'
   | 'labor-item-missing';

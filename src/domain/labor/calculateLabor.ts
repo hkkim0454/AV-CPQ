@@ -9,7 +9,14 @@
  *
  * 설계서 §5.3: 미연결·미확인 항목을 자동 확정하지 않는다. 계산은 하되 `blocking`을 세운다.
  */
-import type { LaborItem, LaborMapping, LaborWarning, WageTable, Trade } from './types';
+import type {
+  LaborItem,
+  LaborMapping,
+  LaborWarning,
+  WageTable,
+  WageUnit,
+  Trade,
+} from './types';
 import { Decimal, ZERO, dec, excelInt, sum } from '../calculation/rounding';
 
 export interface TradeAmount {
@@ -18,6 +25,8 @@ export interface TradeAmount {
   quantity: Decimal;
   /** 노임. */
   wage: Decimal;
+  /** 노임 단위 — 화면에 그대로 표시한다 (설계서 §5.3 추적성). */
+  wageUnit: WageUnit;
   /** 직종별 금액 = 품 × 노임. */
   amount: Decimal;
 }
@@ -32,6 +41,8 @@ export interface LaborBreakdown {
   source: string;
   revision: string;
   wagePeriod: string;
+  /** 이 품셈이 전제하는 노임 단위. */
+  wageUnit: WageUnit;
 
   tradeAmounts: TradeAmount[];
   /** Σ(품 × 노임). */
@@ -57,18 +68,39 @@ export function calculateLaborUnitPrice(
 
   const tradeAmounts: TradeAmount[] = item.trades.map((t) => {
     const quantity = dec(t.quantity);
-    const wageText = wages.wages[t.trade];
-    if (wageText === undefined) {
+    const entry = wages.wages[t.trade];
+    if (entry === undefined) {
       warnings.push({
         code: 'wage-missing',
         blocking: true,
         message: `노임표 ${wages.periodLabel}에 직종 '${t.trade}'이 없다.`,
         laborMappingId: mapping.laborMappingId,
       });
-      return { trade: t.trade, quantity, wage: ZERO, amount: ZERO };
+      return { trade: t.trade, quantity, wage: ZERO, wageUnit: item.wageUnit, amount: ZERO };
     }
-    const wage = dec(wageText);
-    return { trade: t.trade, quantity, wage, amount: quantity.times(wage) };
+
+    // 결정 문서 D1: M/D와 M/M을 섞으면 약 20배 틀린다.
+    // 자동 환산하지 않는다 — 한 달이 며칠인지는 공사 조건이지 상수가 아니다.
+    if (entry.unit !== item.wageUnit) {
+      warnings.push({
+        code: 'wage-unit-mismatch',
+        blocking: true,
+        message:
+          `직종 '${t.trade}'의 노임 단위가 ${entry.unit}인데 품셈 ${item.code}는 ` +
+          `${item.wageUnit}를 전제한다. 자동 환산하지 않는다. 품셈 매핑을 확인한다.`,
+        laborMappingId: mapping.laborMappingId,
+      });
+      return { trade: t.trade, quantity, wage: ZERO, wageUnit: entry.unit, amount: ZERO };
+    }
+
+    const wage = dec(entry.amount);
+    return {
+      trade: t.trade,
+      quantity,
+      wage,
+      wageUnit: entry.unit,
+      amount: quantity.times(wage),
+    };
   });
 
   const standardUnitPrice = sum(tradeAmounts.map((t) => t.amount));
@@ -76,12 +108,15 @@ export function calculateLaborUnitPrice(
   const itemRate = dec(mapping.itemRate);
   const conversionFactor = dec(mapping.conversionFactor);
 
-  const appliedUnitPrice = excelInt(
-    standardUnitPrice
-      .times(new Decimal(1).plus(surcharge))
-      .times(itemRate)
-      .times(conversionFactor),
-  );
+  const unitMismatch = warnings.some((w) => w.code === 'wage-unit-mismatch');
+  const appliedUnitPrice = unitMismatch
+    ? ZERO
+    : excelInt(
+        standardUnitPrice
+          .times(new Decimal(1).plus(surcharge))
+          .times(itemRate)
+          .times(conversionFactor),
+      );
 
   if (!mapping.confirmed) {
     warnings.push({
@@ -101,6 +136,7 @@ export function calculateLaborUnitPrice(
     source: item.source,
     revision: item.revision,
     wagePeriod: wages.periodLabel,
+    wageUnit: item.wageUnit,
     tradeAmounts,
     standardUnitPrice,
     surcharge,

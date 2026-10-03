@@ -11,8 +11,8 @@ const wages: WageTable = {
   periodLabel: '테스트 반기',
   source: '합성 테스트 값',
   wages: {
-    '통신내선공': '200000',
-    '통신설비공': '100000',
+    통신내선공: { amount: '200000', unit: 'M/D' },
+    통신설비공: { amount: '100000', unit: 'M/D' },
   },
 };
 
@@ -23,6 +23,7 @@ const item: LaborItem = {
   baseUnit: 'EA',
   source: '합성 테스트 값',
   revision: '2026 상반기',
+  wageUnit: 'M/D',
   trades: [
     { trade: '통신내선공', quantity: '0.06' },
     { trade: '통신설비공', quantity: '0.03' },
@@ -152,6 +153,7 @@ describe('calculateLaborUnitPrice — 설계서 §5.2, §5.6', () => {
     expect(r.roundingMethod).toBe('INT');
     expect(r.tradeAmounts[0]).toMatchObject({ trade: '통신내선공' });
     expect(r.tradeAmounts[0]!.wage.toFixed()).toBe('200000');
+    expect(r.tradeAmounts[0]!.wageUnit).toBe('M/D');
     expect(r.tradeAmounts[0]!.quantity.toFixed()).toBe('0.06');
   });
 });
