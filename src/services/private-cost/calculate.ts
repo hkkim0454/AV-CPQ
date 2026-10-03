@@ -36,6 +36,11 @@ export function marginRate(
 export interface InternalLineInput {
   rowId: string;
   sku?: string;
+  /** 견적서 B열. 내부용 표에 그대로 싣는다. */
+  name?: string;
+  /** 견적서 C열. */
+  specification?: string;
+  unit?: string;
   quantity: DecimalText;
   sellingUnitPrice?: DecimalText;
 }
@@ -43,9 +48,14 @@ export interface InternalLineInput {
 export interface InternalLine {
   rowId: string;
   sku?: string;
+  name: string;
+  specification: string;
+  unit: string;
   quantity: Decimal;
   /** 원가표에 이 SKU가 있었는지. `false`면 화면에 `미등록`으로 표시한다. */
   costRegistered: boolean;
+  /** 견적의 판매 단가. 미등록이면 없다. */
+  sellingUnitPrice?: Decimal;
   purchaseUnitPrice?: Decimal;
   purchaseAmount?: Decimal;
   sellingAmount?: Decimal;
@@ -74,11 +84,15 @@ export function internalLines(
     const line: InternalLine = {
       rowId: row.rowId,
       ...(row.sku !== undefined ? { sku: row.sku } : {}),
+      name: row.name ?? '',
+      specification: row.specification ?? '',
+      unit: row.unit ?? '',
       quantity,
       costRegistered: entry !== undefined,
     };
 
     if (selling !== undefined) {
+      line.sellingUnitPrice = selling;
       line.sellingAmount = quantity.times(selling);
     }
 

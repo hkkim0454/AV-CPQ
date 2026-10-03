@@ -7,6 +7,7 @@
 import { zipSync, strToU8, strFromU8 } from 'fflate';
 import { parseXml, serializeXml, element, findChild, type XmlDocument } from './xml';
 import { loadTemplate, type TemplatePackage } from './template';
+export type { TemplatePackage };
 import { planWorkbook, COVER_SHEET_NAME, type SystemLayout, type CoverLayout } from './layout';
 import {
   buildWorksheet,
@@ -662,16 +663,37 @@ export interface BuildWorkbookResult {
 }
 
 /**
- * 고객용 통합문서를 만든다.
+ * 통합문서에 덧붙일 시트.
+ *
+ * **고객용 exporter는 이것을 넘기지 않는다.** 내부용 exporter만 쓴다
+ * (설계서 §8.7 — 고객용과 내부용은 별도 exporter를 쓴다).
+ * 고객용 경로에서 이 값이 비어 있다는 것은 `tests/integration/exportWorkbook.test.ts`의
+ * 시트 수 검사가 고정한다.
+ */
+export interface ExtraSheet {
+  name: string;
+  printArea: string;
+  /** 워크시트 XML 전체를 만든다. */
+  build(template: TemplatePackage): string;
+}
+
+export interface BuildWorkbookOptions {
+  extraSheets?: readonly ExtraSheet[];
+}
+
+/**
+ * 견적 통합문서를 만든다.
  *
  * @param templateBytes 정리된 빈 템플릿 `.xlsx`의 바이트.
  */
 export function buildQuoteWorkbook(
   exported: CustomerExport,
   templateBytes: Uint8Array,
+  options: BuildWorkbookOptions = {},
 ): BuildWorkbookResult {
   const template = loadTemplate(templateBytes);
   const layout = planWorkbook(exported);
+  const extraSheets = options.extraSheets ?? [];
 
   const sheets: SheetEntry[] = [
     {
@@ -685,6 +707,13 @@ export function buildQuoteWorkbook(
       path: `xl/worksheets/sheet${index + 2}.xml`,
       relId: `rId${index + 2}`,
       printArea: `$A$1:$K$${system.lastRow}`,
+      printTitles: PRINT.systemTitleRows,
+    })),
+    ...extraSheets.map((extra, index) => ({
+      name: extra.name,
+      path: `xl/worksheets/sheet${layout.systems.length + index + 2}.xml`,
+      relId: `rId${layout.systems.length + index + 2}`,
+      printArea: extra.printArea,
       printTitles: PRINT.systemTitleRows,
     })),
   ];
@@ -720,6 +749,11 @@ export function buildQuoteWorkbook(
   layout.systems.forEach((system, index) => {
     files[`xl/worksheets/sheet${index + 2}.xml`] = strToU8(
       buildSystemSheet(system, template),
+    );
+  });
+  extraSheets.forEach((extra, index) => {
+    files[`xl/worksheets/sheet${layout.systems.length + index + 2}.xml`] = strToU8(
+      extra.build(template),
     );
   });
 

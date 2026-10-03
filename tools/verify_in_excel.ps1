@@ -94,6 +94,46 @@ if ($Expected -and (Test-Path $Expected)) {
   Write-Output "대조한 셀: $checked"
 }
 
+# --- 다페이지 인쇄 (설계서 §9.7, 인수 기준 A10, 열린 항목 O2a) ---
+# "다페이지 머리글·폭·잘림 검증"
+foreach ($ws in $wb.Worksheets) {
+  $area = $ws.PageSetup.PrintArea
+  if (-not $area) { Fail "인쇄 영역이 없다: $($ws.Name)"; continue }
+
+  # 인쇄 영역이 쓰인 범위를 전부 덮는가 — 행이 잘리면 여기서 걸린다
+  $areaRange = $ws.Range($area)
+  $lastAreaRow = $areaRange.Row + $areaRange.Rows.Count - 1
+  $lastUsedRow = $ws.UsedRange.Row + $ws.UsedRange.Rows.Count - 1
+  if ($lastUsedRow -gt $lastAreaRow) {
+    Fail "$($ws.Name): 인쇄 영역이 $lastAreaRow 행까지인데 내용은 $lastUsedRow 행까지 있다 (행 잘림)"
+  }
+
+  $pages = $ws.PageSetup.Pages.Count
+  if ($pages -gt 1) {
+    # 다페이지면 반복 머리글이 반드시 있어야 한다. 없으면 2페이지부터 열 이름이 사라진다.
+    if (-not $ws.PageSetup.PrintTitleRows) {
+      Fail "$($ws.Name): $pages 페이지인데 반복 머리글이 없다"
+    } else {
+      Write-Output "  $($ws.Name): $pages 페이지, 반복 머리글 $($ws.PageSetup.PrintTitleRows)"
+    }
+
+    # 가로 페이지 나눔 — 열이 둘로 쪼개지면 인쇄물이 못 쓰게 된다
+    $vBreaks = $ws.VPageBreaks.Count
+    if ($vBreaks -gt 0) {
+      Fail "$($ws.Name): 가로 페이지 나눔 $vBreaks 개 — 표가 좌우로 쪼개진다"
+    }
+
+    # 세로 페이지 나눔이 병합 셀 한가운데를 지나는지
+    foreach ($hb in $ws.HPageBreaks) {
+      $breakRow = $hb.Location.Row
+      $cell = $ws.Cells.Item($breakRow, 1)
+      if ($cell.MergeCells -and $cell.MergeArea.Row -lt $breakRow) {
+        Fail "$($ws.Name): $breakRow 행의 페이지 나눔이 병합 셀을 가른다"
+      }
+    }
+  }
+}
+
 # --- 편집 후 재계산 (설계서 §9.7, 인수 기준 A09) ---
 # "Excel에서 다시 편집해도 수식이 작동해야 한다."
 # 첫 내역 시트의 첫 품목 수량을 바꾸고, 갑지 최종 금액과 한글 금액이 따라 바뀌는지 본다.

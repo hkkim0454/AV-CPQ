@@ -12,6 +12,7 @@ import { TEMPLATE_PATH } from '@/export/ooxml/anchors';
 import {
   syntheticQuote,
   emptySystemQuote,
+  longQuote,
   SENTINEL_COST,
   SENTINEL_SUPPLIER,
 } from '../fixtures/syntheticQuote';
@@ -466,6 +467,37 @@ describe('산출물 저장 — 실제 Excel 검증용', () => {
 
     writeFileSync(
       resolve(OUT_DIR, 'synthetic-quote.expected.json'),
+      JSON.stringify(expectedByCell, null, 2),
+      'utf8',
+    );
+  });
+
+  it('100행 다페이지 견적을 쓴다 (열린 항목 O2a)', () => {
+    const doc = longQuote(100);
+    const calculation = calculateQuote(doc);
+    const projection = buildCustomerProjection(doc, calculation);
+    const result = buildQuoteWorkbook(projection, templateBytes);
+    writeFileSync(resolve(OUT_DIR, 'long-quote.xlsx'), result.bytes);
+
+    const layout = planWorkbook(projection);
+    const system = layout.systems[0]!;
+    // 품목 100 + 그룹 1 + 소그룹 4 = 105행 본문
+    expect(system.bodyRows).toHaveLength(105);
+    expect(system.lastRow).toBeGreaterThan(110);
+
+    const expectedByCell: Record<string, Record<string, string>> = {
+      갑지: {
+        [`H${layout.cover.sumRow}`]: calculation.cover.rounded.toFixed(),
+        [`H${layout.cover.finalRow}`]: calculation.cover.finalTotal.toFixed(),
+      },
+      [system.sheetName]: {
+        [`G${system.directTotalRow}`]: system.calculation.directMaterial.toFixed(),
+        [`I${system.directTotalRow}`]: system.calculation.directLabor.toFixed(),
+        [`J${system.grandTotalRow}`]: system.calculation.systemTotal.toFixed(),
+      },
+    };
+    writeFileSync(
+      resolve(OUT_DIR, 'long-quote.expected.json'),
       JSON.stringify(expectedByCell, null, 2),
       'utf8',
     );

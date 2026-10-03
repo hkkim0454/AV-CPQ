@@ -224,3 +224,53 @@ export function emptySystemQuote(): QuoteDocument {
     negoDeduction: '0',
   };
 }
+
+/**
+ * 100행 규모 견적 — 다페이지 출력 검증용 (열린 항목 O2a).
+ *
+ * 페이지 나눔·반복 머리글·행 잘림은 **다페이지에서만** 드러난다.
+ * 품명 길이도 함께 흔든다. 원본 카탈로그에 28자가 넘는 한글 품명이 있고
+ * B열 너비가 28.625라, 긴 품명과 페이지 경계가 겹칠 때 문제가 난다.
+ */
+export function longQuote(itemCount = 100): QuoteDocument {
+  const base = syntheticQuote();
+  const rows: SheetRow[] = [display('g1', 'L1', 'group', '[ 다페이지 검증 ]')];
+
+  for (let index = 0; index < itemCount; index += 1) {
+    // 20행마다 소그룹 머리글을 끼워 넣는다 — 머리글이 페이지 경계에 걸리는 경우.
+    if (index > 0 && index % 20 === 0) {
+      rows.push(display(`sg${index}`, 'L1', 'subgroup', `소그룹 ${index / 20}`));
+    }
+    // 10행마다 아주 긴 품명 — B열 너비 28.625를 넘는다.
+    const longName =
+      index % 10 === 0
+        ? `합성 장비 ${index} 삼성 데스크탑PC+추가옵션, 본사별도문의 (그래픽카드, SSD 증설)`
+        : `합성 장비 ${index}`;
+    rows.push(
+      item(
+        `lr${index}`,
+        'L1',
+        longName,
+        index % 7 === 0 ? 'SYNTH-LONG-SPEC-0123456789-ABCDEFGHIJ' : `SYNTH-${index}`,
+        index % 3 === 0 ? 'EA' : index % 3 === 1 ? '10M' : '식',
+        index % 5 === 0 ? '12.5' : String((index % 9) + 1),
+        String(10000 + index * 137),
+        index % 4 === 0 ? String(3000 + index * 11) : undefined,
+        index % 11 === 0 ? '긴 비고 — 현장 확인 필요, 사다리차 반입 조건 검토' : '',
+      ),
+    );
+  }
+
+  return {
+    ...base,
+    documentId: 'synthetic-long',
+    header: { ...base.header, projectName: '합성 다페이지 검증 공사' },
+    coverGroups: [
+      { groupId: 'g1', marker: 'Ⅰ', name: '합성 현장', systemIds: ['L1'] },
+    ],
+    systems: [system('L1', '다페이지 시스템', `합성 품목 ${itemCount}행`)],
+    rows,
+    derivedRows: [],
+    negoDeduction: '0',
+  };
+}
