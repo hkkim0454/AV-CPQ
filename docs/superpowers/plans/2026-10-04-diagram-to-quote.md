@@ -303,17 +303,60 @@ git commit -m "구성도: av-builder JSON 스키마 — 모르는 필드 허용"
 - Consumes: `Catalog` (`src/data/catalog/load.ts`), `CatalogProduct`
 - Produces:
   ```ts
+  export type MatchKind = 'model-exact' | 'model-normalized' | 'model-fragment' | 'none';
   export interface MatchResult {
     readonly product?: CatalogProduct;
     /** 카탈로그에 없으면 undefined. **0 으로 채우지 않는다** (설계서 §5.6). */
     readonly sellingUnitPrice?: DecimalText;
-    readonly matchedBy: 'model-exact' | 'model-normalized' | 'none';
+    readonly matchedBy: MatchKind;
+    /** `model-fragment` 일 때 어느 조각이 맞았는지. 사람이 검토할 수 있게 남긴다. */
+    readonly matchedFragment?: string;
   }
   export function matchByModel(model: string | undefined, catalog: Catalog): MatchResult;
   ```
 
-정규화: 대문자화 후 `공백 - _ / ( ) . , " ” “ × x * #` 제거. `XDM-CTR100` 과 `XDMCTR100` 이 같아진다.
-**부분일치는 하지 않는다.** `MR-4S` 가 `MR-4S-4K` 에 붙으면 다른 제품이 된다.
+### 정규화
+
+대문자화 후 다음을 **제거**한다.
+
+```
+공백  -  _  /  (  )  .  ,  "  ”  “  *  #
+```
+
+⚠ **`X`(영문자)를 지우지 않는다.** 실물 모델명 상당수가 X 로 시작한다 — `XDM-12`, `XRN-820S`.
+지우면 `XDM-12 → DM12` 가 되어 매트릭스가 통째로 사라진다.
+
+⚠ **`×`(U+00D7 곱셈 기호)는 지우지 않고 `X` 로 바꾼다.** 지우면 `9×3 → 93` 이 되어 **다른 수**가 된다.
+한쪽이 `9×3`, 다른 쪽이 `9X3` 으로 적는 경우를 맞추려면 변환이 맞다.
+
+`XDM-CTR100` 과 `XDMCTR100` 이 같아진다.
+
+### `/` 조각 매칭 — 부분일치가 아니다
+
+구성도가 디스플레이를 `"98인치 / LH98QMCEBGCXKR"` 처럼 **두 정보를 `/` 로 묶어** 적는다.
+실제 모델은 뒤쪽이다. 그대로는 안 붙는다.
+
+**명시적 구분자로 나눈 뒤 각 조각을 통째로 맞춘다.** 임의의 부분 문자열 비교가 아니다.
+
+조건:
+
+- 맞는 조각이 **정확히 하나**일 때만 받는다. 0개거나 2개 이상이면 미매칭
+- 조각의 정규화 키가 **5자 이상**이어야 한다 (전체 모델명보다 엄격하게 — 어느 조각이 모델인지 모르는 상태라 위험이 더 크다)
+- `matchedFragment` 에 맞은 조각을 남긴다
+
+실측 근거 — 미매칭 109건 분석:
+
+| | 건수 |
+|---|---:|
+| `/` 포함 | 35 |
+| 조각 **하나만** 맞음 → 구제 | **22** |
+| 조각 **둘 이상**이 서로 다른 제품에 맞음 → 위험 | **0** |
+
+22건 전부 삼성 LFD 디스플레이다. **디스플레이는 모든 구성도에 나온다.**
+
+### 여전히 부분일치는 하지 않는다
+
+`MR-4S` 는 `/` 가 없어 나뉘지 않으므로 `MR-4S-4K` 에 **붙지 않는다.** 테스트로 고정한다.
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 

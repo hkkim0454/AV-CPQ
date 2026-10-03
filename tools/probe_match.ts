@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { buildCatalog } from '../src/data/catalog/load';
 import { matchByModel } from '../src/import/diagram/matchCatalog';
 import { parseDiagram } from '../src/import/diagram/schema';
+import { buildDeviceLines } from '../src/import/diagram/devices';
 
 const catalog = buildCatalog(
   JSON.parse(readFileSync('data/approved/products.json', 'utf8')),
@@ -64,3 +65,18 @@ for (const node of diagram.nodes) {
     `  ${String(node.data.model).slice(0, 30).padEnd(32)} ${result.matchedBy.padEnd(18)} ${result.product?.sku ?? '-'}  ${price}`,
   );
 }
+
+console.log('');
+console.log('=== 장비 행 (Task 3) ===');
+const built = buildDeviceLines(diagram, catalog);
+for (const line of built.lines) {
+  const prefix = line.isAccessory ? '  - ' : '';
+  const price = line.sellingUnitPrice ?? '미등록';
+  console.log(
+    `  ${(prefix + line.name).slice(0, 30).padEnd(32)} ${line.specification.slice(0, 22).padEnd(24)} ` +
+      `${line.quantity.padStart(4)}${line.unit.padEnd(4)} ${price.padStart(10)}  [${line.matchedBy}]`,
+  );
+}
+console.log('');
+console.log(`경고 ${built.warnings.length}건 (확정 차단 ${built.warnings.filter((w) => w.blocking).length}건):`);
+for (const w of built.warnings) console.log(`  [${w.code}] ${w.message}`);

@@ -554,6 +554,30 @@ git commit -m "화면: 앱 셸과 blocking 시 Excel 다운로드 차단"
 
 ---
 
+### Task 3: 카탈로그 로더 — ✅ 완료 (커밋 `045b99f`)
+
+> **이 Task 는 끝났다. 다시 하지 않는다.** `src/data/catalog/load.ts` 가 이미 있다.
+>
+> 구성도 변환 계획(`2026-10-04-diagram-to-quote.md`) Task 2 가 이 모듈을 필요로 했는데
+> 실행 순서가 바뀌면서 비어 있었고, 그쪽에서 함께 만들었다. 아래 계획이 적은 `Catalog`
+> 형태를 그대로 따랐다.
+>
+> 가격 파일 처리는 **던지지 않는 쪽**으로 전부 몰았다 (결정 D3):
+>
+> | 상황 | 결과 |
+> |---|---|
+> | 가격 파일 없음 / 깨짐 | `pricesAvailable: false` + 사유 |
+> | 제품과 `sourceSha256` 불일치 | `pricesAvailable: false` + 사유 |
+> | 제품 파일 없음 / 깨짐 | **던진다** |
+>
+> ⚠ 세 번째가 계획 원안과 다르다. 원안은 해시 불일치에 **던지라**고 했는데, 구현은
+> **가격만 버리고 진행**한다. 제품은 멀쩡한데 가격 파일 하나 때문에 앱 전체가 안 뜨는 것보다
+> 낫다는 판단이고, 설계서 §5.6 의 "가격 없는 상태는 정상 경로" 와도 맞는다. 원안 쪽이
+> 맞다고 보면 되돌릴 것.
+
+<details>
+<summary>원래 Task 3 내용 (기록)</summary>
+
 ### Task 3: 카탈로그 로더
 
 **Files:**
@@ -751,6 +775,8 @@ Expected: PASS (8 tests)
 git add src/data/catalog/load.ts tests/unit/loadCatalog.test.ts
 git commit -m "화면: 승인 데이터 로더 — prices.json 없이도 동작 (결정 D3)"
 ```
+
+</details>
 
 ---
 
