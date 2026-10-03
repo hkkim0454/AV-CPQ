@@ -286,3 +286,75 @@ describe('멱등성 (설계서 §7.3)', () => {
     expect(JSON.stringify(a.lines)).toBe(JSON.stringify(b.lines));
   });
 });
+
+/**
+ * 최종 검토에서 나온 두 결함.
+ *
+ * 둘 다 같은 유형이다 — **값이 틀린 게 아니라, 없는 값이 조용히 메워진다.**
+ * 틀린 값은 테스트가 잡지만 없는 값은 테스트가 애초에 쳐다보지 않는다.
+ */
+describe('최종 검토 — 길이가 조용히 뭉개지지 않는다', () => {
+  it('길이가 다른 완제품은 합쳐지지 않는다 — 15m 구간이 3m로 나가면 현장에서 모자란다', () => {
+    const d = diagram(
+      [node('a', '소스', 'XDM-12'), node('b', '디스플레이', 'LH98QMCEBGCXKR')],
+      [
+        edge('e1', 'a', 'b', 'video', {
+          bomRows: [{ productName: 'HDMI 케이블', cableType: 'ready-made', length: '3' }],
+        }),
+        edge('e2', 'a', 'b', 'video', {
+          bomRows: [{ productName: 'HDMI 케이블', cableType: 'ready-made', length: '15' }],
+        }),
+      ],
+    );
+    const result = buildCableLines(d, cat());
+    const specs = result.lines.map((l) => l.specification).sort();
+    expect(specs).toEqual(['15m', '3m']);
+    for (const line of result.lines) expect(line.quantity).toBe('1');
+  });
+
+  it('길이가 같은 완제품은 여전히 합쳐진다', () => {
+    const d = diagram(
+      [node('a', '소스', 'XDM-12')],
+      [
+        edge('e1', 'a', 'a', 'video', {
+          bomRows: [{ productName: 'HDMI 케이블', cableType: 'ready-made', length: '5' }],
+        }),
+        edge('e2', 'a', 'a', 'video', {
+          bomRows: [{ productName: 'HDMI 케이블', cableType: 'ready-made', length: '5' }],
+        }),
+      ],
+    );
+    const result = buildCableLines(d, cat());
+    expect(result.lines).toHaveLength(1);
+    expect(result.lines[0]!.quantity).toBe('2');
+  });
+
+  it('벌크 케이블에 길이가 없으면 수량 0이 아니라 경고로 막는다', () => {
+    const d = diagram(
+      [node('a', '소스', 'XDM-12')],
+      [
+        edge('e1', 'a', 'a', 'network', {
+          bomRows: [{ productName: 'CAT6 UTP', cableType: 'manufactured' }],
+        }),
+      ],
+    );
+    const result = buildCableLines(d, cat());
+    expect(result.lines[0]!.quantity).toBeUndefined();
+    expect(result.warnings.some((w) => w.blocking)).toBe(true);
+    expect(result.warnings.some((w) => w.code === 'cable-length-missing')).toBe(true);
+  });
+
+  it('벌크 길이가 음수면 수량을 정하지 않는다', () => {
+    const d = diagram(
+      [node('a', '소스', 'XDM-12')],
+      [
+        edge('e1', 'a', 'a', 'network', {
+          bomRows: [{ productName: 'CAT6 UTP', cableType: 'manufactured', length: '-5' }],
+        }),
+      ],
+    );
+    const result = buildCableLines(d, cat());
+    expect(result.lines[0]!.quantity).toBeUndefined();
+    expect(result.warnings.some((w) => w.blocking)).toBe(true);
+  });
+});

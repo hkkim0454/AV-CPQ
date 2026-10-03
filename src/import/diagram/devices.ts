@@ -37,6 +37,7 @@ export type ImportWarningCode =
   | 'price-not-registered'
   | 'unknown-line-type'
   | 'cable-item-unresolved'
+  | 'cable-length-missing'
   | 'edge-endpoint-missing';
 
 export interface ImportWarning {

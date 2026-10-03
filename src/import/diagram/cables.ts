@@ -177,7 +177,10 @@ export function buildCableLines(
       const count = toNumber(row.quantity, 1);
       const meters = toNumber(row.length, 0);
 
-      const key = `${bulk ? 'bulk' : 'ready'}:${productName}`;
+      // 완제품은 **길이가 다르면 다른 품목이다.** 길이를 키에서 빼면
+      // 3m 구간과 15m 구간이 한 행으로 합쳐지고, 먼저 온 쪽 길이가 남아
+      // 15m 자리에 3m 케이블이 나간다. 현장에서 모자라고 경고도 없다.
+      const key = bulk ? `bulk:${productName}` : `ready:${productName}:${snapToStep(meters)}`;
       const line: CableLine = {
         ...(match.product !== undefined ? { sku: match.product.sku } : {}),
         name: match.product?.quoteName ?? productName,
@@ -205,6 +208,19 @@ export function buildCableLines(
         });
       }
 
+      if (bulk && meters <= 0) {
+        // 벌크는 길이가 곧 수량이다. 길이가 없으면 `0`이 되어 케이블이
+        // 조용히 사라진다 — 금액도 0원이고 아무 표시도 남지 않는다.
+        warnings.push({
+          code: 'cable-length-missing',
+          blocking: true,
+          message:
+            `'${productName}'은 벌크 케이블인데 구간 길이가 없다. ` +
+            '길이를 넣어야 수량을 정할 수 있다.',
+          edgeId: edge.id,
+        });
+      }
+
       // 완제품은 개수를, 벌크는 미터를 쌓는다.
       push(key, line, bulk ? meters * count : count, edge.id);
     }
@@ -220,7 +236,11 @@ export function buildCableLines(
 
     if (line.unit === `${BULK_UNIT_METERS}M`) {
       line.totalMeters = text(amount);
-      line.quantity = String(bulkUnits(amount.toNumber()));
+      // 길이를 못 구했으면 **수량을 비운다.** `0`은 계산 엔진이 유효한 값으로
+      // 보고 0원짜리 행을 만든다. 경고는 위에서 이미 세웠다.
+      if (amount.greaterThan(0)) {
+        line.quantity = String(bulkUnits(amount.toNumber()));
+      }
     } else {
       line.quantity = text(amount);
     }
