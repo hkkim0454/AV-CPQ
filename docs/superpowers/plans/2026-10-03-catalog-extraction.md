@@ -1500,7 +1500,7 @@ git commit -m "카탈로그: 승인 데이터 다섯 파일 생성과 감사 게
 
 **Files:**
 - Create: `tools/catalog_coverage.py`
-- Create: `docs/template/catalog-coverage.md`
+- Create: `docs/catalog-coverage.md`
 
 **Interfaces:**
 - Consumes: `data/approved/products.json`, 환경변수 `AVCPQ_NEGO_XLSX` 가 가리키는 평택 견적서
@@ -1592,7 +1592,7 @@ Expected: 적중률 숫자가 나온다. 목표치는 정하지 않는다 — **
 
 - [ ] **Step 3: 보고 문서 작성**
 
-`docs/template/catalog-coverage.md` 에 다음을 적는다. **실제 금액은 쓰지 않는다.**
+`docs/catalog-coverage.md` 에 다음을 적는다. **실제 금액은 쓰지 않는다.**
 
 - 측정일, 대조한 견적서 SHA-256, 카탈로그 version
 - 견적서 품목 수 / 완전일치 수 / 적중률
@@ -1605,7 +1605,7 @@ Expected: 적중률 숫자가 나온다. 목표치는 정하지 않는다 — **
 - [ ] **Step 4: 커밋**
 
 ```bash
-git add tools/catalog_coverage.py docs/template/catalog-coverage.md
+git add tools/catalog_coverage.py docs/catalog-coverage.md
 git commit -m "카탈로그: 평택 견적서 대조 커버리지 측정"
 ```
 
@@ -1621,7 +1621,7 @@ data/approved/prices.json          판매단가 (분리 — 결정 D3)
 data/approved/labor-items.json     품셈 항목
 data/approved/wage-table.json      26년 상반기 노임 21직종 (M/D·M/M 구분)
 data/approved/labor-mappings.json  SKU ↔ 품셈 (전부 confirmed:false)
-docs/template/catalog-coverage.md  실제 견적서 대조 결과
+docs/catalog-coverage.md  실제 견적서 대조 결과
 ```
 
 열리는 것: 설계서 §11 **단계 3**(ProductPicker 가 쓸 데이터가 생김), **단계 4**(품셈·일위대가 화면의 데이터가 생김).
