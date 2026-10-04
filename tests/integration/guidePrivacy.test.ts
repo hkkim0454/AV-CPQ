@@ -243,20 +243,20 @@ describe('2단계 고객용 — 아무것도 남지 않는다', () => {
     expect(xml, '설명').not.toContain('설명 ');
   });
 
-  it.each([['general'], ['ds']] as const)('%s 품셈 블록이 비었다', (profile) => {
-    const { result, guide } = buildVariant(profile, 2);
+  it.each([['general'], ['ds']] as const)('%s 품셈 블록이 **지워졌다**', (profile) => {
+    const { result } = buildVariant(profile, 2);
     const sheet = strFromU8(unzipSync(result.bytes)['xl/worksheets/sheet2.xml']!);
-    const layout = result.layout;
-    void guide;
-    for (const role of ['pumsemCode', 'tradeFirst', 'supplier', 'salesRemark']) {
-      for (const planned of layout.itemRows) {
-        const ref = `${layout.column(role)}${planned.row}`;
-        const cell = new RegExp(
-          `<c r="${ref}"[^>]*/>|<c r="${ref}"[^>]*>[\\s\\S]*?</c>`,
-        ).exec(sheet);
-        if (cell === null) continue;
-        expect(cell[0], `${ref}`).not.toMatch(/<v>|<is>|<f>/);
-      }
+
+    // 비어 있는 게 아니라 **없다.** 머리글과 3행 노임이 남으면 인쇄 영역
+    // 밖이라 눈에 안 보일 뿐 파일에는 있다.
+    for (const header of ['제조사/구매처', '영업비고', '통신관련기사', '설   명']) {
+      expect(sheet, header).not.toContain(header);
+    }
+    for (const wage of ['324979', '172698']) {
+      expect(sheet, `노임 ${wage}`).not.toContain(wage);
+    }
+    for (const role of ['supplier', 'pumsemCode', 'tradeFirst']) {
+      expect(() => result.layout.column(role), role).toThrow(/지워졌다/);
     }
   });
 });

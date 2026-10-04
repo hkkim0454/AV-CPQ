@@ -105,6 +105,29 @@ function applyProfiles(
   return { ...document, systems };
 }
 
+/**
+ * 네 가이드의 절사 단위가 같은지 보고 그 값을 돌려준다.
+ *
+ * 하나만 다르면 0단계와 2단계의 최종 금액이 갈린다. 자릿수 하나 차이라
+ * 나란히 놓고 보기 전에는 모른다.
+ */
+function coverRoundingOf(guides: GuideTemplateSet): number {
+  const seen = new Map<number, string[]>();
+  for (const id of Object.keys(guides) as Array<keyof GuideTemplateSet>) {
+    const guide = guides[id];
+    const ids = seen.get(guide.coverRoundingDigits) ?? [];
+    ids.push(guide.id);
+    seen.set(guide.coverRoundingDigits, ids);
+  }
+  if (seen.size !== 1) {
+    const groups = [...seen.entries()]
+      .map(([digits, ids]) => `${digits}: ${ids.join('+')}`)
+      .join(' / ');
+    throw new GuideBasisError(`가이드들의 절사 단위가 다르다 — ${groups}`);
+  }
+  return [...seen.keys()][0]!;
+}
+
 export function prepareQuote(input: PrepareInput): PreparedQuote {
   const recorded = recordedBasis(input.document);
 
@@ -129,9 +152,14 @@ export function prepareQuote(input: PrepareInput): PreparedQuote {
   }
   // 'explicit-recalculate' 는 사용자가 고른 것이다. 기준을 바꾼다.
 
+  // **절사 단위를 가이드에서 가져온다.** 기본값 -4(만원)는 평택 원본의 것이고
+  // 가이드는 -3(천원)이다. 그대로 두면 최종 금액이 천 단위에서 틀린다.
+  const roundingDigits = coverRoundingOf(input.guides);
+
   const document = applyProfiles(
     {
       ...input.document,
+      rounding: { ...input.document.rounding, coverTotalDigits: roundingDigits },
       versions: {
         ...input.document.versions,
         labor: input.basisVersions.labor,

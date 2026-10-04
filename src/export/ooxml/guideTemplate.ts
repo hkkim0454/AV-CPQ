@@ -50,6 +50,13 @@ export interface GuideTemplate {
   sheets: { cover: string; detail: string };
   printArea: { cover: string; detail: string };
   detailScale: number;
+  /**
+   * 갑지 절사 자릿수. 가이드는 `-3`(천원미만절사), 평택 원본은 `-4`(만원)였다.
+   *
+   * **양식마다 다르므로 읽는다.** 코드에 박으면 한 양식에서 조용히 틀린다.
+   */
+  coverRoundingDigits: number;
+  coverRoundingLabel: string;
   freezePane: string;
   printTitles: string;
   /** 역할 이름 → 열 번호(1부터). `quantity`, `material.unit`, `supplier` 등. */
@@ -101,6 +108,8 @@ interface ManifestGuide {
   sheets: { cover: string; detail: string };
   printArea: { cover: string; detail: string };
   detailScale: number;
+  coverRoundingDigits: number;
+  coverRoundingLabel: string;
   freezePane: string;
   printTitles: string;
   columns: Record<string, string>;
@@ -286,6 +295,25 @@ export function readGuideTemplate(
 
   const files = unzipSync(bytes);
   const shared = readSharedStrings(files['xl/sharedStrings.xml']);
+
+  // 갑지의 절사 수식을 **실제로 보고** manifest 와 대조한다.
+  // 절사 단위가 틀리면 최종 금액이 틀리는데, 자릿수 하나 차이라 눈에 안 띈다.
+  const coverPart = files['xl/worksheets/sheet1.xml'];
+  if (coverPart === undefined) {
+    throw new GuideTemplateError('갑지 시트를 찾을 수 없다.', id);
+  }
+  const coverXml = strFromU8(coverPart);
+  const rounding = /ROUNDDOWN\([\s\S]*?,\s*(-?\d+)\s*\)/.exec(coverXml);
+  if (rounding === null) {
+    throw new GuideTemplateError('갑지에서 절사 수식을 찾지 못했다.', id);
+  }
+  if (Number(rounding[1]) !== spec.coverRoundingDigits) {
+    throw new GuideTemplateError(
+      `갑지 절사 자릿수가 manifest(${spec.coverRoundingDigits})와 다르다 (${rounding[1]}).`,
+      id,
+    );
+  }
+
   const detailPart = files['xl/worksheets/sheet2.xml'];
   if (detailPart === undefined) {
     throw new GuideTemplateError('세부내역 시트를 찾을 수 없다.', id);
@@ -406,6 +434,8 @@ export function readGuideTemplate(
     sheets: spec.sheets,
     printArea: spec.printArea,
     detailScale: spec.detailScale,
+    coverRoundingDigits: spec.coverRoundingDigits,
+    coverRoundingLabel: spec.coverRoundingLabel,
     freezePane: spec.freezePane,
     printTitles: spec.printTitles,
     columns,

@@ -14,6 +14,8 @@
         "detail": "A1:O25"
       },
       "detailScale": 58,
+      "coverRoundingDigits": -3,
+      "coverRoundingLabel": "천원미만절사",
       "freezePane": "G4",
       "printTitles": "1:3",
       "columns": {
@@ -38,6 +40,7 @@
         "itemRate": "T",
         "surcharge": "U",
         "standardUnitPrice": "V",
+        "pumsemCode": "S",
         "tradeFirst": "W",
         "tradeLast": "BD"
       },
@@ -197,7 +200,7 @@
         }
       ],
       "sourceSha256": "74797c867c9c3ad623794d4c4bf96b9d5eebdce429b8432267ffa2a6c709a5b0",
-      "templateSha256": "156adec6d62844af857b9f06cab8c25f82fb3b0aa6b81c35da07cce8b86aa94f"
+      "templateSha256": "dcdb28f80fd1860872dc229ee5f63cdd6cd68c2e379484de1de672681f619545"
     },
     "pumsem": {
       "profile": "general",
@@ -211,6 +214,8 @@
         "detail": "A1:L25"
       },
       "detailScale": 70,
+      "coverRoundingDigits": -3,
+      "coverRoundingLabel": "천원미만절사",
       "freezePane": "G4",
       "printTitles": "1:3",
       "columns": {
@@ -232,6 +237,7 @@
         "itemRate": "Q",
         "surcharge": "R",
         "standardUnitPrice": "S",
+        "pumsemCode": "P",
         "tradeFirst": "T",
         "tradeLast": "BA"
       },
@@ -391,7 +397,7 @@
         }
       ],
       "sourceSha256": "8d7950603e1e39e788d214d928f31a6603fe011fbd78ebd8808b76a05a410020",
-      "templateSha256": "c57e883096eff4638db4ca58dcd974c6e60fb89e7620cda3d9121feb2ef98ace"
+      "templateSha256": "16fee2df516557fcd1bc156a78182dfedd2f8e1e9d3b19d4ae47891e7f17f1ed"
     },
     "ds": {
       "profile": "ds",
@@ -405,6 +411,8 @@
         "detail": "A1:L27"
       },
       "detailScale": 70,
+      "coverRoundingDigits": -3,
+      "coverRoundingLabel": "천원미만절사",
       "freezePane": "G4",
       "printTitles": "1:3",
       "columns": {
@@ -426,6 +434,7 @@
         "itemRate": "Q",
         "surcharge": "R",
         "standardUnitPrice": "S",
+        "pumsemCode": "P",
         "tradeFirst": "T",
         "tradeLast": "BA"
       },
@@ -597,7 +606,7 @@
         }
       ],
       "sourceSha256": "9d0d614d847f75966d9adea0aedf5c812147a86ae5b0ce1303c4a1a18960963a",
-      "templateSha256": "9d637cc6d96b055db22f7d9bc29cb17a0947623a38998b1e1a24122a3ee3d10a"
+      "templateSha256": "a50c1e1f65b25294f57a2e36b3f0575c4f076dcfc7a6455155fc639c63620182"
     },
     "ds-won": {
       "profile": "ds",
@@ -611,6 +620,8 @@
         "detail": "A1:O27"
       },
       "detailScale": 58,
+      "coverRoundingDigits": -3,
+      "coverRoundingLabel": "천원미만절사",
       "freezePane": "G4",
       "printTitles": "1:3",
       "columns": {
@@ -635,6 +646,7 @@
         "itemRate": "T",
         "surcharge": "U",
         "standardUnitPrice": "V",
+        "pumsemCode": "S",
         "tradeFirst": "W",
         "tradeLast": "BD"
       },
@@ -806,7 +818,7 @@
         }
       ],
       "sourceSha256": "cda71cab703fb3c412a51abf6ce9019e1ceb82bb0c38a14575599c6f72bb35da",
-      "templateSha256": "dde72a6d3be1baca30fe414c3b6dc3178a01799ae44ce6206ac61db1bf93b3b3"
+      "templateSha256": "9963d554a985d0498c7f924df140ae57ab332d53ed7c6cf97a95f030c0913798"
     }
   }
 }

@@ -20,6 +20,11 @@ import type { GuideTemplate } from '../ooxml/guideTemplate';
 import { planGuideSheet, type GuideSheetLayout } from '../ooxml/guideLayout';
 import * as F from '../ooxml/guideFormulas';
 import {
+  columnIndex,
+  columnName,
+  deleteSheetColumns,
+} from '../ooxml/guideColumns';
+import {
   blank,
   fillGuideSheet,
   formula,
@@ -52,7 +57,28 @@ function ratePercent(rate: string): string {
   return String(Number(value.toFixed(10)));
 }
 
+/**
+ * 고객용(2단계) — **금지 열을 실제로 지운다.**
+ *
+ * 값을 안 쓰는 것으로는 부족하다. 템플릿의 머리글과 3행 노임이 그대로 남는다.
+ * 실측으로 `D2 설명`, `M2 제조사/구매처`, `N2 영업비고`, `T2~AZ2 직종 이름`,
+ * `U3~BA3 하반기 노임 17개` 가 고객용 파일에서 나왔다.
+ */
 export function buildCustomerGuideWorkbook(
+  exported: CustomerExport,
+  guide: GuideTemplate,
+): GuideWorkbookResult {
+  const base = buildGuideBase(exported, guide);
+  return stripInternalColumns(base, guide);
+}
+
+/**
+ * 공통 뼈대 — **열을 지우지 않는다.**
+ *
+ * 0·1단계는 설명·품셈·거래처를 그 위에 얹으므로 열이 살아 있어야 한다.
+ * 2단계 입구만 지우기를 더 한다.
+ */
+export function buildGuideBase(
   exported: CustomerExport,
   guide: GuideTemplate,
 ): GuideWorkbookResult {
@@ -315,4 +341,177 @@ function fillCover(
     }
     return `<c r="${ref}"${styleAttr}/>`;
   });
+}
+
+/**
+ * 고객용에 나가면 안 되는 열을 **지운다.**
+ *
+ * 설명 열과, 제조사/구매처부터 끝까지(영업비고·품셈 블록·직종·노임·AI 메모)를
+ * 뺀다. 빼면 뒤가 당겨지므로 수식·병합·열너비·인쇄 영역이 함께 따라간다.
+ */
+function stripInternalColumns(
+  base: GuideWorkbookResult,
+  guide: GuideTemplate,
+): GuideWorkbookResult {
+  const layout = base.layout;
+  const files = unzipSync(base.bytes);
+  const detail = files[DETAIL_PART];
+  if (detail === undefined) throw new GuideWorkbookError('세부내역 시트가 없다.');
+
+  const sheetXml = strFromU8(detail);
+  const dimension = /<dimension ref="A1:([A-Z]+)\d+"\/>/.exec(sheetXml)?.[1];
+  const maxColumn = Math.max(
+    columnIndex(dimension ?? 'BZ'),
+    columnIndex('BZ'),
+  );
+
+  const supplier = columnIndex(layout.column('supplier'));
+  const description = columnIndex(layout.column('description'));
+  const deleted = new Set<number>([description]);
+  for (let index = supplier; index <= maxColumn; index += 1) deleted.add(index);
+
+  const stripped = deleteSheetColumns({
+    sheetXml,
+    deleted,
+    maxColumn,
+    lastRow: layout.grandTotalRow,
+  });
+
+  const patched: Record<string, Uint8Array> = {};
+  for (const [name, bytes] of Object.entries(files)) patched[name] = bytes;
+  patched[DETAIL_PART] = strToU8(stripped.sheetXml);
+
+  // **갑지가 세부내역을 가리키는 참조도 당겨진다.**
+  // 세부내역만 고치면 갑지는 여전히 지우기 전 열을 가리킨다. 합계가 K 에서
+  // J 로 왔는데 갑지가 K 를 보면 비고 칸을 금액으로 읽는다 — 그리고
+  // 수량을 고쳐도 갑지가 안 따라온다.
+  const coverPart = files[COVER_PART];
+  if (coverPart !== undefined) {
+    patched[COVER_PART] = strToU8(
+      remapCrossSheetRefs(
+        strFromU8(coverPart),
+        guide.sheets.detail,
+        stripped.map,
+      ),
+    );
+  }
+
+  // 인쇄 영역도 당겨진다. 안 고치면 빈 열까지 인쇄 범위에 남는다.
+  const lastColumn = columnName(stripped.lastColumn);
+  const workbook = files['xl/workbook.xml'];
+  if (workbook !== undefined) {
+    const quoted = /[\s']/.test(guide.sheets.detail)
+      ? `'${guide.sheets.detail.replace(/'/g, "''")}'`
+      : guide.sheets.detail;
+    patched['xl/workbook.xml'] = strToU8(
+      strFromU8(workbook).replace(
+        /<definedName name="_xlnm\.Print_Area" localSheetId="1">[^<]*<\/definedName>/,
+        `<definedName name="_xlnm.Print_Area" localSheetId="1">` +
+          `${quoted}!$A$1:$${lastColumn}$${layout.grandTotalRow}` +
+          `</definedName>`,
+      ),
+    );
+  }
+
+  const ordered: Record<string, Uint8Array> = {
+    '[Content_Types].xml': patched['[Content_Types].xml']!,
+  };
+  for (const [name, bytes] of Object.entries(patched)) {
+    if (name !== '[Content_Types].xml') ordered[name] = bytes;
+  }
+
+  // **열 함수도 새 주소를 돌려줘야 한다.** 안 고치면 기대값과 검증 manifest 가
+  // 지우기 전 글자를 가리켜, 비고 칸을 금액으로 대조하게 된다.
+  const remappedColumn = (role: string): string => {
+    const before = columnIndex(layout.column(role));
+    const after = stripped.map.get(before);
+    if (after === undefined) {
+      throw new GuideWorkbookError(
+        `'${role}' 열은 고객용에서 지워졌다. 그 열을 쓰려 하면 안 된다.`,
+      );
+    }
+    return columnName(after);
+  };
+
+  return {
+    ...base,
+    bytes: zipSync(ordered),
+    layout: {
+      ...layout,
+      printArea: `A1:${lastColumn}${layout.grandTotalRow}`,
+      column: remappedColumn,
+    },
+  };
+}
+
+/**
+ * 다른 시트를 가리키는 참조의 **열 글자**를 옮긴다.
+ *
+ * 세부내역에서 열을 지우면 갑지의 `세부내역!K25` 도 따라가야 한다.
+ * 안 고치면 합계가 K 에서 J 로 왔는데 갑지는 K(비고) 를 읽고, 수량을
+ * 고쳐도 갑지가 안 따라온다.
+ *
+ * 정규식을 쓰지 않는다 — 시트 이름에 어떤 글자가 들어올지 모르고,
+ * 이스케이프를 한 번 틀리면 조용히 아무것도 안 바뀐다.
+ */
+export function remapCrossSheetRefs(
+  xml: string,
+  sheetName: string,
+  map: ReadonlyMap<number, number | undefined>,
+): string {
+  const quoted = `'${sheetName.replace(/'/g, "''")}'`;
+  let out = '';
+  let at = 0;
+
+  while (at < xml.length) {
+    // 따옴표 있는 이름과 없는 이름을 둘 다 본다.
+    const plainAt = xml.indexOf(`${sheetName}!`, at);
+    const quotedAt = xml.indexOf(`${quoted}!`, at);
+    const candidates = [plainAt, quotedAt].filter((n) => n !== -1);
+    if (candidates.length === 0) {
+      out += xml.slice(at);
+      break;
+    }
+    const found = Math.min(...candidates);
+    const prefix = found === quotedAt ? quoted : sheetName;
+    const refStart = found + prefix.length + 1;
+
+    out += xml.slice(at, refStart);
+
+    // `$A$1` 꼴을 읽는다. 아니면 손대지 않는다.
+    let cursor = refStart;
+    let colAbs = '';
+    if (xml[cursor] === '$') {
+      colAbs = '$';
+      cursor += 1;
+    }
+    let column = '';
+    while (cursor < xml.length && xml[cursor]! >= 'A' && xml[cursor]! <= 'Z') {
+      column += xml[cursor];
+      cursor += 1;
+    }
+    let rowAbs = '';
+    if (xml[cursor] === '$') {
+      rowAbs = '$';
+      cursor += 1;
+    }
+    let row = '';
+    while (cursor < xml.length && xml[cursor]! >= '0' && xml[cursor]! <= '9') {
+      row += xml[cursor];
+      cursor += 1;
+    }
+
+    if (column === '' || row === '') {
+      at = refStart;
+      continue;
+    }
+
+    const moved = map.get(columnIndex(column));
+    // 지워진 열을 가리키던 참조는 `#REF!` 로 둔다. 그대로 두면 엉뚱한 칸을
+    // 가리키고, 그건 조용히 틀린 금액이 된다.
+    out += moved === undefined ? '#REF!' : `${colAbs}${columnName(moved)}${rowAbs}${row}`;
+    at = cursor;
+  }
+
+  return out;
 }

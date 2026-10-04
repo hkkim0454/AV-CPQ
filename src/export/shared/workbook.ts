@@ -13,14 +13,22 @@
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 
 import type { LaborBreakdown } from '../../domain/labor/calculateLabor';
-import {
-  buildCustomerGuideWorkbook,
-  type GuideWorkbookResult,
-} from '../customer/guideWorkbook';
+import { buildGuideBase, type GuideWorkbookResult } from '../customer/guideWorkbook';
+import * as F from '../ooxml/guideFormulas';
+import { columnIndex, columnName } from '../ooxml/guideColumns';
 import type { GuideTemplate } from '../ooxml/guideTemplate';
 import type { SharedExport } from './projection';
 
 const DETAIL_PART = 'xl/worksheets/sheet2.xml';
+
+/** 노임이 적힌 행. 원본 3행이고, 머리 다섯 줄은 건드리지 않으므로 고정이다. */
+const WAGE_ROW = 3;
+
+interface CellEntry {
+  value: string;
+  numeric: boolean;
+  formula?: boolean;
+}
 
 export class SharedWorkbookError extends Error {
   constructor(message: string) {
@@ -68,9 +76,14 @@ function numberCell(ref: string, style: string | undefined, value: string): stri
  * 그 칸이 이미 있으면 바꾸고, 없으면 **열 순서를 지켜** 끼워 넣는다.
  * 순서가 어긋나면 Excel 이 복구를 요구한다.
  */
+function formulaCell(ref: string, style: string | undefined, formula: string): string {
+  const styleAttr = style === undefined ? '' : ` s="${style}"`;
+  return `<c r="${ref}"${styleAttr}><f>${escapeXml(formula)}</f></c>`;
+}
+
 function overwriteCells(
   sheetXml: string,
-  valuesByRef: ReadonlyMap<string, { value: string; numeric: boolean }>,
+  valuesByRef: ReadonlyMap<string, CellEntry>,
 ): string {
   const columnIndex = (ref: string): number =>
     [...ref.replace(/\d+$/, '')].reduce(
@@ -111,9 +124,11 @@ function overwriteCells(
       for (const ref of refs) {
         const entry = valuesByRef.get(ref)!;
         kept.push(
-          entry.numeric
-            ? numberCell(ref, styleOf(ref), entry.value)
-            : textCell(ref, styleOf(ref), entry.value),
+          entry.formula === true
+            ? formulaCell(ref, styleOf(ref), entry.value)
+            : entry.numeric
+              ? numberCell(ref, styleOf(ref), entry.value)
+              : textCell(ref, styleOf(ref), entry.value),
         );
       }
       kept.sort((a, b) => {
@@ -157,7 +172,8 @@ export function applySharedOverlay(
   input: SharedWorkbookInput,
 ): GuideWorkbookResult {
   const { shared, guide } = input;
-  const base = buildCustomerGuideWorkbook(shared.customer, guide);
+  // **열을 지우지 않은** 뼈대를 쓴다 — 설명·품셈·거래처를 그 위에 얹는다.
+  const base = buildGuideBase(shared.customer, guide);
   const layout = base.layout;
   const files = unzipSync(base.bytes);
   const detail = files[DETAIL_PART];
@@ -168,10 +184,13 @@ export function applySharedOverlay(
     if (planned.rowId !== undefined) rowByRowId.set(planned.rowId, planned.row);
   }
 
-  const values = new Map<string, { value: string; numeric: boolean }>();
+  const values = new Map<string, CellEntry>();
   const put = (ref: string, value: string, numeric = false): void => {
     if (value === '') return;
     values.set(ref, { value, numeric });
+  };
+  const putFormula = (ref: string, formula: string): void => {
+    values.set(ref, { value: formula, numeric: false, formula: true });
   };
 
   for (const [rowId, row] of rowByRowId) {
@@ -189,11 +208,27 @@ export function applySharedOverlay(
     const breakdown = shared.details.laborByRow.get(rowId);
     if (breakdown !== undefined) {
       const cells = pumsemCellsOf(breakdown);
+      if (!breakdown.conversionFactor.equals(1)) {
+        // 원본에 환산계수 칸이 없다. 수식으로는 엔진과 같은 값이 안 나온다.
+        // 조용히 다른 값을 내보내지 않는다.
+        throw new SharedWorkbookError(
+          `품셈 ${breakdown.code} 의 환산계수가 1 이 아니다 ` +
+            `(${breakdown.conversionFactor.toFixed()}). 원본 양식에 적을 칸이 없다.`,
+        );
+      }
       put(`${layout.column('pumsemCode')}${row}`, cells.code);
       put(`${layout.column('itemRate')}${row}`, cells.itemRate, true);
       put(`${layout.column('surcharge')}${row}`, cells.surcharge, true);
-      put(`${layout.column('standardUnitPrice')}${row}`, cells.standardUnitPrice, true);
-      writeTrades(values, layout, guide, row, breakdown);
+
+      const amountColumns = writeTrades(values, layout, guide, row, breakdown);
+      // **표준단가와 노무비 단가를 수식으로 둔다.**
+      // 상수로 박으면 사용자가 품이나 요율을 고쳐도 아무것도 안 따라온다.
+      // 그러면 품셈 블록이 근거가 아니라 숫자 껍데기가 된다.
+      putFormula(
+        `${layout.column('standardUnitPrice')}${row}`,
+        F.standardUnitPrice(amountColumns, row),
+      );
+      putFormula(`${layout.column('labor.unit')}${row}`, F.laborUnitPrice(layout, row));
     }
   }
 
@@ -228,27 +263,14 @@ function pumsemCellsOf(breakdown: LaborBreakdown): PumsemCells {
  * 그 수식은 템플릿에 이미 있다.
  */
 function writeTrades(
-  values: Map<string, { value: string; numeric: boolean }>,
+  values: Map<string, CellEntry>,
   layout: GuideWorkbookResult['layout'],
   guide: GuideTemplate,
   row: number,
   breakdown: LaborBreakdown,
-): void {
-  const firstColumn = layout.column('tradeFirst');
-  const firstIndex = [...firstColumn].reduce(
-    (acc, ch) => acc * 26 + (ch.charCodeAt(0) - 64),
-    0,
-  );
-  const columnName = (index: number): string => {
-    let out = '';
-    let rest = index;
-    while (rest > 0) {
-      const rem = (rest - 1) % 26;
-      out = String.fromCharCode(65 + rem) + out;
-      rest = Math.floor((rest - 1) / 26);
-    }
-    return out;
-  };
+): string[] {
+  const firstIndex = columnIndex(layout.column('tradeFirst'));
+  const amountColumns: string[] = [];
 
   for (const trade of breakdown.tradeAmounts) {
     if (trade.quantity.isZero()) continue;
@@ -261,10 +283,19 @@ function writeTrades(
       // 이미 `wage-missing` 으로 출력을 막았다.
       continue;
     }
-    const column = columnName(firstIndex + index * 2);
-    values.set(`${column}${row}`, {
+    const quantityColumn = columnName(firstIndex + index * 2);
+    const amountColumn = columnName(firstIndex + index * 2 + 1);
+    values.set(`${quantityColumn}${row}`, {
       value: trade.quantity.toFixed(),
       numeric: true,
     });
+    // 금액도 **수식**이다. 품만 쓰고 금액을 비워 두면 근거가 반쪽이 된다.
+    values.set(`${amountColumn}${row}`, {
+      value: F.tradeAmount(quantityColumn, amountColumn, row, WAGE_ROW),
+      numeric: false,
+      formula: true,
+    });
+    amountColumns.push(amountColumn);
   }
+  return amountColumns;
 }

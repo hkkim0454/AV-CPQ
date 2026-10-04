@@ -113,6 +113,20 @@ function syntheticCost(
   };
 }
 
+/** 갑지에서 대조할 칸. 세부내역 합계가 갑지까지 왔는지 본다. */
+function exportedCover(
+  prepared: ReturnType<typeof prepareQuote>,
+): Record<string, string> {
+  const snap = prepared.priced.calculation;
+  const system = snap.systems[0]!;
+  return {
+    // 갑지 11행 = 시스템 합계, H11 = 수량 × 금액, H12 = 만원 미만 절사.
+    G11: system.systemTotal.toFixed(),
+    H11: (snap.cover.systemAmounts[0]?.amount ?? system.systemTotal).toFixed(),
+    H12: snap.cover.rounded.toFixed(),
+  };
+}
+
 const SITE = '합성 현장 A동';
 const DATE = '2026-10-04';
 
@@ -221,6 +235,42 @@ function build(profile: IndirectProfileId, level: OutputLevel, itemCount: number
     expected[guide.sheets.detail]![`${total}${layout.indirectRows[index]!.row}`] =
       item.amount.toFixed();
   });
+
+  // --- 행별 대사 ---
+  // 합계만 맞고 행이 틀릴 수 있다. 상계가 일어나면 합계가 가려 준다.
+  const sheetExpected = expected[guide.sheets.detail]!;
+  const calcByRowId = new Map(calc.rows.map((r) => [r.rowId, r]));
+  for (const planned of layout.itemRows) {
+    const rowCalc = calcByRowId.get(planned.rowId!);
+    if (rowCalc === undefined) continue;
+    if (rowCalc.materialAmount !== undefined) {
+      sheetExpected[`${material}${planned.row}`] = rowCalc.materialAmount.toFixed();
+    }
+    if (rowCalc.laborUnitPrice !== undefined) {
+      // 0·1단계는 품셈 수식으로 계산한다. 그 결과가 엔진의 적용 단가와
+      // **같아야** 한다 — 다르면 화면과 Excel 이 갈린다.
+      sheetExpected[`${layout.column('labor.unit')}${planned.row}`] =
+        rowCalc.laborUnitPrice.toFixed();
+    }
+    if (rowCalc.laborAmount !== undefined) {
+      sheetExpected[`${labor}${planned.row}`] = rowCalc.laborAmount.toFixed();
+    }
+    if (rowCalc.total !== undefined) {
+      sheetExpected[`${total}${planned.row}`] = rowCalc.total.toFixed();
+    }
+  }
+
+  // --- 파생 행 ---
+  for (const planned of layout.derivedRows) {
+    const rowCalc = calcByRowId.get(planned.rowId!);
+    if (rowCalc?.materialAmount !== undefined) {
+      sheetExpected[`${material}${planned.row}`] = rowCalc.materialAmount.toFixed();
+    }
+  }
+
+  // --- 갑지 ---
+  const cover = exportedCover(prepared);
+  expected[guide.sheets.cover] = cover;
 
   writeFileSync(
     resolve(OUT, `${tag}.expected.json`),

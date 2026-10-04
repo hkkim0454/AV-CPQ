@@ -127,10 +127,11 @@ describe('고객용 가이드 통합문서 — 구조', () => {
     const small = build('general', 9).result;
     const large = build('general', 20).result;
     expect(large.layout.grandTotalRow).toBe(small.layout.grandTotalRow + 11);
-    expect(large.layout.printArea).toBe(`A1:L${large.layout.grandTotalRow}`);
+    // 설명 열과 품셈 블록을 **지웠으므로** 마지막 열이 L 이 아니라 K 다.
+    expect(large.layout.printArea).toBe(`A1:K${large.layout.grandTotalRow}`);
 
     const workbook = strFromU8(unzipSync(large.bytes)['xl/workbook.xml']!);
-    expect(workbook).toContain(`$L$${large.layout.grandTotalRow}`);
+    expect(workbook).toContain(`$K$${large.layout.grandTotalRow}`);
   });
 
   it('병합도 함께 밀린다 — 직접비계 글자가 한 칸에만 남지 않는다', () => {
@@ -209,35 +210,50 @@ describe('고객용 가이드 통합문서 — 경계', () => {
     expect(cover).toContain('회의실');
   });
 
-  it('제조사/구매처·영업비고 칸에 값이 없다', () => {
+  it('금지 열이 **지워졌다** — 비어 있는 게 아니라 없다', () => {
     const { result } = build('general', 9);
     const detail = detailOf(result.bytes);
-    const layout = result.layout;
-    for (const role of ['supplier', 'salesRemark']) {
-      for (const planned of layout.itemRows) {
-        const ref = `${layout.column(role)}${planned.row}`;
-        const cell = new RegExp(`<c r="${ref}"[^>]*/>|<c r="${ref}"[^>]*>.*?</c>`, 's').exec(
-          detail,
-        );
-        if (cell === null) continue;
-        expect(cell[0], `${ref} 에 값이 있다`).not.toMatch(/<v>|<is>/);
-      }
+
+    // 값을 안 쓰는 것으로는 부족했다. 템플릿 머리글과 3행 노임이 그대로
+    // 남아 실측으로 고객용 파일에서 나왔다.
+    for (const header of [
+      '설   명',
+      '제조사/구매처',
+      '영업비고',
+      '통신관련기사',
+      '건축목공',
+      '품목별',
+      '26년 하반기',
+    ]) {
+      expect(detail, header).not.toContain(header);
+    }
+    // 하반기 노임 값도 사라져야 한다.
+    for (const wage of ['324979', '304662', '316875', '172698']) {
+      expect(detail, `노임 ${wage}`).not.toContain(wage);
     }
   });
 
-  it('품셈 블록에 값이 없다', () => {
+  it('남은 열이 A~K 다 — 사용자가 지정한 3단계 모양', () => {
     const { result } = build('general', 9);
     const detail = detailOf(result.bytes);
-    const layout = result.layout;
-    const first = layout.column('tradeFirst');
-    for (const planned of layout.itemRows) {
-      const ref = `${first}${planned.row}`;
-      const cell = new RegExp(`<c r="${ref}"[^>]*/>|<c r="${ref}"[^>]*>.*?</c>`, 's').exec(
-        detail,
-      );
-      if (cell === null) continue;
-      expect(cell[0], `${ref} 에 품이 있다`).not.toMatch(/<v>|<is>/);
+    const columns = new Set<string>();
+    for (const cell of detail.matchAll(/<c r="([A-Z]+)\d+"/g)) {
+      columns.add(cell[1]!);
     }
+    const beyond = [...columns].filter(
+      (c) => c.length > 1 || c > 'K',
+    );
+    expect(beyond, `K 보다 오른쪽 열: ${beyond.join(',')}`).toEqual([]);
+  });
+
+  it('지워진 열을 물으면 던진다 — 조용히 엉뚱한 칸을 주지 않는다', () => {
+    const { result } = build('general', 9);
+    for (const role of ['supplier', 'salesRemark', 'pumsemCode', 'tradeFirst']) {
+      expect(() => result.layout.column(role), role).toThrow(/지워졌다/);
+    }
+    // 남은 열은 새 주소를 준다.
+    expect(result.layout.column('total')).toBe('J');
+    expect(result.layout.column('remark')).toBe('K');
   });
 
   it('시스템이 둘이면 아직 막는다 — 조용히 하나만 내보내지 않는다', () => {

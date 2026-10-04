@@ -169,3 +169,51 @@ export function coverReference(sheetName: string, layout: GuideSheetLayout): str
     plain && !looksLikeCell ? sheetName : `'${sheetName.replace(/'/g, "''")}'`;
   return `${quoted}!${column}${layout.grandTotalRow}`;
 }
+
+/**
+ * 직종 금액 — `=T6*U$3`.
+ *
+ * 품(앞칸) × 3행 노임(절대 행). 원본이 그렇게 돼 있다.
+ *
+ * **템플릿의 수식이 남아 있을 거라고 믿으면 안 된다.** 본문 행은 새로
+ * 쓰이므로, 넣지 않으면 그냥 빈 칸이 된다. 실측으로 `T6=0.3` 인데 `U6` 이
+ * 비어 있었다 — 품은 보이는데 금액이 없으니 근거 구실을 못 한다.
+ */
+export function tradeAmount(
+  quantityColumn: string,
+  amountColumn: string,
+  row: number,
+  wageRow: number,
+): string {
+  return `${quantityColumn}${row}*${amountColumn}$${wageRow}`;
+}
+
+/**
+ * 표준단가 — `=SUM(U6,W6,Y6,…)`.
+ *
+ * 직종 금액 칸들의 합이다. 상수로 박으면 사용자가 품을 고쳐도 안 따라온다.
+ */
+export function standardUnitPrice(amountColumns: readonly string[], row: number): string {
+  if (amountColumns.length === 0) return '0';
+  return `SUM(${amountColumns.map((column) => `${column}${row}`).join(',')})`;
+}
+
+/**
+ * 노무비 단가 — `=INT(SUM((R6*S6),S6)*Q6)`.
+ *
+ * `표준단가 × (1 + 할증) × 품목별 요율` 을 원본 표기로 쓴 것이다.
+ * 계산 엔진의 `excelInt(표준단가 × (1+surcharge) × itemRate × conversionFactor)`
+ * 와 같아야 한다.
+ *
+ * **환산계수(conversionFactor)는 원본에 칸이 없다.** 1 이 아니면 이 수식으로는
+ * 엔진과 달라지므로 호출부가 막는다.
+ */
+export function laborUnitPrice(
+  layout: GuideSheetLayout,
+  row: number,
+): string {
+  const surcharge = layout.column('surcharge');
+  const standard = layout.column('standardUnitPrice');
+  const itemRate = layout.column('itemRate');
+  return `INT(SUM((${surcharge}${row}*${standard}${row}),${standard}${row})*${itemRate}${row})`;
+}

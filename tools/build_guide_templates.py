@@ -352,6 +352,25 @@ def measure(zf: zipfile.ZipFile, guide_id: str) -> dict:
         elif name == "_xlnm.Print_Titles":
             print_titles = (dn.text or "").split("!")[-1].replace("$", "")
 
+    # --- 갑지 절사 단위 ---
+    # 가이드는 `ROUNDDOWN(…,-3)` 천원 절사다. 평택 원본은 만원(-4)이었다.
+    # 양식마다 다르므로 **읽는다.** 코드에 박으면 한 양식에서 조용히 틀린다.
+    cover_rounding = None
+    cover_rounding_label = ""
+    for ref, text_value in cover.formula.items():
+        if "ROUNDDOWN" not in text_value:
+            continue
+        match = re.search(r"ROUNDDOWN\(.*?,\s*(-?\d+)\s*\)", text_value)
+        if match is None:
+            raise SystemExit(f"{guide_id}: 갑지 {ref} 의 ROUNDDOWN 자릿수를 읽지 못했다.")
+        cover_rounding = int(match.group(1))
+        # 바로 오른쪽 칸에 '천원미만절사' 같은 설명이 있다.
+        label_ref = f"{column_name(column_index(col_of(ref)) + 1)}{row_of(ref)}"
+        cover_rounding_label = cover.label(label_ref)
+        break
+    if cover_rounding is None:
+        raise SystemExit(f"{guide_id}: 갑지에서 절사 수식을 찾지 못했다.")
+
     page_setup = detail.root.find(M + "pageSetup")
     scale = int(page_setup.get("scale", "100")) if page_setup is not None else 100
     pane = detail.root.find(M + "sheetViews/" + M + "sheetView/" + M + "pane")
@@ -370,6 +389,8 @@ def measure(zf: zipfile.ZipFile, guide_id: str) -> dict:
         "sheets": {"cover": sheet_names[0], "detail": sheet_names[1]},
         "printArea": print_area,
         "detailScale": scale,
+        "coverRoundingDigits": cover_rounding,
+        "coverRoundingLabel": cover_rounding_label,
         "freezePane": freeze or "",
         "printTitles": print_titles,
         "columns": columns,
