@@ -3,6 +3,8 @@ import { computeActiveWarnings } from '@/domain/quote/activeWarnings';
 import { buildQuoteDocument } from '@/domain/quote/buildDocument';
 import type { ImportWarning } from '@/import/diagram/devices';
 import type { QuoteDocument, SheetRow } from '@/domain/quote/types';
+import { buildCableLines } from '@/import/diagram/cables';
+import { cat, diagram, edge, node } from '../fixtures/diagram';
 
 function baseDocument(): QuoteDocument {
   return buildQuoteDocument({
@@ -35,6 +37,27 @@ function itemRow(partial: Partial<SheetRow> & { rowId: string; systemId: string 
 }
 
 describe('computeActiveWarnings', () => {
+  it('완제품 최대 길이 초과는 SKU와 가격을 채워도 해소되지 않는다', () => {
+    const source = diagram([node('n1', 'A', 'SRG-X40UH'), node('n2', 'B', 'XDM-12')], [
+      edge('e1', 'n1', 'n2', 'video', { bomRows: [
+        { cableType: 'ready-made', productName: 'HDMI Cable', length: '33.8', quantity: '1' },
+      ] }),
+    ]);
+    const { warnings } = buildCableLines(source, cat());
+    const document = { ...baseDocument(), rows: [itemRow({
+      rowId: 'r1', systemId: 'S1', sourceEdgeIds: ['e1'], sku: 'HDMI-20', sellingUnitPrice: '100',
+    })] };
+    expect(computeActiveWarnings(document, warnings).some(w => w.blocking && w.message.includes('33.8'))).toBe(true);
+  });
+
+  it('한 구간에 제품 행이 여러 개면 첫 행만 해결됐다고 전체 경고를 지우지 않는다', () => {
+    const document = { ...baseDocument(), rows: [
+      itemRow({ rowId: 'r1', systemId: 'S1', sourceEdgeIds: ['e1'], sku: 'X', sellingUnitPrice: '100' }),
+      itemRow({ rowId: 'r2', systemId: 'S1', sourceEdgeIds: ['e1'] }),
+    ] };
+    const warnings: ImportWarning[] = [{ code: 'cable-item-unresolved', blocking: true, message: 'e1', edgeId: 'e1' }];
+    expect(computeActiveWarnings(document, warnings)).toEqual(warnings);
+  });
   it('본체 행이 아직 sku/판매단가를 안 갖췄으면 경고가 남는다', () => {
     const document = { ...baseDocument(), rows: [itemRow({ rowId: 'r1', systemId: 'S1', sourceNodeIds: ['n1'] })] };
     const warnings: ImportWarning[] = [

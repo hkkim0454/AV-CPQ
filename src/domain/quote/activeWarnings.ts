@@ -48,8 +48,8 @@ function optionRowResolved(document: QuoteDocument, optionId: string): boolean {
 
 /** 케이블 행 — sourceEdgeIds로 찾는다(`cables.ts`). */
 function cableRowResolved(document: QuoteDocument, edgeId: string): boolean {
-  const row = document.rows.find((r): r is ItemRow => r.type === 'item' && (r.sourceEdgeIds?.includes(edgeId) ?? false));
-  return isFilled(row);
+  const rows = document.rows.filter((r): r is ItemRow => r.type === 'item' && (r.sourceEdgeIds?.includes(edgeId) ?? false));
+  return rows.length > 0 && rows.every(isFilled);
 }
 
 export function computeActiveWarnings(

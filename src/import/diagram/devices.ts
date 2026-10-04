@@ -38,6 +38,8 @@ export type ImportWarningCode =
   | 'unknown-line-type'
   | 'cable-item-unresolved'
   | 'cable-length-missing'
+  /** 제품 연결만으로 해소할 수 없는 완제품 길이 한계. */
+  | 'cable-length-exceeded'
   /**
    * 구간 경로 입력(`RouteInput`)을 **시작은 했지만** 아직 완성되지
    * 않았거나 형식이 틀렸다 — `cable-length-missing`(입력 자체가

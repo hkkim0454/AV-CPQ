@@ -146,7 +146,7 @@ describe('케이블 행 — 완제품 (설계서 §7.4)', () => {
       },
     ]);
     const { warnings } = buildCableLines(d, cat());
-    const w = warnings.find((x) => x.code === 'cable-item-unresolved' && x.message.includes('33.8'));
+    const w = warnings.find((x) => x.code === 'cable-length-exceeded' && x.message.includes('33.8'));
     expect(w?.blocking).toBe(true);
     expect(w?.message).toContain('33.8');
   });

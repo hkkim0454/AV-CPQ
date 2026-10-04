@@ -378,7 +378,7 @@ export function buildCableLines(
 
       if (!bulk && meters > READY_MADE_STEPS[READY_MADE_STEPS.length - 1]!) {
         warnings.push({
-          code: 'cable-item-unresolved',
+          code: 'cable-length-exceeded',
           blocking: true,
           message:
             `'${productName}' 구간이 ${meters}m다. 완제품 최대 길이 ` +
