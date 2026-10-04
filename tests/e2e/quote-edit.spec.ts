@@ -183,7 +183,7 @@ test('두 입구(구성도/품목 선택) — 같은 품목·수량이면 직접
   // --- 구성도 열기: 같은 모델 노드 2개 ---
   await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
   // 파일 입력은 hidden 속성이라 보이는 버튼이 아니라 input 자체를 잡는다.
-  await page.locator('.q-card input[type="file"]').setInputFiles({
+  await page.getByLabel('구성도 파일 선택').setInputFiles({
     name: 'diagram.json',
     mimeType: 'application/json',
     buffer: Buffer.from(diagramWithTwoDevices()),
@@ -356,7 +356,7 @@ test('새 견적은 기본 DS 프로파일로 시작하고, 일반으로 바꿀 
 
   // --- 구성도 열기 입구도 기본 DS다 ---
   await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
-  await page.locator('.q-card input[type="file"]').setInputFiles({
+  await page.getByLabel('구성도 파일 선택').setInputFiles({
     name: 'diagram.json',
     mimeType: 'application/json',
     buffer: Buffer.from(diagramWithTwoDevices()),
@@ -522,7 +522,7 @@ test('미해결 모델/옵션 — 후보 선택·검색 연결로 실제 원인�
   await page.goto('/');
 
   await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
-  await page.locator('.q-card input[type="file"]').setInputFiles({
+  await page.getByLabel('구성도 파일 선택').setInputFiles({
     name: 'diagram.json',
     mimeType: 'application/json',
     buffer: Buffer.from(diagramWithUnresolvedDevices()),
@@ -575,7 +575,7 @@ test('본체+옵션 2종 — 본체를 해결해도 옵션 행은 그대로고, 
   await page.goto('/');
 
   await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
-  await page.locator('.q-card input[type="file"]').setInputFiles({
+  await page.getByLabel('구성도 파일 선택').setInputFiles({
     name: 'diagram.json',
     mimeType: 'application/json',
     buffer: Buffer.from(diagramWithDeviceAndTwoOptions()),

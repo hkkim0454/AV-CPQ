@@ -14,7 +14,7 @@ async function openDiagram(page: Parameters<typeof mockResources>[0]) {
   });
   await page.goto('/');
   await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
-  await page.locator('.q-card input[type="file"]').setInputFiles({ name: 'routes.json', mimeType: 'application/json',
+  await page.getByLabel('구성도 파일 선택').setInputFiles({ name: 'routes.json', mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify({ version: '1', nodes: [
       { id: 'n1', data: { name: '시작', model: '' } }, { id: 'n2', data: { name: '끝', model: '' } },
     ], edges: ['e1', 'e2'].map(id => ({ id, source: 'n1', target: 'n2', data: { lineTypeId: 'hdmi',

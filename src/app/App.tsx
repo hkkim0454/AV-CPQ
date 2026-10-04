@@ -22,6 +22,7 @@ import { IndirectPanel } from '../features/worksheet/IndirectPanel';
 import { WarningList } from '../features/worksheet/WarningList';
 import { InstallationPanel } from '../features/installation/InstallationPanel';
 import { CableRoutePanel } from '../features/installation/CableRoutePanel';
+import { PrivateCostPanel } from '../features/private-cost/PrivateCostPanel';
 import { encodeWorkFile, decodeWorkFile } from '../services/files/workFile';
 import { downloadTextFile } from '../services/files/download';
 
@@ -422,6 +423,7 @@ export function App() {
                       />
                     );
                   })}
+                  <PrivateCostPanel document={status.document} />
                 </>
               )}
             </>

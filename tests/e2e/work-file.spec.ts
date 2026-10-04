@@ -96,7 +96,7 @@ test('케이블 거리 수정이 적용 대기 중이면 작업 파일 저장을
     lineTypes: [{ id: 'video', name: 'HDMI', color: '#ef4444' }],
   };
   await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
-  await page.locator('.q-card input[type="file"]').setInputFiles({
+  await page.getByLabel('구성도 파일 선택').setInputFiles({
     name: 'diagram.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(diagram)),
   });
 
@@ -295,7 +295,7 @@ test('케이블 가격만 바뀌고 수동 수정이 없으면 재계산이 가�
   });
   await page.goto('/');
   await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
-  await page.locator('.q-card input[type="file"]').setInputFiles({
+  await page.getByLabel('구성도 파일 선택').setInputFiles({
     name: 'routes.json', mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify({
       version: '1',
@@ -394,7 +394,7 @@ test('재계산은 입력이 부족한 케이블 구간을 현재 규칙으로�
     lineTypes: [{ id: 'video', name: 'HDMI', color: '#ef4444' }],
   };
   await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
-  await page.locator('.q-card input[type="file"]').setInputFiles({
+  await page.getByLabel('구성도 파일 선택').setInputFiles({
     name: 'diagram.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(diagram)),
   });
   const warningBefore = page.getByRole('alert').filter({ hasText: '확인이 필요합니다' });
@@ -438,7 +438,7 @@ test('재계산 중 케이블 재산출이 수동 수정과 충돌하면 적용 
   });
   await page.goto('/');
   await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
-  await page.locator('.q-card input[type="file"]').setInputFiles({
+  await page.getByLabel('구성도 파일 선택').setInputFiles({
     name: 'routes.json', mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify({
       version: '1',
@@ -503,7 +503,7 @@ test('저장 당시 미해결이던 장비 경고도 재열기 후 해소 UI가 
     lineTypes: [],
   };
   await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
-  await page.locator('.q-card input[type="file"]').setInputFiles({
+  await page.getByLabel('구성도 파일 선택').setInputFiles({
     name: 'diagram.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(diagram)),
   });
 

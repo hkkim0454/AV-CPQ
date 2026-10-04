@@ -80,6 +80,7 @@ export function DiagramInput({
       <input
         ref={inputRef}
         type="file"
+        aria-label="구성도 파일 선택"
         accept=".json,application/json"
         hidden
         onChange={(event) => {
