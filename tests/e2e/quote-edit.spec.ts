@@ -319,3 +319,54 @@ test('건강보험 미적용 상태에서 장기요양을 켜면 0원 사유를 
   await expect(longTermRow).toContainText('기준인 국민건강보험료이(가) 0원이라 이 항목도 0원입니다');
   await expect(longTermRow.locator('td').last()).toContainText('0');
 });
+
+test('기존 견적에 품목 추가/삭제 — 실행취소가 기존 수동 수정을 보존한다', async ({ page }) => {
+  await setupCustomCatalog(page);
+  await page.goto('/');
+
+  await page.getByRole('button', { name: '품목 직접 선택' }).click();
+  await page.getByLabel('품목 검색').fill('E2E 테스트 품목');
+  await page.getByRole('button', { name: '추가' }).click();
+  await page.getByRole('button', { name: '견적 만들기' }).click();
+
+  // 기존 행을 사람이 먼저 고친다 — 품목 추가/삭제 뒤에도 이 수정이
+  // 그대로인지가 이 시험의 핵심이다(rowId 안정성).
+  const quantityInput = page.getByLabel('E2E 테스트 품목 수량');
+  await quantityInput.fill('3');
+  await quantityInput.blur();
+  await expect(quantityInput).toHaveValue('3');
+
+  const rows = page.locator('.q-quote-table tbody tr');
+  const rowCountBefore = await rows.count();
+
+  // --- 품목 추가: 기존 견적에 바로 더해진다(새 문서를 만들지 않는다) ---
+  // 이미 견적 정보(CoverSheet)의 '조건 추가' 버튼도 같은 이름으로 떠
+  // 있으므로, 검색 결과 목록 안으로 좁혀서 누른다.
+  await page.getByRole('button', { name: '품목 직접 선택' }).click();
+  await page.getByLabel('품목 검색').fill('E2E 무상 품목');
+  await page.locator('.q-picker-matches').getByRole('button', { name: '추가' }).click();
+
+  await expect(rows).toHaveCount(rowCountBefore + 1);
+  await expect(page.locator('.q-quote-table tbody tr', { hasText: 'E2E 무상 품목' })).toBeVisible();
+  // 기존 품목의 수동 수정은 그대로다 — 품목 추가가 다른 행을 건드리지 않는다.
+  await expect(quantityInput).toHaveValue('3');
+
+  // --- 실행취소 — 추가한 행만 사라지고 기존 수정은 남는다 ---
+  await page.getByRole('button', { name: '실행 취소' }).click();
+  await expect(rows).toHaveCount(rowCountBefore);
+  await expect(quantityInput).toHaveValue('3');
+
+  // --- 다시실행 — 추가가 복원된다 ---
+  await page.getByRole('button', { name: '다시 실행' }).click();
+  await expect(rows).toHaveCount(rowCountBefore + 1);
+
+  // --- 삭제: 추가했던 행을 지운다 ---
+  await page.getByLabel('E2E 무상 품목 삭제').click();
+  await expect(rows).toHaveCount(rowCountBefore);
+  await expect(quantityInput).toHaveValue('3');
+
+  // --- 삭제도 실행취소로 복원된다 ---
+  await page.getByRole('button', { name: '실행 취소' }).click();
+  await expect(rows).toHaveCount(rowCountBefore + 1);
+  await expect(page.locator('.q-quote-table tbody tr', { hasText: 'E2E 무상 품목' })).toBeVisible();
+});

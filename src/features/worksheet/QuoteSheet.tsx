@@ -17,6 +17,7 @@ interface QuoteSheetProps {
   onQuantityChange(rowId: string, value: string): void;
   onDescriptionChange(rowId: string, value: string): void;
   onRemarkChange(rowId: string, value: string): void;
+  onRemoveRow(rowId: string): void;
 }
 
 function QuantityCell({
@@ -107,6 +108,7 @@ export function QuoteSheet({
   onQuantityChange,
   onDescriptionChange,
   onRemarkChange,
+  onRemoveRow,
 }: QuoteSheetProps) {
   const calcBySystem = new Map(calculation.systems.map((s) => [s.systemId, s]));
 
@@ -132,6 +134,7 @@ export function QuoteSheet({
                     <th>재료비</th>
                     <th>노무비</th>
                     <th>합계</th>
+                    <th aria-label="삭제"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -139,7 +142,7 @@ export function QuoteSheet({
                     if (row.type === 'display') {
                       return (
                         <tr key={row.rowId}>
-                          <td colSpan={9}>{row.name}</td>
+                          <td colSpan={10}>{row.name}</td>
                         </tr>
                       );
                     }
@@ -190,6 +193,16 @@ export function QuoteSheet({
                         <td>{materialText}</td>
                         <td>{laborText}</td>
                         <td>{totalText}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="q-button"
+                            aria-label={`${row.name} 삭제`}
+                            onClick={() => onRemoveRow(row.rowId)}
+                          >
+                            삭제
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -201,14 +214,17 @@ export function QuoteSheet({
                       <td>{calc.directMaterial.toFixed()}</td>
                       <td>{calc.directLabor.toFixed()}</td>
                       <td>{calc.directTotal.toFixed()}</td>
+                      <td></td>
                     </tr>
                     <tr>
                       <td colSpan={8}>간접비계</td>
                       <td>{calc.indirectTotal.toFixed()}</td>
+                      <td></td>
                     </tr>
                     <tr>
                       <td colSpan={8}>합계</td>
                       <td>{calc.systemTotal.toFixed()}</td>
+                      <td></td>
                     </tr>
                   </tfoot>
                 )}

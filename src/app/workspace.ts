@@ -12,6 +12,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { buildGuideBasis } from '../data/catalog/guideBasis';
 import { prepareQuote, type PreparedQuote } from '../export/variants/prepare';
 import { indirectCostsFor, type IndirectProfileId } from '../export/ooxml/guideTemplate';
+import { toRow } from '../domain/quote/buildDocument';
 import type { QuoteDocument, QuoteHeader } from '../domain/quote/types';
 import type { ImportWarning } from '../import/diagram/devices';
 import type { Resources } from './resources';
@@ -41,6 +42,9 @@ export interface Workspace {
   setHeader(patch: Partial<QuoteHeader>): void;
   setProfile(systemId: string, profile: IndirectProfileId): void;
   setIndirectRule(systemId: string, itemId: string, patch: { applied?: boolean; rate?: string }): void;
+  /** 기존 견적에 품목을 더한다. 카탈로그에 없는 SKU는 조용히 무시한다 — 호출부가 검색 결과에서만 골라 준다. */
+  addItem(systemId: string, sku: string, quantity: string): void;
+  removeRow(rowId: string): void;
   undo(): void;
   redo(): void;
 }
@@ -257,6 +261,39 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     [commit],
   );
 
+  const addItem = useCallback(
+    (systemId: string, sku: string, quantity: string) => {
+      if (resources === undefined) return;
+      const product = resources.catalog.products.find((p) => p.sku === sku);
+      if (product === undefined) return; // 호출부가 검색 결과에서만 고르므로 정상적으로는 안 생긴다.
+      const price = resources.catalog.prices.get(sku);
+      const description = product.options['description'];
+      const newRow = toRow(`added-${crypto.randomUUID()}`, systemId, {
+        sku: product.sku,
+        name: product.quoteName,
+        specification: product.quoteSpec,
+        unit: product.unit,
+        quantity,
+        ...(price !== undefined ? { sellingUnitPrice: price } : {}),
+        ...(description !== undefined && description !== '' ? { internalDescription: description } : {}),
+        ...(product.laborMappingId !== undefined ? { laborMappingId: product.laborMappingId } : {}),
+        remark: '직접 선택(추가)',
+      });
+      commit((document) => ({ ...document, rows: [...document.rows, newRow] }));
+    },
+    [commit, resources],
+  );
+
+  const removeRow = useCallback(
+    (rowId: string) => {
+      commit((document) => ({
+        ...document,
+        rows: document.rows.filter((r) => r.rowId !== rowId),
+      }));
+    },
+    [commit],
+  );
+
   const undo = useCallback(() => {
     setHistory((h) => {
       if (h.present === undefined || h.past.length === 0) return h;
@@ -289,6 +326,8 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     setHeader,
     setProfile,
     setIndirectRule,
+    addItem,
+    removeRow,
     undo,
     redo,
   };

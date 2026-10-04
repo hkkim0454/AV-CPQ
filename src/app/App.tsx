@@ -160,7 +160,19 @@ export function App() {
               )}
 
               {entry === 'diagram' && <DiagramInput catalog={resources.catalog} onLoaded={handleLoaded} />}
-              {entry === 'picker' && <ProductPicker catalog={resources.catalog} onLoaded={handleLoaded} />}
+              {entry === 'picker' &&
+                (status.kind === 'editing' ? (
+                  <ProductPicker
+                    catalog={resources.catalog}
+                    onAddToExisting={(sku) => {
+                      const systemId = status.document.systems[0]?.systemId;
+                      if (systemId !== undefined) workspace.addItem(systemId, sku, '1');
+                      setEntry(null);
+                    }}
+                  />
+                ) : (
+                  <ProductPicker catalog={resources.catalog} onLoaded={handleLoaded} />
+                ))}
 
               {entry === null && status.kind === 'empty' && (
                 <p className="q-muted">왼쪽 위 버튼으로 구성도를 열거나 품목을 직접 고르세요.</p>
@@ -176,6 +188,7 @@ export function App() {
                     onQuantityChange={workspace.setQuantity}
                     onDescriptionChange={workspace.setDescription}
                     onRemarkChange={workspace.setRemark}
+                    onRemoveRow={workspace.removeRow}
                   />
                   {status.document.systems.map((system) => {
                     const calc = status.prepared.priced.calculation.systems.find(

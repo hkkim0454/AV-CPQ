@@ -19,9 +19,13 @@ interface PickedLine {
 export function ProductPicker({
   catalog,
   onLoaded,
+  onAddToExisting,
 }: {
   catalog: Catalog;
-  onLoaded(input: LoadedDocument): void;
+  /** 새 견적을 만드는 기본 모드. */
+  onLoaded?(input: LoadedDocument): void;
+  /** 이미 열린 견적에 품목 하나를 바로 더하는 모드 — 있으면 이 모드를 쓴다. */
+  onAddToExisting?(sku: string): void;
 }) {
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState<PickedLine[]>([]);
@@ -39,6 +43,10 @@ export function ProductPicker({
           .slice(0, 20);
 
   function addItem(sku: string, name: string): void {
+    if (onAddToExisting !== undefined) {
+      onAddToExisting(sku);
+      return;
+    }
     setPicked((prev) => (prev.some((line) => line.sku === sku) ? prev : [...prev, { sku, name, quantity: '1' }]));
   }
 
@@ -69,7 +77,7 @@ export function ProductPicker({
       },
       catalog,
     );
-    onLoaded({ document: result.document, importWarnings: result.warnings });
+    onLoaded?.({ document: result.document, importWarnings: result.warnings });
   }
 
   return (
@@ -97,7 +105,7 @@ export function ProductPicker({
         </ul>
       )}
 
-      {picked.length > 0 && (
+      {onAddToExisting === undefined && picked.length > 0 && (
         <>
           <h4>담은 품목</h4>
           <ul className="q-picker-picked">
