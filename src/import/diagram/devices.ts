@@ -61,6 +61,14 @@ export interface ImportWarning {
    * 선택이 옵션까지 바꿔 버리는 것을 막는다).
    */
   optionId?: string;
+  /**
+   * 설치 패널(배관)이 만든 경고에만 있다(`domain/quote/installation.ts`).
+   * 이 값이 있으면 `onResolveDevice`의 일반 카탈로그 검색이 아니라
+   * **그 시스템의 현재 배관 종류(`conduitType`)에 맞는 묶음으로 검증된
+   * 해소 경로**(`onResolveConduit`)로 보내야 한다 — 아무 제품이나
+   * 검색해 붙이면 CD관처럼 후보가 없는 차단을 우회하게 된다.
+   */
+  installationSystemId?: string;
 }
 
 export interface DeviceLine {

@@ -133,7 +133,7 @@ test('줄 수를 바꾸면 수량만 재산출된다 — 행이 늘지 않고, �
   await expect(conduitRows).toContainText('2'); // 20m ÷ 10M = 2 — 품목은 그대로 유지
 });
 
-test('CD관을 고르면 품셈에 품목이 없어 차단된다 — 0원이나 후렉시블로 대신 채우지 않는다', async ({ page }) => {
+test('CD관을 고르면 품셈에 품목이 없어 차단된다 — 검색으로도 우회할 수 없다', async ({ page }) => {
   await startDocument(page);
 
   await page.getByLabel('시스템1 장비실→가장 먼 장비 거리(m)').fill('10');
@@ -143,18 +143,67 @@ test('CD관을 고르면 품셈에 품목이 없어 차단된다 — 0원이나 
   const warnings = page.getByRole('alert').filter({ hasText: '확인이 필요합니다' });
   await expect(warnings).toContainText('CD관 품목이 없습니다');
 
+  // 일반 미해결 모델 경고라면 카탈로그 검색이라도 열렸을 텐데, 배관
+  // 경고는 그 우회 경로 자체를 보여주지 않는다 — 고를 수 있는 후보가
+  // 없으면 정말로 고를 것이 없다(독립 검토 지적).
+  await expect(warnings.getByPlaceholder('품명 또는 SKU로 검색')).toHaveCount(0);
+  await expect(warnings.getByRole('button', { name: '선택' })).toHaveCount(0);
+
   const conduitRow = page.locator('.q-quote-table tbody tr', { hasText: 'CD관' });
   await expect(conduitRow).toContainText('미등록');
 });
 
-test('배관 입력도 실행취소로 되돌아간다', async ({ page }) => {
+test('CD관에서 후렉시블로 되돌리면 그 종류의 후보로 정상 해소된다', async ({ page }) => {
+  await startDocument(page);
+
+  await page.getByLabel('시스템1 장비실→가장 먼 장비 거리(m)').fill('10');
+  await page.getByLabel('시스템1 장비실→가장 먼 장비 거리(m)').blur();
+  await page.getByRole('radio', { name: 'CD관' }).check();
+
+  const warnings = page.getByRole('alert').filter({ hasText: '확인이 필요합니다' });
+  await expect(warnings).toContainText('CD관 품목이 없습니다');
+
+  await page.getByRole('radio', { name: '후렉시블' }).check();
+  await expect(warnings).toContainText('후렉시블');
+  await warnings.getByRole('button', { name: '선택' }).first().click();
+  await expect(warnings).toHaveCount(0);
+});
+
+test('배관 입력도 실행취소/다시실행으로 되돌아간다 — 입력칸·근거·행 수량이 전부 맞는다', async ({ page }) => {
   await startDocument(page);
 
   const status = page.locator('.q-installation-panel p[role="status"]');
-  await page.getByLabel('시스템1 장비실→가장 먼 장비 거리(m)').fill('10');
-  await page.getByLabel('시스템1 장비실→가장 먼 장비 거리(m)').blur();
+  const distanceInput = page.getByLabel('시스템1 장비실→가장 먼 장비 거리(m)');
+  const runsInput = page.getByLabel('시스템1 배관 줄 수');
+
+  await distanceInput.fill('10');
+  await distanceInput.blur();
   await expect(status).toContainText('10m × 3줄 = 30m');
 
+  const conduitQuantity = page.getByLabel('후렉시블 배관 (미정) 수량');
+
+  await runsInput.fill('2');
+  await runsInput.blur();
+  await expect(status).toContainText('10m × 2줄 = 20m');
+  await expect(conduitQuantity).toHaveValue('2');
+
+  // 줄 수 변경 실행취소 — 입력칸 자체가 3으로 되돌아가야 한다(독립
+  // 검토 지적: 이전에는 상태 문구만 확인하고 입력칸은 보지 않았다).
   await page.getByRole('button', { name: '실행 취소' }).click();
+  await expect(runsInput).toHaveValue('3');
+  await expect(status).toContainText('10m × 3줄 = 30m');
+  await expect(conduitQuantity).toHaveValue('3');
+
+  // 거리 입력 실행취소 — 입력칸이 비고, 행 자체가 사라진다.
+  await page.getByRole('button', { name: '실행 취소' }).click();
+  await expect(distanceInput).toHaveValue('');
   await expect(status).toContainText('거리와 줄 수를 입력하면');
+  await expect(page.locator('.q-quote-table tbody tr', { hasText: '배관' })).toHaveCount(0);
+
+  // 다시실행 — 둘 다 복원된다.
+  await page.getByRole('button', { name: '다시 실행' }).click();
+  await page.getByRole('button', { name: '다시 실행' }).click();
+  await expect(distanceInput).toHaveValue('10');
+  await expect(runsInput).toHaveValue('2');
+  await expect(status).toContainText('10m × 2줄 = 20m');
 });

@@ -7,9 +7,14 @@
  * 않는다(결정 D8). 배관 종류(후렉시블/CD관)와 기타자재 비율은
  * `domain/quote/installation.ts`의 기본값 규칙을 그대로 따른다.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { InstallationPatch } from '../../domain/quote/installation';
-import { conduitRowSentinel, validateConduitRuns } from '../../domain/quote/installation';
+import {
+  DEFAULT_CONDUIT_MATERIAL_RATE,
+  DEFAULT_CONDUIT_RUNS,
+  conduitRowSentinel,
+  validateConduitRuns,
+} from '../../domain/quote/installation';
 import { validateDecimalInput } from '../../domain/quote/validateInput';
 import type { ConduitType, QuoteDocument, QuoteSystem } from '../../domain/quote/types';
 
@@ -32,6 +37,15 @@ function DraftField({
 }) {
   const [draft, setDraft] = useState(value);
   const [error, setError] = useState<string | undefined>(undefined);
+
+  // 바깥에서 값이 바뀌면(실행취소/다시실행, 다른 입력이 간접적으로
+  // 이 값을 바꾼 경우) 입력칸도 따라간다 — `useState(value)`는 처음
+  // 마운트될 때만 쓰이므로, 이 효과가 없으면 undo/redo를 눌러도 칸에
+  // 남은 글자는 그대로다(독립 검토 지적).
+  useEffect(() => {
+    setDraft(value);
+    setError(undefined);
+  }, [value]);
 
   return (
     <label className="q-grade-option">
@@ -79,7 +93,7 @@ export function InstallationPanel({ system, document: doc, onChange }: Installat
         />
         <DraftField
           label={`${system.name} 배관 줄 수`}
-          value={system.conduitRuns ?? '3'}
+          value={system.conduitRuns ?? DEFAULT_CONDUIT_RUNS}
           validate={validateConduitRuns}
           onCommit={(conduitRuns) => onChange({ conduitRuns })}
         />
@@ -104,9 +118,8 @@ export function InstallationPanel({ system, document: doc, onChange }: Installat
           </label>
         </span>
         <DraftField
-          key={`${conduitType}-${system.conduitMaterialRate ?? ''}`}
           label={`${system.name} 배관 기타자재 비율(%)`}
-          value={system.conduitMaterialRate ?? ''}
+          value={system.conduitMaterialRate ?? DEFAULT_CONDUIT_MATERIAL_RATE[conduitType]}
           validate={(raw) => validateDecimalInput(raw, '비율')}
           onCommit={(conduitMaterialRate) => onChange({ conduitMaterialRate })}
         />

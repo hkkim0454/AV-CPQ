@@ -45,6 +45,7 @@ import type { Catalog, CatalogProduct } from '../../data/catalog/load';
 import type { ImportWarning } from '../../import/diagram/devices';
 import { dec, text } from '../calculation/rounding';
 import { validateDecimalInput, type DecimalValidation } from './validateInput';
+import { withResolvedProduct } from './resolveProduct';
 import type { ConduitType, DecimalText, QuoteDocument, QuoteSystem } from './types';
 
 // ---------------------------------------------------------------------------
@@ -205,23 +206,22 @@ export type InstallationPatch = Partial<
   Pick<QuoteSystem, 'farthestDeviceMeters' | 'conduitRuns' | 'conduitType' | 'conduitMaterialRate'>
 >;
 
-export interface ApplyInstallationPatchResult {
-  document: QuoteDocument;
-  /**
-   * 배관 행이 실제로 생성/재산출됐을 때만 있다. 거리·줄 수가 아직
-   * 없으면 행을 만들지 않으므로 경고도 없다 — "입력 필요" 상태를
-   * 경고로 치환하지 않는다.
-   */
-  warning?: ImportWarning;
-}
-
 function conduitCandidates(catalog: Catalog, conduitType: ConduitType): readonly string[] {
   const group = CONDUIT_GROUP[conduitType];
   return catalog.products.filter((p: CatalogProduct) => p.options['group'] === group).map((p) => p.sku);
 }
 
-function conduitLabel(conduitType: ConduitType): string {
+export function conduitLabel(conduitType: ConduitType): string {
   return conduitType === 'flexible' ? '후렉시블' : 'CD관';
+}
+
+type ItemSheetRow = Extract<QuoteDocument['rows'][number], { type: 'item' }>;
+
+function findConduitRow(document: QuoteDocument, systemId: string): ItemSheetRow | undefined {
+  const sentinel = conduitRowSentinel(systemId);
+  return document.rows.find(
+    (r): r is ItemSheetRow => r.type === 'item' && (r.sourceNodeIds?.includes(sentinel) ?? false),
+  );
 }
 
 /**
@@ -230,31 +230,39 @@ function conduitLabel(conduitType: ConduitType): string {
  * 누적 추가하지 않는다(`conduitRowSentinel`로 찾는다). 사용자가 이미
  * 고른 SKU는, 배관 종류가 바뀌어 그 제품이 더는 해당 묶음이 아닌
  * 경우에만 지운다 — 그 밖에는 수량·근거 문구만 갱신하고 그대로 둔다.
+ *
+ * 경고는 여기서 만들지 않는다 — `computeInstallationWarnings`가 문서
+ * 상태에서 매번 다시 파생한다(독립 검토 지적: 경고를 여기서 만들어
+ * 별도 state에 쌓으면 실행취소가 문서만 되돌리고 그 state는 남아
+ * 어긋난다).
  */
 export function applyInstallationPatch(
   document: QuoteDocument,
   systemId: string,
   patch: InstallationPatch,
   catalog: Catalog,
-): ApplyInstallationPatchResult {
+): QuoteDocument {
   const system = document.systems.find((s) => s.systemId === systemId);
-  if (system === undefined) return { document };
+  if (system === undefined) return document;
 
   // 기타자재 비율 — 처음 생기면 선택한 종류의 기본값을 심는다. 종류가
-  // 바뀌는데 비율을 사용자가 손대지 않았으면(=이전 종류의 기본값 그대로)
-  // 새 종류의 기본값으로 따라간다. 이미 손봤으면 조용히 덮어쓰지
-  // 않는다(결정 D22-2).
+  // 바뀌는데 비율이 아직 "기본값"이면(사용자가 명시로 지정한 적 없음)
+  // 새 종류의 기본값으로 따라간다. 사용자가 명시로 지정했으면(우연히
+  // 기본값과 같은 숫자를 넣었더라도) 그대로 둔다(결정 D22-2) — 값만
+  // 보고 "손댔는지"를 추정하지 않고 `conduitMaterialRateManual`로
+  // 출처를 명시적으로 따진다.
   const previousType = system.conduitType ?? 'flexible';
   const nextType = patch.conduitType ?? previousType;
   let nextRate = system.conduitMaterialRate;
+  let nextRateManual = system.conduitMaterialRateManual ?? false;
   if (patch.conduitMaterialRate !== undefined) {
     nextRate = patch.conduitMaterialRate;
+    nextRateManual = true;
   } else if (nextRate === undefined) {
     nextRate = DEFAULT_CONDUIT_MATERIAL_RATE[nextType];
-  } else if (nextType !== previousType) {
-    const previousDefault = DEFAULT_CONDUIT_MATERIAL_RATE[previousType];
-    const userCustomized = nextRate !== previousDefault;
-    nextRate = userCustomized ? nextRate : DEFAULT_CONDUIT_MATERIAL_RATE[nextType];
+    nextRateManual = false;
+  } else if (nextType !== previousType && !nextRateManual) {
+    nextRate = DEFAULT_CONDUIT_MATERIAL_RATE[nextType];
   }
 
   // 줄 수는 "새 공간의 기본값 3"이다(결정 D8) — 사용자가 그 칸을 아직
@@ -267,6 +275,7 @@ export function applyInstallationPatch(
     ...system,
     ...patch,
     conduitRuns: nextConduitRuns,
+    conduitMaterialRateManual: nextRateManual,
     ...(patch.conduitMaterialRate === undefined && nextRate !== undefined ? { conduitMaterialRate: nextRate } : {}),
   };
   const withSystems: QuoteDocument = {
@@ -277,7 +286,7 @@ export function applyInstallationPatch(
   const conduitMeters = calcConduitMeters(patchedSystem.farthestDeviceMeters, patchedSystem.conduitRuns);
   if (conduitMeters === undefined) {
     // 거리·줄 수가 아직 없거나 형식이 틀렸다 — 행을 만들지 않는다.
-    return { document: withSystems };
+    return withSystems;
   }
 
   const conduitType: ConduitType = patchedSystem.conduitType ?? 'flexible';
@@ -286,29 +295,26 @@ export function applyInstallationPatch(
   const sentinel = conduitRowSentinel(systemId);
   const basisText = conduitBasisText(patchedSystem.farthestDeviceMeters!, patchedSystem.conduitRuns!, conduitMeters);
 
-  const existing = withSystems.rows.find(
-    (r): r is Extract<QuoteDocument['rows'][number], { type: 'item' }> =>
-      r.type === 'item' && (r.sourceNodeIds?.includes(sentinel) ?? false),
-  );
+  const existing = findConduitRow(withSystems, systemId);
 
   const group = CONDUIT_GROUP[conduitType];
   const existingStillValid =
     existing?.sku !== undefined && catalog.products.find((p) => p.sku === existing.sku)?.options['group'] === group;
 
   const rowId = existing?.rowId ?? `derived-conduit-${systemId}`;
-  const conduitRow = existingStillValid
+  const conduitRow: ItemSheetRow = existingStillValid
     ? { ...existing!, rowId, unit: `${CONDUIT_BULK_UNIT_METERS}M`, quantity, remark: basisText, sourceNodeIds: [sentinel] }
     : {
-        type: 'item' as const,
+        type: 'item',
         rowId,
         systemId,
         name: `${conduitLabel(conduitType)} 배관 (미정)`,
         specification: '',
         unit: `${CONDUIT_BULK_UNIT_METERS}M`,
         quantity,
-        laborMode: 'unresolved' as const,
+        laborMode: 'unresolved',
         remark: basisText,
-        origin: 'rule' as const,
+        origin: 'rule',
         sourceNodeIds: [sentinel],
       };
 
@@ -332,17 +338,72 @@ export function applyInstallationPatch(
   };
   const derivedRows = [...withSystems.derivedRows.filter((d) => d.rowId !== derivedRowId), materialRow];
 
-  const candidates = conduitCandidates(catalog, conduitType);
-  const warning: ImportWarning = {
-    code: 'device-not-in-catalog',
-    blocking: true,
-    message:
-      candidates.length === 0
-        ? `품셈에 ${conduitLabel(conduitType)} 품목이 없습니다. 선택을 바꾸거나 품셈 파일에 품목을 추가해야 합니다.`
-        : `배관 자재(${conduitLabel(conduitType)})를 선택하세요 — 후보 ${candidates.length}건.`,
-    nodeId: sentinel,
-    candidates,
-  };
+  return { ...withSystems, rows, derivedRows };
+}
 
-  return { document: { ...withSystems, rows, derivedRows }, warning };
+/**
+ * 배관 행에 쓸 경고를 **문서+카탈로그에서 매번 새로 파생한다**(독립
+ * 검토 지적 — 이전에는 `applyInstallationPatch`가 만든 경고를 workspace
+ * 쪽 별도 state에 쌓았는데, 그러면 실행취소가 문서만 되돌리고 그
+ * state는 그대로 남아 "행은 사라졌는데 경고는 남는다" 같은 불일치가
+ * 생겼다. 이 함수는 순수 함수이고 매번 현재 문서를 그대로 읽으므로,
+ * 호출하는 쪽(`workspace.prepareNow`)이 문서를 undo/redo해도 항상
+ * 그 시점 문서와 일치하는 경고를 돌려준다.
+ */
+export function computeInstallationWarnings(document: QuoteDocument, catalog: Catalog): readonly ImportWarning[] {
+  const warnings: ImportWarning[] = [];
+  for (const system of document.systems) {
+    const row = findConduitRow(document, system.systemId);
+    if (row === undefined) continue; // 거리·줄 수 미입력 — 행이 없으니 경고도 없다
+    if (row.sku !== undefined && row.sellingUnitPrice !== undefined) continue; // 이미 해소됐다
+
+    const conduitType: ConduitType = system.conduitType ?? 'flexible';
+    const candidates = conduitCandidates(catalog, conduitType);
+    warnings.push({
+      code: 'device-not-in-catalog',
+      blocking: true,
+      message:
+        candidates.length === 0
+          ? `품셈에 ${conduitLabel(conduitType)} 품목이 없습니다. 선택을 바꾸거나 품셈 파일에 품목을 추가해야 합니다.`
+          : `배관 자재(${conduitLabel(conduitType)})를 선택하세요 — 후보 ${candidates.length}건.`,
+      nodeId: conduitRowSentinel(system.systemId),
+      installationSystemId: system.systemId,
+      candidates,
+    });
+  }
+  return warnings;
+}
+
+/**
+ * 배관 행을 실제로 해소한다. **현재 그 시스템의 배관 종류
+ * (`conduitType`)에 맞는 품셈 묶음(`options.group`)에 속한 SKU만
+ * 받는다** — 일반 `resolveDevice`처럼 아무 SKU나 받으면 CD관처럼
+ * 후보가 없어 차단된 상태를 엉뚱한 제품(심지어 배관이 아닌 장비)으로
+ * 조용히 메워 우회할 수 있다(독립 검토 지적). 검증에 실패하면 문서를
+ * 바꾸지 않는다 — 화면이 후보 밖의 선택지를 주지 않더라도, 이 경계
+ * 자체가 거부해야 "후보 목록이 전부"라는 보장이 선다.
+ */
+export function resolveConduitProduct(
+  document: QuoteDocument,
+  systemId: string,
+  sku: string,
+  catalog: Catalog,
+): QuoteDocument {
+  const system = document.systems.find((s) => s.systemId === systemId);
+  if (system === undefined) return document;
+  const product = catalog.products.find((p) => p.sku === sku);
+  if (product === undefined) return document;
+
+  const conduitType: ConduitType = system.conduitType ?? 'flexible';
+  if (product.options['group'] !== CONDUIT_GROUP[conduitType]) return document; // 묶음 불일치 — 거부
+
+  const sentinel = conduitRowSentinel(systemId);
+  const price = catalog.prices.get(sku);
+  return {
+    ...document,
+    rows: document.rows.map((r) => {
+      if (r.type !== 'item' || !(r.sourceNodeIds?.includes(sentinel) ?? false)) return r;
+      return withResolvedProduct(r, product, price);
+    }),
+  };
 }

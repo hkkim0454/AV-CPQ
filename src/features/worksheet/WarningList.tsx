@@ -13,6 +13,15 @@
  * 카드 경고(`optionId`가 있는 경고 — `option-definition-missing`과
  * 옵션 자체의 미등록·모호 매칭)는 `onResolveOption`으로 **본체와
  * 분리해** 그 옵션 행만 바꾼다.
+ *
+ * 배관 경고(`installationSystemId`가 있는 경고 —
+ * `domain/quote/installation.ts`)는 **일반 카탈로그 검색을 보여주지
+ * 않는다.** 그 시스템의 현재 배관 종류에 맞는 후보만 고를 수 있다 —
+ * CD관처럼 후보가 0건이면 고를 것이 아예 없다(차단). 품명 검색으로
+ * 아무 제품이나 붙여 그 차단을 우회하지 못하게 하는 것이 설계
+ * 의도다(독립 검토 지적). `onResolveConduit`도 같은 이유로 `nodeId`가
+ * 아니라 `installationSystemId`로 호출한다 — 해소 함수 자체가
+ * 도메인 경계에서 묶음을 한 번 더 검증한다.
  */
 import { useState } from 'react';
 import type { Catalog } from '../../data/catalog/load';
@@ -23,6 +32,7 @@ interface WarningListProps {
   catalog: Catalog;
   onResolveDevice(nodeId: string, sku: string): void;
   onResolveOption(optionId: string, sku: string): void;
+  onResolveConduit(systemId: string, sku: string): void;
 }
 
 function CandidateList({
@@ -100,7 +110,7 @@ function SearchResolve({
   );
 }
 
-export function WarningList({ warnings, catalog, onResolveDevice, onResolveOption }: WarningListProps) {
+export function WarningList({ warnings, catalog, onResolveDevice, onResolveOption, onResolveConduit }: WarningListProps) {
   if (warnings.length === 0) return null;
 
   return (
@@ -108,12 +118,16 @@ export function WarningList({ warnings, catalog, onResolveDevice, onResolveOptio
       <h3>확인이 필요합니다 ({warnings.length}건)</h3>
       <ul>
         {warnings.map((warning, index) => {
-          // optionId가 있으면 코드와 무관하게 옵션 경고다 — 본체와
-          // 완전히 분리된 해소 경로(onResolveOption)를 쓴다. 같은
-          // 노드라도 본체 행과 sourceNodeIds를 공유할 수 있어 코드만으로는
-          // 구분이 안 된다 — optionId 유무로만 가른다.
-          const isOption = warning.optionId !== undefined;
+          // installationSystemId가 있으면 배관 경고다 — 일반 검색을
+          // 보여주지 않는다(위 docstring 참고). optionId가 있으면
+          // 코드와 무관하게 옵션 경고다 — 본체와 완전히 분리된 해소
+          // 경로(onResolveOption)를 쓴다. 같은 노드라도 본체 행과
+          // sourceNodeIds를 공유할 수 있어 코드만으로는 구분이 안 된다
+          // — optionId 유무로만 가른다.
+          const isConduit = warning.installationSystemId !== undefined;
+          const isOption = !isConduit && warning.optionId !== undefined;
           const isDevice =
+            !isConduit &&
             !isOption &&
             (warning.code === 'device-not-in-catalog' || warning.code === 'device-ambiguous-match') &&
             warning.nodeId !== undefined;
@@ -123,6 +137,13 @@ export function WarningList({ warnings, catalog, onResolveDevice, onResolveOptio
               <strong>{warning.blocking ? '확정 차단' : '확인'}</strong> {warning.message}
               {(warning.nodeId !== undefined || warning.edgeId !== undefined) && (
                 <span className="q-muted"> ({warning.nodeId ?? warning.edgeId})</span>
+              )}
+              {isConduit && warning.candidates !== undefined && warning.candidates.length > 0 && (
+                <CandidateList
+                  candidates={warning.candidates}
+                  catalog={catalog}
+                  onSelect={(sku) => onResolveConduit(warning.installationSystemId!, sku)}
+                />
               )}
               {isOption &&
                 (warning.candidates !== undefined && warning.candidates.length > 0 ? (

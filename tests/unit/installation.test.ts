@@ -4,15 +4,19 @@ import {
   calcConduitMeters,
   calcRouteMeters,
   ceilPurchaseUnits,
+  computeInstallationWarnings,
   conduitRowSentinel,
   isConduitGroup,
   purchaseUnitMetersForGroup,
+  resolveConduitProduct,
   validateConduitRuns,
   type RouteInput,
 } from '@/domain/quote/installation';
 import { buildQuoteDocument } from '@/domain/quote/buildDocument';
 import type { Catalog, CatalogProduct } from '@/data/catalog/load';
-import type { QuoteDocument } from '@/domain/quote/types';
+import type { QuoteDocument, SheetRow } from '@/domain/quote/types';
+
+type ItemRow = Extract<SheetRow, { type: 'item' }>;
 
 function product(partial: { sku: string; group: string; quoteName?: string; quoteSpec?: string }): CatalogProduct {
   return {
@@ -36,7 +40,7 @@ function catalogWithFlexibleOnly(): Catalog {
       product({ sku: 'CBL-F16', group: '후렉시블', quoteSpec: '16㎜' }),
       product({ sku: 'CBL-F28', group: '후렉시블', quoteSpec: '28㎜' }),
     ],
-    prices: new Map(),
+    prices: new Map([['CBL-F16', '31000']]),
     pricesAvailable: true,
   };
 }
@@ -48,6 +52,13 @@ function baseDocument(): QuoteDocument {
     documentId: 'doc-in-1',
     rowIdPrefix: 'in',
   });
+}
+
+function conduitRowOf(document: QuoteDocument, systemId: string): ItemRow | undefined {
+  const sentinel = conduitRowSentinel(systemId);
+  return document.rows.find(
+    (r): r is ItemRow => r.type === 'item' && (r.sourceNodeIds?.includes(sentinel) ?? false),
+  );
 }
 
 describe('calcRouteMeters', () => {
@@ -147,31 +158,23 @@ describe('묶음(options.group) 기반 배관 분류 — 품명 문자열 검사
 
 describe('applyInstallationPatch — 배관 재산출: 교체, 중복 추가 없음', () => {
   it('거리·줄 수가 아직 없으면 행을 만들지 않는다', () => {
-    const result = applyInstallationPatch(baseDocument(), 'S1', { conduitType: 'flexible' }, catalogWithFlexibleOnly());
-    expect(result.warning).toBeUndefined();
-    expect(result.document.rows.some((r) => r.type === 'item' && r.sourceNodeIds?.includes(conduitRowSentinel('S1')))).toBe(
-      false,
-    );
+    const document = applyInstallationPatch(baseDocument(), 'S1', { conduitType: 'flexible' }, catalogWithFlexibleOnly());
+    expect(conduitRowOf(document, 'S1')).toBeUndefined();
   });
 
   it('거리·줄 수를 채우면 배관 행과 배관 기타자재 파생행이 생긴다 — 근거 문구를 그대로 보여준다', () => {
-    const result = applyInstallationPatch(
+    const document = applyInstallationPatch(
       baseDocument(),
       'S1',
       { farthestDeviceMeters: '10', conduitRuns: '3', conduitType: 'flexible' },
       catalogWithFlexibleOnly(),
     );
-    const row = result.document.rows.find(
-      (r) => r.type === 'item' && r.sourceNodeIds?.includes(conduitRowSentinel('S1')),
-    );
+    const row = conduitRowOf(document, 'S1');
     expect(row).toBeDefined();
     expect(row).toMatchObject({ quantity: '3', remark: '10m × 3줄 = 30m', unit: '10M' });
 
-    const derived = result.document.derivedRows.find((d) => d.systemId === 'S1');
+    const derived = document.derivedRows.find((d) => d.systemId === 'S1');
     expect(derived).toMatchObject({ derived: { kind: 'single-row-material', sourceRowId: row!.rowId }, rate: '0.2' });
-
-    expect(result.warning).toMatchObject({ nodeId: conduitRowSentinel('S1'), blocking: true });
-    expect(result.warning!.candidates).toEqual(['CBL-F16', 'CBL-F28']);
   });
 
   it('줄 수만 바꿔 재산출하면 같은 행을 교체한다 — 누적 추가하지 않는다', () => {
@@ -181,15 +184,15 @@ describe('applyInstallationPatch — 배관 재산출: 교체, 중복 추가 없
       { farthestDeviceMeters: '10', conduitRuns: '3', conduitType: 'flexible' },
       catalogWithFlexibleOnly(),
     );
-    const second = applyInstallationPatch(first.document, 'S1', { conduitRuns: '2' }, catalogWithFlexibleOnly());
+    const second = applyInstallationPatch(first, 'S1', { conduitRuns: '2' }, catalogWithFlexibleOnly());
 
-    const conduitRows = second.document.rows.filter(
+    const conduitRows = second.rows.filter(
       (r) => r.type === 'item' && r.sourceNodeIds?.includes(conduitRowSentinel('S1')),
     );
     expect(conduitRows).toHaveLength(1);
     expect(conduitRows[0]).toMatchObject({ quantity: '2', remark: '10m × 2줄 = 20m' });
 
-    const derivedRows = second.document.derivedRows.filter((d) => d.systemId === 'S1');
+    const derivedRows = second.derivedRows.filter((d) => d.systemId === 'S1');
     expect(derivedRows).toHaveLength(1);
   });
 
@@ -200,19 +203,12 @@ describe('applyInstallationPatch — 배관 재산출: 교체, 중복 추가 없
       { farthestDeviceMeters: '10', conduitRuns: '3', conduitType: 'flexible' },
       catalogWithFlexibleOnly(),
     );
-    const rowId = first.document.rows.find((r) => r.type === 'item' && r.sourceNodeIds?.includes(conduitRowSentinel('S1')))!
-      .rowId;
-    // 사람이 WarningList에서 CBL-F16을 골랐다고 가정한다.
-    const resolved: QuoteDocument = {
-      ...first.document,
-      rows: first.document.rows.map((r) =>
-        r.rowId === rowId ? { ...r, sku: 'CBL-F16', productId: 'CBL-F16', sellingUnitPrice: '50000' } : r,
-      ),
-    };
+    const rowId = conduitRowOf(first, 'S1')!.rowId;
+    const resolved = resolveConduitProduct(first, 'S1', 'CBL-F16', catalogWithFlexibleOnly());
 
     const second = applyInstallationPatch(resolved, 'S1', { conduitRuns: '2' }, catalogWithFlexibleOnly());
-    const row = second.document.rows.find((r) => r.rowId === rowId);
-    expect(row).toMatchObject({ sku: 'CBL-F16', sellingUnitPrice: '50000', quantity: '2' });
+    const row = second.rows.find((r) => r.rowId === rowId);
+    expect(row).toMatchObject({ sku: 'CBL-F16', sellingUnitPrice: '31000', quantity: '2' });
   });
 
   it('배관 종류를 바꾸면 더는 맞지 않는 기존 SKU를 지운다', () => {
@@ -222,35 +218,12 @@ describe('applyInstallationPatch — 배관 재산출: 교체, 중복 추가 없
       { farthestDeviceMeters: '10', conduitRuns: '3', conduitType: 'flexible' },
       catalogWithFlexibleOnly(),
     );
-    const rowId = first.document.rows.find((r) => r.type === 'item' && r.sourceNodeIds?.includes(conduitRowSentinel('S1')))!
-      .rowId;
-    const resolved: QuoteDocument = {
-      ...first.document,
-      rows: first.document.rows.map((r) => (r.rowId === rowId ? { ...r, sku: 'CBL-F16', sellingUnitPrice: '50000' } : r)),
-    };
+    const rowId = conduitRowOf(first, 'S1')!.rowId;
+    const resolved = resolveConduitProduct(first, 'S1', 'CBL-F16', catalogWithFlexibleOnly());
 
     const switched = applyInstallationPatch(resolved, 'S1', { conduitType: 'cd' }, catalogWithFlexibleOnly());
-    const row = switched.document.rows.find(
-      (r): r is Extract<QuoteDocument['rows'][number], { type: 'item' }> => r.rowId === rowId && r.type === 'item',
-    );
+    const row = switched.rows.find((r): r is ItemRow => r.type === 'item' && r.rowId === rowId);
     expect(row?.sku).toBeUndefined();
-  });
-
-  it('CD관 품목이 품셈에 없으면 후보 0건으로 차단한다 — 0원·후렉시블로 대신 채우지 않는다', () => {
-    const result = applyInstallationPatch(
-      baseDocument(),
-      'S1',
-      { farthestDeviceMeters: '10', conduitRuns: '3', conduitType: 'cd' },
-      catalogWithFlexibleOnly(),
-    );
-    expect(result.warning).toMatchObject({ blocking: true, candidates: [] });
-    expect(result.warning!.message).toContain('CD관 품목이 없습니다');
-    const row = result.document.rows.find(
-      (r): r is Extract<QuoteDocument['rows'][number], { type: 'item' }> =>
-        r.type === 'item' && (r.sourceNodeIds?.includes(conduitRowSentinel('S1')) ?? false),
-    );
-    expect(row?.sku).toBeUndefined();
-    expect(row?.sellingUnitPrice).toBeUndefined();
   });
 
   it('종류를 바꾸면 손대지 않은 비율은 새 종류의 기본값을 따라간다', () => {
@@ -260,11 +233,12 @@ describe('applyInstallationPatch — 배관 재산출: 교체, 중복 추가 없
       { farthestDeviceMeters: '10', conduitRuns: '3', conduitType: 'flexible' },
       catalogWithFlexibleOnly(),
     );
-    expect(first.document.systems[0]!.conduitMaterialRate).toBe('20');
+    expect(first.systems[0]!.conduitMaterialRate).toBe('20');
+    expect(first.systems[0]!.conduitMaterialRateManual).toBe(false);
 
-    const switched = applyInstallationPatch(first.document, 'S1', { conduitType: 'cd' }, catalogWithFlexibleOnly());
-    expect(switched.document.systems[0]!.conduitMaterialRate).toBe('40');
-    const derived = switched.document.derivedRows.find((d) => d.systemId === 'S1');
+    const switched = applyInstallationPatch(first, 'S1', { conduitType: 'cd' }, catalogWithFlexibleOnly());
+    expect(switched.systems[0]!.conduitMaterialRate).toBe('40');
+    const derived = switched.derivedRows.find((d) => d.systemId === 'S1');
     expect(derived).toMatchObject({ rate: '0.4', specification: '배관자재40%' });
   });
 
@@ -275,9 +249,131 @@ describe('applyInstallationPatch — 배관 재산출: 교체, 중복 추가 없
       { farthestDeviceMeters: '10', conduitRuns: '3', conduitType: 'flexible', conduitMaterialRate: '25' },
       catalogWithFlexibleOnly(),
     );
-    expect(first.document.systems[0]!.conduitMaterialRate).toBe('25');
+    expect(first.systems[0]!.conduitMaterialRate).toBe('25');
+    expect(first.systems[0]!.conduitMaterialRateManual).toBe(true);
 
-    const switched = applyInstallationPatch(first.document, 'S1', { conduitType: 'cd' }, catalogWithFlexibleOnly());
-    expect(switched.document.systems[0]!.conduitMaterialRate).toBe('25');
+    const switched = applyInstallationPatch(first, 'S1', { conduitType: 'cd' }, catalogWithFlexibleOnly());
+    expect(switched.systems[0]!.conduitMaterialRate).toBe('25');
+  });
+
+  it('사용자가 기본값과 우연히 같은 값을 명시로 지정해도 "손댄 값"으로 취급한다', () => {
+    // 후렉시블 기본값은 20% — 사용자가 그 값을 "명시로" 다시 입력해도
+    // 출처는 manual이어야 한다. 값만 보고 추정하면 이 경우를 "아직
+    // 안 건드렸다"로 잘못 판단한다(독립 검토 지적).
+    const first = applyInstallationPatch(
+      baseDocument(),
+      'S1',
+      { farthestDeviceMeters: '10', conduitRuns: '3', conduitType: 'flexible', conduitMaterialRate: '20' },
+      catalogWithFlexibleOnly(),
+    );
+    expect(first.systems[0]!.conduitMaterialRateManual).toBe(true);
+
+    const switched = applyInstallationPatch(first, 'S1', { conduitType: 'cd' }, catalogWithFlexibleOnly());
+    expect(switched.systems[0]!.conduitMaterialRate).toBe('20'); // CD 기본값(40%)으로 안 바뀐다
+  });
+});
+
+describe('computeInstallationWarnings — 문서에서 매번 새로 파생한다(undo/redo와 항상 일치)', () => {
+  it('배관 행이 없으면 경고도 없다', () => {
+    expect(computeInstallationWarnings(baseDocument(), catalogWithFlexibleOnly())).toHaveLength(0);
+  });
+
+  it('배관 행이 미해결이면 경고가 있고, 그 시스템 종류에 맞는 후보만 담는다', () => {
+    const document = applyInstallationPatch(
+      baseDocument(),
+      'S1',
+      { farthestDeviceMeters: '10', conduitRuns: '3', conduitType: 'flexible' },
+      catalogWithFlexibleOnly(),
+    );
+    const warnings = computeInstallationWarnings(document, catalogWithFlexibleOnly());
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatchObject({ installationSystemId: 'S1', blocking: true });
+    expect(warnings[0]!.candidates).toEqual(['CBL-F16', 'CBL-F28']);
+  });
+
+  it('해소되면 경고가 사라진다 — 문서만 보고 판단한다', () => {
+    const document = applyInstallationPatch(
+      baseDocument(),
+      'S1',
+      { farthestDeviceMeters: '10', conduitRuns: '3', conduitType: 'flexible' },
+      catalogWithFlexibleOnly(),
+    );
+    const resolved = resolveConduitProduct(document, 'S1', 'CBL-F16', catalogWithFlexibleOnly());
+    expect(computeInstallationWarnings(resolved, catalogWithFlexibleOnly())).toHaveLength(0);
+  });
+
+  it('undo로 배관 행이 통째로 사라진 문서를 주면(실제 undo를 흉내낸다) 경고도 사라진다', () => {
+    const beforeAnyInput = baseDocument(); // "실행취소"로 돌아간 상태를 흉내낸다
+    expect(computeInstallationWarnings(beforeAnyInput, catalogWithFlexibleOnly())).toHaveLength(0);
+  });
+
+  it('CD관은 후보 0건으로 차단 메시지를 낸다', () => {
+    const document = applyInstallationPatch(
+      baseDocument(),
+      'S1',
+      { farthestDeviceMeters: '10', conduitRuns: '3', conduitType: 'cd' },
+      catalogWithFlexibleOnly(),
+    );
+    const warnings = computeInstallationWarnings(document, catalogWithFlexibleOnly());
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]!.candidates).toEqual([]);
+    expect(warnings[0]!.message).toContain('CD관 품목이 없습니다');
+  });
+});
+
+describe('resolveConduitProduct — 현재 배관 종류의 묶음과 맞는 SKU만 받는다(일반 검색으로 우회 금지)', () => {
+  it('맞는 묶음의 SKU는 해소된다', () => {
+    const document = applyInstallationPatch(
+      baseDocument(),
+      'S1',
+      { farthestDeviceMeters: '10', conduitRuns: '3', conduitType: 'flexible' },
+      catalogWithFlexibleOnly(),
+    );
+    const resolved = resolveConduitProduct(document, 'S1', 'CBL-F16', catalogWithFlexibleOnly());
+    expect(conduitRowOf(resolved, 'S1')).toMatchObject({ sku: 'CBL-F16', sellingUnitPrice: '31000' });
+  });
+
+  it('CD관으로 골라 둔 상태에서 후렉시블 SKU를 붙이려 하면 거부한다', () => {
+    const document = applyInstallationPatch(
+      baseDocument(),
+      'S1',
+      { farthestDeviceMeters: '10', conduitRuns: '3', conduitType: 'cd' },
+      catalogWithFlexibleOnly(),
+    );
+    const attempted = resolveConduitProduct(document, 'S1', 'CBL-F16', catalogWithFlexibleOnly());
+    // 문서가 전혀 안 바뀐다 — CD관 차단을 후렉시블 제품으로 우회할 수 없다.
+    expect(attempted).toEqual(document);
+    expect(conduitRowOf(attempted, 'S1')?.sku).toBeUndefined();
+  });
+
+  it('배관이 아닌 일반 장비 SKU로는 연결할 수 없다 — 묶음이 다르다', () => {
+    const catalog: Catalog = {
+      sourceSha256: 'y'.repeat(64),
+      products: [
+        ...catalogWithFlexibleOnly().products,
+        product({ sku: 'DEV-001', group: '일반장비', quoteName: '무관한 장비' }),
+      ],
+      prices: new Map([['DEV-001', '999999']]),
+      pricesAvailable: true,
+    };
+    const document = applyInstallationPatch(
+      baseDocument(),
+      'S1',
+      { farthestDeviceMeters: '10', conduitRuns: '3', conduitType: 'flexible' },
+      catalog,
+    );
+    const attempted = resolveConduitProduct(document, 'S1', 'DEV-001', catalog);
+    expect(conduitRowOf(attempted, 'S1')?.sku).toBeUndefined();
+  });
+
+  it('카탈로그에 없는 SKU는 무시한다', () => {
+    const document = applyInstallationPatch(
+      baseDocument(),
+      'S1',
+      { farthestDeviceMeters: '10', conduitRuns: '3', conduitType: 'flexible' },
+      catalogWithFlexibleOnly(),
+    );
+    const attempted = resolveConduitProduct(document, 'S1', 'NOPE', catalogWithFlexibleOnly());
+    expect(attempted).toEqual(document);
   });
 });

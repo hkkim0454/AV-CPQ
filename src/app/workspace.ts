@@ -15,7 +15,12 @@ import { indirectCostsFor, type IndirectProfileId } from '../export/ooxml/guideT
 import { toRow } from '../domain/quote/buildDocument';
 import { computeActiveWarnings } from '../domain/quote/activeWarnings';
 import { withResolvedProduct } from '../domain/quote/resolveProduct';
-import { applyInstallationPatch, conduitRowSentinel, type InstallationPatch } from '../domain/quote/installation';
+import {
+  applyInstallationPatch,
+  computeInstallationWarnings,
+  resolveConduitProduct,
+  type InstallationPatch,
+} from '../domain/quote/installation';
 import type { QuoteDocument, QuoteHeader } from '../domain/quote/types';
 import type { ImportWarning } from '../import/diagram/devices';
 import type { Resources } from './resources';
@@ -60,6 +65,11 @@ export interface Workspace {
    * 행과 `배관 기타자재` 파생행을 재산출한다(`installation.ts`).
    */
   setInstallationInput(systemId: string, patch: InstallationPatch): void;
+  /**
+   * 배관 경고를 해소한다 — 일반 `resolveDevice`와 달리 그 시스템의
+   * 현재 배관 종류에 맞는 품셈 묶음인지 도메인 경계에서 검증한다.
+   */
+  resolveConduit(systemId: string, sku: string): void;
   undo(): void;
   redo(): void;
 }
@@ -157,7 +167,13 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
         // 빠지고, `blocking`(출력 차단)도 실제로 풀린다. 화면
         // (WarningList)도 이 함수가 돌려주는 `prepared.importWarnings`를
         // 그대로 쓴다 — 표시와 차단 판정이 같은 집합을 보게 된다.
-        importWarnings: computeActiveWarnings(document, allImportWarnings),
+        // 배관 경고(`computeInstallationWarnings`)는 별도 state 없이
+        // 이 문서에서 매번 새로 파생한다 — 그래야 실행취소로 배관 행이
+        // 사라지거나 종류가 바뀌어도 경고가 항상 그 시점 문서와 맞는다.
+        importWarnings: [
+          ...computeActiveWarnings(document, allImportWarnings),
+          ...computeInstallationWarnings(document, resources.catalog),
+        ],
         // 문서에 아직 기준이 안 적혀 있으면(새로 변환한 직후) 처음 적는다.
         // 그 다음부터는 같은 기준인지만 대조한다 — 조용한 재계산이 아니다.
         wageMode: document.versions.wage === 'unknown' ? 'initialize-new' : 'preserve',
@@ -194,7 +210,10 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
         basisVersions: basis.versions,
         guides: resources.guides,
         profileBySystem: profileMapOf(seeded),
-        importWarnings: computeActiveWarnings(seeded, input.importWarnings),
+        importWarnings: [
+          ...computeActiveWarnings(seeded, input.importWarnings),
+          ...computeInstallationWarnings(seeded, resources.catalog),
+        ],
         wageMode: 'initialize-new',
       });
       setAllImportWarnings(input.importWarnings);
@@ -356,20 +375,19 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
   const setInstallationInput = useCallback(
     (systemId: string, patch: InstallationPatch) => {
       if (resources === undefined) return;
-      let warning: ImportWarning | undefined;
-      commit((document) => {
-        const result = applyInstallationPatch(document, systemId, patch, resources.catalog);
-        warning = result.warning;
-        return result.document;
-      });
-      // 거리·줄 수가 아직 없으면 `applyInstallationPatch`가 행을 만들지
-      // 않으므로 경고도 없다 — 그 경우 이전에 이미 만들어진 행(과 그
-      // 경고)은 그대로 둔다(입력을 지웠다고 기존 미해결 행을 지우지
-      // 않는다). 경고가 있으면 같은 표식(`nodeId`)의 이전 경고만 지우고
-      // 새로 교체한다 — 재산출마다 쌓이지 않는다.
-      if (warning === undefined) return;
-      const sentinel = conduitRowSentinel(systemId);
-      setAllImportWarnings((prev) => [...prev.filter((w) => w.nodeId !== sentinel), warning!]);
+      // 순수 함수 하나만 문서에 적용한다 — 경고는 별도로 들고 다니지
+      // 않는다(`prepareNow`가 매번 `computeInstallationWarnings`로
+      // 다시 파생한다). React state updater 실행 시점에 기대는 부수
+      // 효과가 없으므로 undo/redo와 항상 맞는다(독립 검토 지적).
+      commit((document) => applyInstallationPatch(document, systemId, patch, resources.catalog));
+    },
+    [commit, resources],
+  );
+
+  const resolveConduit = useCallback(
+    (systemId: string, sku: string) => {
+      if (resources === undefined) return;
+      commit((document) => resolveConduitProduct(document, systemId, sku, resources.catalog));
     },
     [commit, resources],
   );
@@ -421,6 +439,7 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     resolveDevice,
     resolveOption,
     setInstallationInput,
+    resolveConduit,
     undo,
     redo,
   };

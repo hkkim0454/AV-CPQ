@@ -276,6 +276,16 @@ export interface QuoteSystem {
   conduitType?: ConduitType;
   /** 퍼센트 문자열(`'20'`). 계산용 분수가 아니라 화면 입력 그대로다. */
   conduitMaterialRate?: DecimalText;
+  /**
+   * `conduitMaterialRate`가 사용자가 **직접 지정한 값**인지. 종류를
+   * 바꿀 때 비율을 새 기본값으로 따라가게 할지 판단하는 데 쓴다.
+   *
+   * 값이 기본값과 "우연히 같은지"로 추정하지 않는다 — 사용자가 명시로
+   * 20%를 입력했는데 그게 마침 후렉시블 기본값과 같다면, 값만 보고는
+   * "아직 안 건드렸다"와 구분할 수 없다. 그래서 출처를 별도 칸에
+   * 명시적으로 남긴다.
+   */
+  conduitMaterialRateManual?: boolean;
 }
 
 /** 갑지의 로마자 구역 행 (`Ⅰ  사무3동 6층 CLEAN IEC 룸`). */

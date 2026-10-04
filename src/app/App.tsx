@@ -187,6 +187,7 @@ export function App() {
                     catalog={resources.catalog}
                     onResolveDevice={workspace.resolveDevice}
                     onResolveOption={workspace.resolveOption}
+                    onResolveConduit={workspace.resolveConduit}
                   />
                   <QuoteSheet
                     document={status.document}
