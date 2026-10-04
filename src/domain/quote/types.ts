@@ -174,14 +174,28 @@ export interface DerivedRow extends Omit<QuoteRow, 'sellingUnitPrice'> {
  *  - `labor`       → 직접비계의 노무비 금액 (원본 I열)
  *  - `direct`      → 직접비계의 합계      (원본 J열)
  *  - `composite`   → 직접비계 합계 + 지정한 다른 간접비 항목들의 합
+ *  - `item`        → **지정한 항목의 금액만.** 직접비를 더하지 않는다
+ *
+ * `item`이 따로 있는 이유: 일반 프로파일의 노인장기요양보험료가
+ * **건강보험료 대비** 12.95%다. `composite`는 항상 직접비계에서 출발하므로
+ * 이걸 표현하면 직접비계가 통째로 더해져 조용히 틀린다.
  */
 export type IndirectBasis =
   | { kind: 'labor' }
   | { kind: 'direct' }
-  | { kind: 'composite'; plusItemIds: string[] };
+  | { kind: 'composite'; plusItemIds: string[] }
+  | { kind: 'item'; itemId: string };
 
 export interface IndirectCostRule {
   itemId: string;
+  /**
+   * 적용 조건 문구. 가이드 원본이 간접비 블록 옆에 적어 둔 것
+   * (`1개월 이상 공사 限`, `1억원 이상 공사 限`).
+   *
+   * 금액 계산에는 쓰지 않는다. 사람이 적용 여부를 판단할 근거다 —
+   * 지우면 왜 미적용인지 알 수 없게 된다.
+   */
+  conditionText?: string;
   /** 견적서 B열. */
   name: string;
   /** 견적서 C열 — 기준 설명 문구. */

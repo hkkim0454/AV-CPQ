@@ -338,3 +338,115 @@ describe('calculateQuote — 결정성', () => {
     expect(a.systems[0]!.systemTotal.toFixed()).toBe(b.systems[0]!.systemTotal.toFixed());
   });
 });
+
+describe('calculateQuote — 항목 기준 간접비 (일반 프로파일, 계획 2026-10-04 Task 3)', () => {
+  /**
+   * 일반 프로파일의 노인장기요양보험료는 **건강보험료 대비** 12.95%다.
+   * 기존 축에 없다 — `composite`는 **항상 직접비계에서 출발**하므로
+   * 지정한 항목 금액'만' 기준으로 삼을 수 없다.
+   *
+   * 지금 두 항목 다 미적용이라 금액이 0이다. 하지만 누가 적용으로 바꾸는 순간
+   * 직접비계가 더해진 값으로 **조용히** 틀린다. 그래서 축을 먼저 만든다.
+   */
+  const withHealth = (applied: boolean, longTermApplied: boolean) =>
+    makeDocument({
+      systems: [
+        system('S1', {
+          indirect: [
+            {
+              itemId: 'h',
+              name: '국민건강보험료',
+              basisLabel: '노무비 대비',
+              basis: { kind: 'labor' },
+              rate: '0.03545',
+              applied,
+              source: '가이드',
+            },
+            {
+              itemId: 'l',
+              name: '노인장기요양보험료',
+              basisLabel: '건강보험료 대비',
+              basis: { kind: 'item', itemId: 'h' },
+              rate: '0.1295',
+              applied: longTermApplied,
+              source: '가이드',
+            },
+          ],
+        }),
+      ],
+      rows: [
+        itemRow('r1', 'S1', { quantity: '1', price: '0', laborPrice: '1000000' }),
+      ],
+    });
+
+  it('지정 항목의 금액만 기준으로 한다 — 직접비를 더하지 않는다', () => {
+    const snap = calculateQuote(withHealth(true, true));
+    const indirect = snap.systems[0]!.indirect;
+    // INT(1,000,000 × 0.03545) = 35,450
+    expect(indirect[0]!.amount.toFixed()).toBe('35450');
+    // INT(35,450 × 0.1295) = INT(4,590.775) = 4,590
+    expect(indirect[1]!.amount.toFixed()).toBe('4590');
+  });
+
+  it('기준 항목이 미적용이면 기준 금액이 0이다', () => {
+    const snap = calculateQuote(withHealth(false, true));
+    expect(snap.systems[0]!.indirect[0]!.amount.toFixed()).toBe('0');
+    expect(snap.systems[0]!.indirect[1]!.amount.toFixed()).toBe('0');
+  });
+
+  it('자기 자신을 기준으로 삼으면 막는다', () => {
+    const doc = makeDocument({
+      systems: [
+        system('S1', {
+          indirect: [
+            {
+              itemId: 'x',
+              name: '자기참조',
+              basisLabel: '자기 대비',
+              basis: { kind: 'item', itemId: 'x' },
+              rate: '0.1',
+              applied: true,
+              source: '시험',
+            },
+          ],
+        }),
+      ],
+      rows: [itemRow('r1', 'S1', { quantity: '1', price: '0', laborPrice: '1000' })],
+    });
+    const snap = calculateQuote(doc);
+    expect(snap.blocking).toBe(true);
+    expect(snap.warnings.some((w) => w.code === 'indirect-basis-missing')).toBe(true);
+  });
+
+  it('뒤에 오는 항목을 기준으로 삼으면 막는다 — 가이드의 순서를 지킨다', () => {
+    const doc = makeDocument({
+      systems: [
+        system('S1', {
+          indirect: [
+            {
+              itemId: 'a',
+              name: '앞',
+              basisLabel: '뒤 대비',
+              basis: { kind: 'item', itemId: 'b' },
+              rate: '0.1',
+              applied: true,
+              source: '시험',
+            },
+            {
+              itemId: 'b',
+              name: '뒤',
+              basisLabel: '노무비 대비',
+              basis: { kind: 'labor' },
+              rate: '0.1',
+              applied: true,
+              source: '시험',
+            },
+          ],
+        }),
+      ],
+      rows: [itemRow('r1', 'S1', { quantity: '1', price: '0', laborPrice: '1000' })],
+    });
+    const snap = calculateQuote(doc);
+    expect(snap.blocking).toBe(true);
+  });
+});

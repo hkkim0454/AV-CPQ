@@ -363,6 +363,26 @@ function calculateIndirect(
       case 'direct':
         basisAmount = directTotal;
         break;
+      case 'item': {
+        // **지정한 항목의 금액만.** 직접비를 더하지 않는다.
+        // 가이드: 노인장기요양보험료 = INT(건강보험료 금액 × 12.95%)
+        const prior = byItemId.get(rule.basis.itemId);
+        if (prior === undefined) {
+          // 자기 자신이나 뒤에 오는 항목을 가리키면 여기로 온다.
+          // 금액을 0으로 두고 넘어가면 보험료가 조용히 사라진다.
+          warnings.push({
+            code: 'indirect-basis-missing',
+            blocking: true,
+            message: `간접비 ${rule.name}: 기준 항목 ${rule.basis.itemId}가 앞에 없다.`,
+            systemId,
+            itemId: rule.itemId,
+          });
+          basisAmount = ZERO;
+        } else {
+          basisAmount = prior.amount;
+        }
+        break;
+      }
       case 'composite': {
         // 직접비계 합계 + 지정한 간접비 항목들의 금액.
         // 원본: =INT(SUM(J{직접비계},J{간접노무비},J{산업안전})*요율)

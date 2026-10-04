@@ -226,12 +226,18 @@ function planSystem(
         : index === lastIndex
           ? SYSTEM_ANCHOR.indirectLast
           : SYSTEM_ANCHOR.indirectMiddle;
-    const plusRows =
+    // 기준이 가리키는 항목의 **행 번호**를 넘긴다. `rowByItemId`에는 아직
+    // **앞선 항목만** 들어 있다 — 뒤에 오는 항목이나 자기 자신을 가리키면
+    // 여기서 비어 돌아가고, 계산 엔진이 같은 조건으로 출력을 막는다.
+    const basisItemIds =
       rule.basis.kind === 'composite'
         ? rule.basis.plusItemIds
-            .map((id) => rowByItemId.get(id))
-            .filter((r): r is number => r !== undefined)
-        : [];
+        : rule.basis.kind === 'item'
+          ? [rule.basis.itemId]
+          : [];
+    const plusRows = basisItemIds
+      .map((id) => rowByItemId.get(id))
+      .filter((r): r is number => r !== undefined);
     indirectRows.push({ row: indirectRow, styleAnchor, rule, plusRows });
     rowByItemId.set(rule.itemId, indirectRow);
   });

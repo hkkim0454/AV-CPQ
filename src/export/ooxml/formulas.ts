@@ -78,7 +78,8 @@ export function directTotalSum(
  *
  * @param directTotalRow 직접비계 행.
  * @param rateCell       이 행의 요율 셀 (`E25`).
- * @param plusRows       `composite` 기준이 더할 다른 간접비 행들.
+ * @param plusRows       기준이 가리키는 다른 간접비 행들.
+ *   `composite`는 직접비계에 **더하고**, `item`은 그 행 **하나만** 쓴다.
  */
 export function indirectAmount(
   basis: IndirectBasis,
@@ -96,6 +97,17 @@ export function indirectAmount(
     case 'composite': {
       const refs = [`J${directTotalRow}`, ...plusRows.map((r) => `J${r}`)].join(',');
       return `INT(SUM(${refs})*${rateCell})`;
+    }
+    case 'item': {
+      // 지정 항목의 금액만. **직접비계를 넣지 않는다** — 넣으면 보험료가
+      // 수십 배가 되고, 인쇄물만 봐서는 알아채기 어렵다.
+      const source = plusRows[0];
+      if (source === undefined) {
+        // 기준 행을 못 찾았다. 계산 엔진이 같은 상황에서 blocking 경고를 세우므로
+        // 여기까지 오면 출력이 막힌 상태다. 상수 0으로 둬서 Excel 수식은 성립시킨다.
+        return `INT(0*${rateCell})`;
+      }
+      return `INT(J${source}*${rateCell})`;
     }
   }
 }
