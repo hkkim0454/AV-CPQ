@@ -95,32 +95,24 @@ export function buildCustomerGuideWorkbook(
   return stripInternalColumns(base, guide);
 }
 
-/**
- * 공통 뼈대 — **열을 지우지 않는다.**
- *
- * 0·1단계는 설명·품셈·거래처를 그 위에 얹으므로 열이 살아 있어야 한다.
- * 2단계 입구만 지우기를 더 한다.
- */
-export function buildGuideBase(
-  exported: CustomerExport,
-  guide: GuideTemplate,
-): GuideWorkbookResult {
-  const systems = exported.systems;
-  if (systems.length !== 1) {
-    // 가이드에는 세부내역 시트가 하나뿐이다. 시트를 더 만들려면 관계와
-    // Content_Types 까지 손대야 하고, 그건 서식을 지어내는 것과 다른 문제다.
-    throw new GuideWorkbookError(
-      `가이드 출력은 아직 시스템 1개만 받는다 (받은 수: ${systems.length}).`,
-    );
-  }
-  const system = systems[0]!;
-  const calculation = exported.calculation.systems.find(
-    (s) => s.systemId === system.systemId,
-  );
-  if (calculation === undefined) {
-    throw new GuideWorkbookError(`시스템 ${system.systemId} 의 계산 결과가 없다.`);
-  }
+export interface SystemSheetContent {
+  layout: GuideSheetLayout;
+  contentByRow: Map<number, RowContent>;
+  /** 판매측 숫자 역할의 열 글자(+행 번호 없이) — 호출부가 시트 part 를 붙인다. */
+  sellRefs: string[];
+}
 
+/**
+ * 시스템 **하나**의 세부내역 내용을 계산한다 — 시트에 쓰지 않는다.
+ *
+ * 단일 시스템 입구(`buildGuideBase`)와 다중 시스템 입구가 **이 함수를
+ * 같이 쓴다.** 같은 계산을 두 번 적으면 한쪽만 고쳐져 조용히 갈린다.
+ */
+export function buildSystemSheetContent(
+  system: CustomerExport['systems'][number],
+  calculation: CustomerExport['calculation']['systems'][number],
+  guide: GuideTemplate,
+): SystemSheetContent {
   // **행 순서를 보존한다 — 가르지 않는다(독립 검토 P1-5 재지적).**
   //
   // 예전에는 품목과 파생을 각각 따로 걸러 모아 "품목 전부 → 파생 전부"
@@ -156,7 +148,7 @@ export function buildGuideBase(
   const calcByRowId = new Map(calculation.rows.map((r) => [r.rowId, r]));
 
   const contentByRow = new Map<number, RowContent>();
-  const written = new Set<string>();
+  const sellRefs: string[] = [];
   /**
    * `cells`는 그 행에 쓰는 **모든** 칸(품명·규격·비고 포함)이고,
    * `sellCells`는 그중 **판매측 숫자 역할**(단가·금액·합계 등)만 가리키는
@@ -174,7 +166,7 @@ export function buildGuideBase(
   ): void => {
     contentByRow.set(row, new Map(Object.entries(cells)));
     for (const column of sellCells) {
-      written.add(`${DETAIL_PART}!${column}${row}`);
+      sellRefs.push(`${column}${row}`);
     }
   };
 
@@ -379,6 +371,43 @@ export function buildGuideBase(
     },
     [col('total')],
   );
+
+  return { layout, contentByRow, sellRefs };
+}
+
+/**
+ * 공통 뼈대 — **열을 지우지 않는다.**
+ *
+ * 0·1단계는 설명·품셈·거래처를 그 위에 얹으므로 열이 살아 있어야 한다.
+ * 2단계 입구만 지우기를 더 한다.
+ */
+export function buildGuideBase(
+  exported: CustomerExport,
+  guide: GuideTemplate,
+): GuideWorkbookResult {
+  const systems = exported.systems;
+  if (systems.length !== 1) {
+    // 시스템이 여럿이면 `buildMultiSystemGuideBase` (별도 모듈)를 쓴다 —
+    // 거기는 시트를 실제로 늘리고 스타일표까지 합친다.
+    throw new GuideWorkbookError(
+      `buildGuideBase 는 시스템 1개만 받는다 (받은 수: ${systems.length}). ` +
+        '여럿이면 buildMultiSystemGuideBase 를 쓴다.',
+    );
+  }
+  const system = systems[0]!;
+  const calculation = exported.calculation.systems.find(
+    (s) => s.systemId === system.systemId,
+  );
+  if (calculation === undefined) {
+    throw new GuideWorkbookError(`시스템 ${system.systemId} 의 계산 결과가 없다.`);
+  }
+
+  const { layout, contentByRow, sellRefs } = buildSystemSheetContent(
+    system,
+    calculation,
+    guide,
+  );
+  const written = new Set(sellRefs.map((ref) => `${DETAIL_PART}!${ref}`));
 
   // --- 시트에 쓴다 ---
   const files = unzipSync(guide.bytes);
