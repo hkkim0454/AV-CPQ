@@ -41,6 +41,8 @@ interface WarningListProps {
   onResolveOption(optionId: string, sku: string): void;
   onResolveConduit(systemId: string, sku: string): void;
   onResolveCable(edgeId: string, sku: string, sourceCableKey?: string): void;
+  /** `catalog-item-removed` 전용 — 입구와 무관하게 그 행만 다시 찾는다. */
+  onResolveRow(rowId: string, sku: string): void;
 }
 
 function CandidateList({
@@ -163,6 +165,7 @@ export function WarningList({
   onResolveOption,
   onResolveConduit,
   onResolveCable,
+  onResolveRow,
 }: WarningListProps) {
   if (warnings.length === 0) return null;
 
@@ -178,11 +181,17 @@ export function WarningList({
           // sourceNodeIds를 공유할 수 있어 코드만으로는 구분이 안 된다
           // — optionId 유무로만 가른다. 케이블 경고는 노드도 시스템도
           // 아니고 edgeId만 있다 — 그걸로 가른다.
-          const isConduit = warning.installationSystemId !== undefined;
-          const isOption = !isConduit && warning.optionId !== undefined;
+          const isRemoved = warning.code === 'catalog-item-removed' && warning.rowId !== undefined;
+          const isConduit = !isRemoved && warning.installationSystemId !== undefined;
+          const isOption = !isRemoved && !isConduit && warning.optionId !== undefined;
           const isCable =
-            !isConduit && !isOption && warning.code === 'cable-item-unresolved' && warning.edgeId !== undefined;
+            !isRemoved &&
+            !isConduit &&
+            !isOption &&
+            warning.code === 'cable-item-unresolved' &&
+            warning.edgeId !== undefined;
           const isDevice =
+            !isRemoved &&
             !isConduit &&
             !isOption &&
             !isCable &&
@@ -190,7 +199,7 @@ export function WarningList({
             warning.nodeId !== undefined;
 
           return (
-            <li key={`${warning.code}-${warning.nodeId ?? warning.edgeId ?? index}-${warning.optionId ?? ''}`}>
+            <li key={`${warning.code}-${warning.nodeId ?? warning.edgeId ?? warning.rowId ?? index}-${warning.optionId ?? ''}`}>
               <strong>{warning.blocking ? '확정 차단' : '확인'}</strong> {warning.message}
               {(warning.nodeId !== undefined || warning.edgeId !== undefined) && (
                 <span className="q-muted"> ({warning.nodeId ?? warning.edgeId})</span>
@@ -247,6 +256,13 @@ export function WarningList({
                     onSelect={(sku) => onResolveDevice(warning.nodeId!, sku)}
                   />
                 ))}
+              {isRemoved && (
+                <SearchResolve
+                  label={`${warning.rowId} 다시 연결할 품목 검색`}
+                  catalog={catalog}
+                  onSelect={(sku) => onResolveRow(warning.rowId!, sku)}
+                />
+              )}
             </li>
           );
         })}

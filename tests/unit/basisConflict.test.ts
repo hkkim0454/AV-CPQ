@@ -54,6 +54,18 @@ describe('computeDocumentBasisConflicts — 재열기(기준 미상 자체가 �
     ]);
   });
 
+  it('catalog만 unknown이어도(rule은 멀쩡) 재열기는 충돌로 본다', () => {
+    const doc = baseDoc({ catalog: 'unknown', rule: CURRENT_RULE_VERSION });
+    const conflicts = computeDocumentBasisConflicts(doc, { catalogSha256: 'abc' }, opts);
+    expect(conflicts).toEqual([{ axis: 'catalog', saved: 'unknown', current: 'abc' }]);
+  });
+
+  it('rule만 unknown이어도(catalog는 멀쩡) 재열기는 충돌로 본다', () => {
+    const doc = baseDoc({ catalog: 'abc', rule: 'unknown' });
+    const conflicts = computeDocumentBasisConflicts(doc, { catalogSha256: 'abc' }, opts);
+    expect(conflicts).toEqual([{ axis: 'rule', saved: 'unknown', current: CURRENT_RULE_VERSION }]);
+  });
+
   it('값이 전부 지금과 같으면(unknown도 아니고 일치) 충돌이 없다', () => {
     const doc = baseDoc({ catalog: 'abc', rule: CURRENT_RULE_VERSION });
     expect(computeDocumentBasisConflicts(doc, { catalogSha256: 'abc' }, opts)).toEqual([]);

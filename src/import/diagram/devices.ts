@@ -49,7 +49,16 @@ export type ImportWarningCode =
    * 조용히 대신 계산하지 않는다(독립 검토 지적).
    */
   | 'cable-route-incomplete'
-  | 'edge-endpoint-missing';
+  | 'edge-endpoint-missing'
+  /**
+   * 명시적 재계산(`recalculateWithCurrentBasis`) 중 이미 해소해 둔
+   * 품목(sku)이 **지금 카탈로그에 더는 없다**고 확인됐다(독립 검토
+   * 지적). 옛 단가를 지금 기준인 것처럼 조용히 쓰지 않는다 — `rowId`로
+   * 그 행만 찾아 다시 고르게 한다. nodeId/edgeId/optionId 연결이 없는
+   * 행(직접 추가한 품목 등)도 똑같이 다룰 수 있도록 입구와 무관한
+   * `rowId` 기반 경로 하나로 둔다.
+   */
+  | 'catalog-item-removed';
 
 export interface ImportWarning {
   owner?: 'cable-generation';
@@ -59,6 +68,8 @@ export interface ImportWarning {
   message: string;
   nodeId?: string;
   edgeId?: string;
+  /** `catalog-item-removed` 전용 — 입구(노드/옵션/edge)와 무관하게 그 행 자체를 가리킨다. */
+  rowId?: string;
   /** 같은 연결선 안의 서로 다른 BOM 품목을 구별하는 집계 키. */
   sourceCableKey?: string;
   requiredCableMeters?: string;

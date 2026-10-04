@@ -211,4 +211,22 @@ describe('computeActiveWarnings', () => {
     const warnings: ImportWarning[] = [{ code: 'cable-item-unresolved', blocking: true, message: 'x', edgeId: 'e1' }];
     expect(computeActiveWarnings(document, warnings)).toEqual([]);
   });
+
+  it('catalog-item-removed — 해당 행이 미해결이면 경고가 남는다(독립 검토 지적)', () => {
+    const document = {
+      ...baseDocument(),
+      rows: [itemRow({ rowId: 'r1', systemId: 'S1' })],
+    };
+    const warnings: ImportWarning[] = [{ code: 'catalog-item-removed', blocking: true, message: 'x', rowId: 'r1' }];
+    expect(computeActiveWarnings(document, warnings)).toEqual(warnings);
+  });
+
+  it('catalog-item-removed — 같은 rowId를 다시 해소하면(onResolveRow) 경고가 사라진다', () => {
+    const document = {
+      ...baseDocument(),
+      rows: [itemRow({ rowId: 'r1', systemId: 'S1', sku: 'REPLACEMENT', sellingUnitPrice: '30000' })],
+    };
+    const warnings: ImportWarning[] = [{ code: 'catalog-item-removed', blocking: true, message: 'x', rowId: 'r1' }];
+    expect(computeActiveWarnings(document, warnings)).toEqual([]);
+  });
 });

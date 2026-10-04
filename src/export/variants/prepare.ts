@@ -47,6 +47,16 @@ export interface PrepareInput {
   profileBySystem: ReadonlyMap<string, IndirectProfileId>;
   importWarnings: readonly ImportWarning[];
   wageMode: WageMode;
+  /**
+   * `preserve`에서 labor/wage/template 중 **하나라도** 비어 있으면
+   * 나머지가 멀쩡해도 막는다(독립 검토 지적: 전에는 셋 중 하나만
+   * 적혀 있어도 "기준이 있다"고 보고 나머지는 대조 없이 조용히 채웠다
+   * — 저장된 작업 파일을 재열기할 때 이 틈으로 template 하나만
+   * `'unknown'`인 손상 파일이 통과했다). 저장된 작업 파일을 여는
+   * 경로(`documentOrigin === 'reopened'`)에서만 `true`로 둔다 — 아직
+   * 기준을 하나도 못 박은 새 문서는 전부 `'unknown'`인 게 정상이다.
+   */
+  strictUnknown?: boolean;
 }
 
 export interface PreparedQuote {
@@ -153,8 +163,16 @@ export function prepareQuote(input: PrepareInput): PreparedQuote {
   const currentTemplate = guideTemplateFingerprint(input.guides);
 
   if (input.wageMode === 'preserve') {
-    if (recorded === undefined && recordedTemplate === undefined) {
+    const nothingRecorded = recorded === undefined && recordedTemplate === undefined;
+    const partiallyMissing =
+      input.strictUnknown === true &&
+      (knownVersion(input.document.versions.labor) === undefined ||
+        knownVersion(input.document.versions.wage) === undefined ||
+        recordedTemplate === undefined);
+    if (nothingRecorded || partiallyMissing) {
       // 비어 있다고 최신 기준을 채워 넣으면 그게 조용한 재계산이다.
+      // `strictUnknown`일 때는 셋 중 하나라도 비면 전부 막는다 —
+      // 나머지 둘만 보고 "기준 있음"으로 넘어가지 않는다.
       throw new GuideBasisError(
         '이 견적에는 계산 기준이 적혀 있지 않다. ' +
           '어느 기준으로 만든 것인지 모르는 채로 다시 계산하지 않는다. ' +

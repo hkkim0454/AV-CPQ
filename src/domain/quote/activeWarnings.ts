@@ -63,6 +63,12 @@ function cableRowResolved(document: QuoteDocument, edgeId: string, sourceCableKe
   return rows.length > 0 && rows.every(isFilled);
 }
 
+/** `catalog-item-removed` 전용 — 입구와 무관하게 rowId로 정확히 그 행만 본다. */
+function rowResolved(document: QuoteDocument, rowId: string): boolean {
+  const row = document.rows.find((r): r is ItemRow => r.type === 'item' && r.rowId === rowId);
+  return isFilled(row);
+}
+
 export function computeActiveWarnings(
   document: QuoteDocument,
   warnings: readonly ImportWarning[],
@@ -83,6 +89,12 @@ export function computeActiveWarnings(
     // 케이블 경고 — sourceEdgeIds로 그 구간 행이 채워졌는지 본다.
     if (warning.code === 'cable-item-unresolved' && warning.edgeId !== undefined) {
       return !cableRowResolved(document, warning.edgeId, warning.sourceCableKey);
+    }
+    // 카탈로그에서 사라진 품목(재계산 중 발견) — rowId로 정확히 그
+    // 행만 본다. 독립 검토 지적: 이 코드를 처리하는 분기가 없으면
+    // 아래 "다루지 않는 경고" 쪽으로 빠져 다시 골라도 영원히 안 사라진다.
+    if (warning.code === 'catalog-item-removed' && warning.rowId !== undefined) {
+      return !rowResolved(document, warning.rowId);
     }
     // 아직 이 기능이 다루지 않는 다른 경고(가격 미등록, 배관 등 —
     // 배관은 `computeInstallationWarnings`가 별도로 순수 파생한다)는

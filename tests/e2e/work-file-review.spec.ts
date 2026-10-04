@@ -48,7 +48,11 @@ test('현재 기준 재계산은 버전 이름뿐 아니라 변경된 판매단�
     } },
   });
   await reopen(page, document);
-  await page.getByRole('button', { name: '현재 기준으로 다시 계산', exact: true }).click();
+  await page.getByRole('button', { name: '현재 기준으로 다시 계산 — 미리보기' }).click();
+  // 적용 전 미리보기에 단가 변경 내역이 실제로 보여야 한다 — 버튼만
+  // 누르면 바로 반영되는 게 아니라 복사본→전후차이를 먼저 보여준다.
+  await expect(page.getByText(/합성 테스트 품목.*10000.*20000/)).toBeVisible();
+  await page.getByRole('button', { name: '적용', exact: true }).click();
   const row = page.locator('.q-quote-table tbody tr', { hasText: '합성 테스트 품목' });
   await expect(row.locator('td').nth(6)).toHaveText('20000');
 });

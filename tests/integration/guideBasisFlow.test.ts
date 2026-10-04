@@ -93,7 +93,7 @@ function ordinaryQuote(count = 3): QuoteDocument {
   ).document;
 }
 
-function prepare(document: QuoteDocument, wageMode: WageMode) {
+function prepare(document: QuoteDocument, wageMode: WageMode, strictUnknown = false) {
   const basis = buildGuideBasis({
     ...raws(),
     choice: { kind: 'guide', guide: guide('pumsem') },
@@ -106,6 +106,7 @@ function prepare(document: QuoteDocument, wageMode: WageMode) {
     profileBySystem: new Map(document.systems.map((s) => [s.systemId, 'general'])),
     importWarnings: [],
     wageMode,
+    strictUnknown,
   });
 }
 
@@ -234,6 +235,44 @@ describe('prepareQuote — 기존 기준을 조용히 최신화하지 않는다'
     };
     const prepared = prepare(stale, 'explicit-recalculate');
     expect(prepared.document.versions.template).toBe(guideTemplateFingerprint(allGuides()));
+  });
+
+  describe('strictUnknown(재열기) — labor/wage/template 중 하나만 unknown이어도 막는다(독립 검토 지적)', () => {
+    it('labor만 unknown이면(wage·template은 멀쩡) preserve가 막는다', () => {
+      const first = prepare(ordinaryQuote(), 'initialize-new');
+      const partiallyUnknown: QuoteDocument = {
+        ...first.document,
+        versions: { ...first.document.versions, labor: 'unknown' },
+      };
+      expect(() => prepare(partiallyUnknown, 'preserve', true)).toThrow(/기준이 적혀 있지 않다/);
+    });
+
+    it('wage만 unknown이면(labor·template은 멀쩡) preserve가 막는다', () => {
+      const first = prepare(ordinaryQuote(), 'initialize-new');
+      const partiallyUnknown: QuoteDocument = {
+        ...first.document,
+        versions: { ...first.document.versions, wage: 'unknown' },
+      };
+      expect(() => prepare(partiallyUnknown, 'preserve', true)).toThrow(/기준이 적혀 있지 않다/);
+    });
+
+    it('template만 unknown이면(labor·wage는 멀쩡) preserve가 막는다 — 예전엔 이 틈으로 통과했다', () => {
+      const first = prepare(ordinaryQuote(), 'initialize-new');
+      const partiallyUnknown: QuoteDocument = {
+        ...first.document,
+        versions: { ...first.document.versions, template: 'unknown' },
+      };
+      expect(() => prepare(partiallyUnknown, 'preserve', true)).toThrow(/기준이 적혀 있지 않다/);
+    });
+
+    it('셋 다 멀쩡하면(strictUnknown이어도) preserve가 통과한다', () => {
+      const first = prepare(ordinaryQuote(), 'initialize-new');
+      expect(() => prepare(first.document, 'preserve', true)).not.toThrow();
+    });
+
+    it('새 문서(initialize-new)는 strictUnknown이어도 영향 없다 — 아직 아무 기준도 없는 게 정상이다', () => {
+      expect(() => prepare(ordinaryQuote(), 'initialize-new', true)).not.toThrow();
+    });
   });
 
   it('preserve 에서는 절사 자릿수를 현재 가이드값으로 덮어쓰지 않는다(독립 검토 지적)', () => {

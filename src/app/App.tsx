@@ -270,12 +270,46 @@ export function App() {
                   <h2>계산 기준이 바뀌었습니다</h2>
                   <p>{status.reason}</p>
                   <p className="q-muted">
-                    저장 당시와 다른 기준으로 조용히 다시 계산하지 않습니다. 계속하려면 아래에서
-                    명시적으로 지금 기준으로 다시 계산하세요.
+                    저장 당시와 다른 기준으로 조용히 다시 계산하지 않습니다. 먼저 미리보기로
+                    바뀔 내용을 확인한 뒤 적용하세요.
                   </p>
-                  <button type="button" className="q-button q-primary" onClick={workspace.recalculateWithCurrentBasis}>
-                    현재 기준으로 다시 계산
-                  </button>
+                  {workspace.recalcPreview === undefined ? (
+                    <button type="button" className="q-button q-primary" onClick={workspace.previewRecalculateWithCurrentBasis}>
+                      현재 기준으로 다시 계산 — 미리보기
+                    </button>
+                  ) : (
+                    <div className="q-notice">
+                      <h3>다시 계산하면 바뀌는 내용</h3>
+                      {workspace.recalcPreview.priceChanges.length === 0 ? (
+                        <p>단가가 바뀌는 행은 없습니다.</p>
+                      ) : (
+                        <ul>
+                          {workspace.recalcPreview.priceChanges.map((change) => (
+                            <li key={change.rowId}>
+                              {change.name}: {change.before ?? '미등록'} → {change.after ?? '미등록'}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {workspace.recalcPreview.cableConflict && (
+                        <p role="alert">
+                          케이블 재산출이 수동 수정과 충돌해 적용할 수 없습니다. 케이블 구간 거리
+                          패널에서 먼저 충돌을 해소한 뒤 다시 시도하세요.
+                        </p>
+                      )}
+                      <button
+                        type="button"
+                        className="q-button q-primary"
+                        disabled={workspace.recalcPreview.cableConflict}
+                        onClick={workspace.applyRecalculatedBasis}
+                      >
+                        적용
+                      </button>
+                      <button type="button" className="q-button" onClick={workspace.cancelRecalculateWithCurrentBasis}>
+                        취소
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -289,6 +323,7 @@ export function App() {
                     onResolveOption={workspace.resolveOption}
                     onResolveConduit={workspace.resolveConduit}
                     onResolveCable={workspace.resolveCable}
+                    onResolveRow={workspace.resolveRow}
                   />
                   <QuoteSheet
                     document={status.document}

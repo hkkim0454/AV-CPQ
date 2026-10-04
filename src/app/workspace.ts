@@ -25,6 +25,8 @@ import { calcRouteMeters } from '../domain/quote/installation';
 import {
   applyInstallationPatch,
   computeInstallationWarnings,
+  conduitRowSentinel,
+  CONDUIT_GROUP,
   isConduitSentinel,
   resolveConduitProduct,
   type InstallationPatch,
@@ -49,7 +51,7 @@ export type WorkspaceStatus =
       /**
        * 작업 파일을 저장할 때와 지금 환경의 계산 기준(카탈로그·가이드
        * 템플릿·노임)이 다르다 — 조용히 새 기준으로 계산하지 않는다.
-       * `recalculateWithCurrentBasis`를 명시적으로 불러야 벗어난다
+       * `previewRecalculateWithCurrentBasis`+`applyRecalculatedBasis`를 명시적으로 거쳐야 벗어난다
        * (계획 Task 4, 설계서 §6.3).
        */
       kind: 'basis-conflict';
@@ -69,8 +71,20 @@ export interface Workspace {
    * 나타난다.
    */
   openWorkFile(document: QuoteDocument): void;
-  /** 기준 충돌을 사용자가 명시적으로 승인하고 지금 환경 기준으로 다시 계산한다. */
-  recalculateWithCurrentBasis(): void;
+  /**
+   * 기준 충돌 상태(`basis-conflict`)에서 지금 쓸 후보 문서를 미리
+   * 만든다 — 아직 적용하지 않는다(계획 §「복사본→전후차이→적용」).
+   * 결과는 `recalcPreview`로 나온다.
+   */
+  previewRecalculateWithCurrentBasis(): void;
+  /** 미리 만든 후보를 실제로 적용한다 — 실행취소로 이전 상태로 돌아갈 수 있다. */
+  applyRecalculatedBasis(): void;
+  /** 미리보기를 버린다 — 문서는 그대로다. */
+  cancelRecalculateWithCurrentBasis(): void;
+  /** 지금 미리 계산된 후보(없으면 undefined). */
+  recalcPreview: RecalculationPreview | undefined;
+  /** `catalog-item-removed` 경고 전용 — 입구와 무관하게 그 행만 다시 찾는다. */
+  resolveRow(rowId: string, sku: string): void;
   setQuantity(rowId: string, quantity: string): void;
   setDescription(rowId: string, description: string): void;
   setRemark(rowId: string, remark: string): void;
@@ -170,23 +184,94 @@ function seedDefaultProfile(document: QuoteDocument, guides: Resources['guides']
 /**
  * 명시적 재계산에서만 쓴다 — 이미 품목(sku)을 고른 행을 **지금 카탈로그**
  * 값으로 다시 찾는다(독립 검토 지적: 버전 문자열만 올리고 실제 단가는
- * 그대로 남았었다). 카탈로그에서 사라진 sku는 건드리지 않는다 — 이번
- * 범위에서는 "그대로 둔다"가 최선이고, 어떤 대체를 더 하는 것은 추측이다.
- * 배관 행은 제외한다 — `resolveDevice`와 같은 경계(`isConduitSentinel`)를
- * 지킨다. 배관은 전용 경로(`resolveConduitProduct`)로만 재해소해야
- * 묶음(options.group) 검증이 항상 적용된다.
+ * 그대로 남았었다).
+ *
+ * 배관 행은 그 시스템의 **지금** 배관 종류(묶음)와 실제로 맞는지까지
+ * 확인한 뒤에만 갱신한다 — `resolveConduitProduct`와 같은 검증이다.
+ * 맞지 않으면(묶음이 바뀌었거나 sku 자체가 사라졌으면) 건드리지 않고
+ * 그대로 둔다 — 뒤이어 도는 `applyInstallationPatch`/
+ * `computeInstallationWarnings`가 스스로 다시 검증해 미해결·차단으로
+ * 되돌린다(배관은 이미 그 메커니즘이 있다).
+ *
+ * 배관이 아닌 행의 sku가 카탈로그에서 아예 사라졌으면 **옛 단가를 지금
+ * 기준인 것처럼 쓰지 않는다** — 미해결로 되돌리고(품명·단가·품셈연결을
+ * 지운다) `catalog-item-removed` 경고를 달아 다시 고르게 한다(독립
+ * 검토 지적).
  */
-function refreshResolvedRows(document: QuoteDocument, catalog: Resources['catalog']): QuoteDocument {
-  return {
-    ...document,
-    rows: document.rows.map((r) => {
-      if (r.type !== 'item' || r.sku === undefined) return r;
-      if (r.sourceNodeIds?.some(isConduitSentinel)) return r;
+function refreshResolvedRows(
+  document: QuoteDocument,
+  catalog: Resources['catalog'],
+): { document: QuoteDocument; removedWarnings: readonly ImportWarning[] } {
+  const conduitTypeBySentinel = new Map(
+    document.systems.map((s) => [conduitRowSentinel(s.systemId), s.conduitType ?? 'flexible']),
+  );
+  const removedWarnings: ImportWarning[] = [];
+  const rows = document.rows.map((r) => {
+    if (r.type !== 'item' || r.sku === undefined) return r;
+    const sentinel = r.sourceNodeIds?.find((id) => conduitTypeBySentinel.has(id) && isConduitSentinel(id));
+    if (sentinel !== undefined) {
+      const conduitType = conduitTypeBySentinel.get(sentinel)!;
       const product = catalog.products.find((p) => p.sku === r.sku);
-      if (product === undefined) return r;
-      return withResolvedProduct(r, product, catalog.prices.get(r.sku));
-    }),
+      if (product !== undefined && product.options['group'] === CONDUIT_GROUP[conduitType]) {
+        return withResolvedProduct(r, product, catalog.prices.get(r.sku));
+      }
+      return r;
+    }
+    const product = catalog.products.find((p) => p.sku === r.sku);
+    if (product !== undefined) return withResolvedProduct(r, product, catalog.prices.get(r.sku));
+    const removedSku = r.sku;
+    const { sku: _sku, productId: _productId, sellingUnitPrice: _price, laborMappingId: _laborMappingId, ...rest } =
+      r;
+    removedWarnings.push({
+      code: 'catalog-item-removed',
+      blocking: true,
+      message: `행 '${r.name}'(${removedSku})이 지금 카탈로그에 없다 — 다시 골라야 한다.`,
+      rowId: r.rowId,
+    });
+    return { ...rest, laborMode: 'unresolved' as const };
+  });
+  return { document: { ...document, rows }, removedWarnings };
+}
+
+/** 저장된 케이블 경로(`cableRoutes`)를 **지금 코드(=지금 rule)** 로 다시 돌린다. */
+function regenerateCablesUnderCurrentRule(
+  document: QuoteDocument,
+  catalog: Resources['catalog'],
+): { document: QuoteDocument; conflict: boolean } {
+  if (document.cableSource === undefined) return { document, conflict: false };
+  const generated = regenerateCables(document, catalog, document.cableRoutes ?? []);
+  // resetRowIds를 비워 둔다 — 수동 수정을 함부로 버리지 않는다. 충돌이
+  // 있으면(canApply===false) 이 재계산 전체를 적용하지 않는다(독립
+  // 검토 지적: "입력 부족/충돌 시 차단" — 케이블 패널에서 먼저 해소해야
+  // 한다).
+  const result = rebuildCableRows(document, document.cableBaseline ?? [], generated.rows, { resetRowIds: [] });
+  if (!result.canApply) return { document, conflict: true };
+  return {
+    document: {
+      ...document,
+      rows: result.rows,
+      cableBaseline: result.nextBaselineRows,
+      cableWarnings: generated.warnings,
+    },
+    conflict: false,
   };
+}
+
+/** 배관 입력(거리·줄 수)을 그대로 다시 제출해 **지금 코드**로 수량·행을 재산출한다. */
+function regenerateConduitUnderCurrentRule(document: QuoteDocument, catalog: Resources['catalog']): QuoteDocument {
+  return document.systems.reduce((doc, system) => applyInstallationPatch(doc, system.systemId, {}, catalog), document);
+}
+
+export interface RecalculationPreview {
+  /** 적용하면 될 문서. 아직 history에 들어가지 않았다. */
+  candidate: QuoteDocument;
+  priceChanges: readonly { rowId: string; name: string; before: string | undefined; after: string | undefined }[];
+  /**
+   * 케이블 재산출이 수동 수정과 충돌해 적용하지 못했다 — true면 이
+   * 재계산 전체를 적용할 수 없다(`applyRecalculatedBasis`가 거부한다).
+   * 케이블 구간 거리 패널에서 먼저 충돌을 해소해야 한다.
+   */
+  cableConflict: boolean;
 }
 
 /**
@@ -280,6 +365,10 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
               : document.versions.wage === 'unknown'
                 ? 'initialize-new'
                 : 'preserve',
+          // 재열기는 labor/wage/template 중 하나라도 비면 전부 막는다
+          // (독립 검토 지적) — catalog/rule은 computeDocumentBasisConflicts
+          // 가 이미 `treatUnknownAsConflict`로 같은 규율을 적용한다.
+          strictUnknown: documentOrigin === 'reopened',
         });
         return { kind: 'ok', prepared };
       } catch (err) {
@@ -347,7 +436,7 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     // 저장 문서 전용 진입로다 — `seedDefaultProfile`/`synchronizeMiscMaterials`를
     // 여기서 부르지 않는다(인계 지시). 기준이 지금과 다르면
     // `prepareNow`가 걸러 `status.kind`를 `'basis-conflict'`로 보여준다.
-    // 사용자가 `recalculateWithCurrentBasis`를 명시적으로 골라야 그때
+    // 사용자가 `previewRecalculateWithCurrentBasis`를 명시적으로 골라야 그때
     // 비로소 자동 보정 함수들이 돈다 — 조용한 재계산 금지.
     //
     // `document.importWarnings`(장비·옵션 등, 케이블 생성 소유 제외)를
@@ -359,42 +448,78 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     setHistory({ past: [], present: document, future: [] });
   }, []);
 
-  const recalculateWithCurrentBasis = useCallback(() => {
-    if (basis === undefined || resources === undefined) return;
-    setHistory((h) => {
-      if (h.present === undefined) return h;
-      // 저장 당시 해소해 둔 품목(sku 있는 행)을 **지금 카탈로그**로 다시
-      // 찾아 단가·설명 등을 갱신한다(독립 검토 지적: 이전엔 기준
-      // 문자열만 올리고 실제 단가가 바뀌어도 화면엔 옛 값이 남았다).
-      // 배관(`isConduitSentinel`) 행은 제외한다 — 전용 경로
-      // (`resolveConduitProduct`)만 그 검증 경계를 통과할 수 있다.
-      const refreshed = refreshResolvedRows(h.present, resources.catalog);
-      const seeded = synchronizeMiscMaterials(seedDefaultProfile(refreshed, resources.guides), resources.catalog);
-      // 사용자가 명시적으로 고른 시점에만 저장 당시의 낡은 카탈로그
-      // 기준표를 지금 값으로 올려 적는다 — 그래야 재계산 뒤에도 같은
-      // 충돌이 계속 보이지 않는다. `template`은 `prepareQuote` 자신이
-      // `explicit-recalculate`일 때 올린다(중복 금지). `rule`도 여기서
-      // 올린다 — `prepareQuote`가 모르는 축이다.
-      const withCurrentVersions: QuoteDocument = {
-        ...seeded,
-        versions: { ...seeded.versions, catalog: resources.catalog.sourceSha256, rule: CURRENT_RULE_VERSION },
-      };
-      const first = prepareQuote({
-        document: withCurrentVersions,
-        laborReference: basis.reference,
-        basisVersions: basis.versions,
-        guides: resources.guides,
-        profileBySystem: profileMapOf(withCurrentVersions),
-        importWarnings: [
-          ...computeActiveWarnings(withCurrentVersions, importWarningsFor(withCurrentVersions, allImportWarnings)),
-          ...computeInstallationWarnings(withCurrentVersions, resources.catalog),
-          ...computeMiscMaterialWarnings(withCurrentVersions, resources.catalog),
-        ],
-        wageMode: 'explicit-recalculate',
-      });
-      return { past: [], present: first.document, future: [] };
+  const [recalcPreview, setRecalcPreview] = useState<RecalculationPreview | undefined>(undefined);
+
+  /**
+   * 후보 복사본을 만들 뿐 history를 건드리지 않는다(독립 검토 지적 —
+   * 계획이 요구하는 "복사본→전후차이→적용" 중 앞 두 단계). 실제로
+   * 반영하려면 `applyRecalculatedBasis`를 따로 불러야 한다.
+   */
+  const previewRecalculateWithCurrentBasis = useCallback(() => {
+    if (basis === undefined || resources === undefined || history.present === undefined) return;
+    const present = history.present;
+
+    // 1) 이미 해소된 행을 지금 카탈로그로 다시 찾는다(배관은 전용 검증,
+    //    사라진 sku는 미해결로 되돌리고 경고를 단다).
+    const { document: refreshed, removedWarnings } = refreshResolvedRows(present, resources.catalog);
+    // 2) 케이블/배관을 **지금 코드(=지금 rule)**로 다시 돌린다 —
+    //    rule 버전만 올리고 수량은 예전 그대로 두지 않는다(독립 검토
+    //    지적). 케이블은 수동 수정과 충돌하면 이 재계산 전체를 막는다.
+    const { document: cableRegenerated, conflict: cableConflict } = regenerateCablesUnderCurrentRule(
+      refreshed,
+      resources.catalog,
+    );
+    const conduitRegenerated = regenerateConduitUnderCurrentRule(cableRegenerated, resources.catalog);
+    const seeded = synchronizeMiscMaterials(seedDefaultProfile(conduitRegenerated, resources.guides), resources.catalog);
+    // 사용자가 명시적으로 고른 시점에만 저장 당시의 낡은 카탈로그
+    // 기준표를 지금 값으로 올려 적는다. `template`은 `prepareQuote`
+    // 자신이 `explicit-recalculate`일 때 올린다(중복 금지). `rule`은
+    // 여기서 올린다 — `prepareQuote`가 모르는 축이다.
+    const withCurrentVersions: QuoteDocument = {
+      ...seeded,
+      versions: { ...seeded.versions, catalog: resources.catalog.sourceSha256, rule: CURRENT_RULE_VERSION },
+      // 새로 찾은 `catalog-item-removed` 경고를 문서 자신에 얼린다 —
+      // 저장했다 다시 열어도 해소 UI가 복원되게 한다(§C와 같은 이유).
+      importWarnings: [...(present.importWarnings ?? []), ...removedWarnings],
+    };
+    const prepared = prepareQuote({
+      document: withCurrentVersions,
+      laborReference: basis.reference,
+      basisVersions: basis.versions,
+      guides: resources.guides,
+      profileBySystem: profileMapOf(withCurrentVersions),
+      importWarnings: [
+        ...computeActiveWarnings(
+          withCurrentVersions,
+          importWarningsFor(withCurrentVersions, [...allImportWarnings, ...removedWarnings]),
+        ),
+        ...computeInstallationWarnings(withCurrentVersions, resources.catalog),
+        ...computeMiscMaterialWarnings(withCurrentVersions, resources.catalog),
+      ],
+      wageMode: 'explicit-recalculate',
     });
-  }, [basis, resources, allImportWarnings]);
+
+    const priceChanges = present.rows.flatMap((before) => {
+      if (before.type !== 'item') return [];
+      const after = prepared.document.rows.find((r) => r.rowId === before.rowId);
+      if (after === undefined || after.type !== 'item' || after.sellingUnitPrice === before.sellingUnitPrice) return [];
+      return [{ rowId: before.rowId, name: before.name, before: before.sellingUnitPrice, after: after.sellingUnitPrice }];
+    });
+
+    setRecalcPreview({ candidate: prepared.document, priceChanges, cableConflict });
+  }, [basis, resources, history.present, allImportWarnings]);
+
+  const applyRecalculatedBasis = useCallback(() => {
+    if (recalcPreview === undefined || recalcPreview.cableConflict) return;
+    const candidate = recalcPreview.candidate;
+    setHistory((h) => (h.present === undefined ? h : { past: [...h.past, h.present], present: candidate, future: [] }));
+    setAllImportWarnings(candidate.importWarnings ?? []);
+    setRecalcPreview(undefined);
+  }, [recalcPreview]);
+
+  const cancelRecalculateWithCurrentBasis = useCallback(() => {
+    setRecalcPreview(undefined);
+  }, []);
 
   const commit = useCallback((mutate: (document: QuoteDocument) => QuoteDocument) => {
     setHistory((h) => {
@@ -405,6 +530,20 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
       return { past: [...h.past, h.present], present, future: [] };
     });
   }, [resources]);
+
+  const resolveRow = useCallback(
+    (rowId: string, sku: string) => {
+      if (resources === undefined) return;
+      const product = resources.catalog.products.find((p) => p.sku === sku);
+      if (product === undefined) return;
+      const price = resources.catalog.prices.get(sku);
+      commit((document) => ({
+        ...document,
+        rows: document.rows.map((r) => (r.type === 'item' && r.rowId === rowId ? withResolvedProduct(r, product, price) : r)),
+      }));
+    },
+    [commit, resources],
+  );
 
   const mutateRow = useCallback(
     (rowId: string, patch: (row: QuoteDocument['rows'][number]) => QuoteDocument['rows'][number]) => {
@@ -668,7 +807,11 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     canRedo: history.future.length > 0,
     loadDocument,
     openWorkFile,
-    recalculateWithCurrentBasis,
+    previewRecalculateWithCurrentBasis,
+    applyRecalculatedBasis,
+    cancelRecalculateWithCurrentBasis,
+    recalcPreview,
+    resolveRow,
     setQuantity,
     setDescription,
     setRemark,
