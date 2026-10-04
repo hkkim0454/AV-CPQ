@@ -115,7 +115,7 @@ function canonical(raw: string): string | undefined {
  * 그러면 빈 칸이 남의 값을 가진 것으로 보고된다. 실측으로 빈 칸 여덟 개가
  * 유출로 잡혔다.
  */
-const CELL = /<c([^>]*?)\/>|<c([^>]*)>([\s\S]*?)<\/c>/g;
+const CELL = /<c(?=[ />])([^>]*?)\/>|<c(?=[ />])([^>]*)>([\s\S]*?)<\/c>/g;
 const ATTR = (source: string, name: string): string | undefined =>
   new RegExp('(?:^|[ \t])' + name + '="([^"]*)"').exec(source)?.[1];
 
