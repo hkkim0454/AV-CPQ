@@ -15,7 +15,6 @@ import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import type { LaborBreakdown } from '../../domain/labor/calculateLabor';
 import { buildGuideBase, type GuideWorkbookResult } from '../customer/guideWorkbook';
 import * as F from '../ooxml/guideFormulas';
-import { columnIndex, columnName } from '../ooxml/guideColumns';
 import type { GuideTemplate } from '../ooxml/guideTemplate';
 import type { SharedExport } from './projection';
 
@@ -208,14 +207,6 @@ export function applySharedOverlay(
     const breakdown = shared.details.laborByRow.get(rowId);
     if (breakdown !== undefined) {
       const cells = pumsemCellsOf(breakdown);
-      if (!breakdown.conversionFactor.equals(1)) {
-        // 원본에 환산계수 칸이 없다. 수식으로는 엔진과 같은 값이 안 나온다.
-        // 조용히 다른 값을 내보내지 않는다.
-        throw new SharedWorkbookError(
-          `품셈 ${breakdown.code} 의 환산계수가 1 이 아니다 ` +
-            `(${breakdown.conversionFactor.toFixed()}). 원본 양식에 적을 칸이 없다.`,
-        );
-      }
       put(`${layout.column('pumsemCode')}${row}`, cells.code);
       put(`${layout.column('itemRate')}${row}`, cells.itemRate, true);
       put(`${layout.column('surcharge')}${row}`, cells.surcharge, true);
@@ -228,7 +219,18 @@ export function applySharedOverlay(
         `${layout.column('standardUnitPrice')}${row}`,
         F.standardUnitPrice(amountColumns, row),
       );
-      putFormula(`${layout.column('labor.unit')}${row}`, F.laborUnitPrice(layout, row));
+      putFormula(
+        `${layout.column('labor.unit')}${row}`,
+        F.laborUnitPrice(layout, row, breakdown.conversionFactor.toFixed()),
+      );
+      // 환산계수가 1 이 아니면 수식 안에만 있고 칸으로는 안 보인다.
+      // 노무비 메모 칸에 근거를 남긴다 — 원본이 쓰던 자리다.
+      if (!breakdown.conversionFactor.equals(1)) {
+        put(
+          `${layout.column('laborNote')}${row}`,
+          `환산 ×${breakdown.conversionFactor.toFixed()}`,
+        );
+      }
     }
   }
 
@@ -256,11 +258,16 @@ function pumsemCellsOf(breakdown: LaborBreakdown): PumsemCells {
 }
 
 /**
- * 직종별 품을 쓴다.
+ * 직종별 품과 금액을 쓴다.
  *
- * 직종 블록은 `품 / 금액` 두 칸 묶음이 직종 수만큼 이어진다. 품만 쓰고
- * **금액 칸은 비워 둔다** — 원본에서 금액은 `품 × 3행 노임` 수식이고,
- * 그 수식은 템플릿에 이미 있다.
+ * ## 품이 0 인 직종도 칸을 만든다
+ *
+ * 처음에는 품이 있는 직종만 썼다. 그러면 사용자가 Excel 에서 **비어 있던
+ * 직종에 품을 넣어도** 표준단가 합계가 그 칸을 안 쳐다본다. 금액은 바뀌는데
+ * 노무비는 그대로다 — 고치고도 안 고쳐진 줄 모른다.
+ *
+ * 그래서 **직종 전부** 금액 수식을 넣고 합계도 전부를 묶는다. 품이 없는 칸은
+ * 비워 두므로 금액은 0 이 되고, 사용자가 품을 넣으면 따라온다.
  */
 function writeTrades(
   values: Map<string, CellEntry>,
@@ -269,33 +276,34 @@ function writeTrades(
   row: number,
   breakdown: LaborBreakdown,
 ): string[] {
-  const firstIndex = columnIndex(layout.column('tradeFirst'));
-  const amountColumns: string[] = [];
+  const columns = F.tradeColumns(layout, guide.trades.length);
 
+  // **이름으로 칸을 찾는다.** 품셈의 직종 순서와 가이드의 열 순서가 같다는
+  // 보장이 없다. 순서로 쓰면 보통인부의 품이 통신설비공 칸에 들어가고,
+  // 노임이 달라 금액이 조용히 틀린다.
+  const quantityByTrade = new Map<string, string>();
   for (const trade of breakdown.tradeAmounts) {
     if (trade.quantity.isZero()) continue;
-    // **이름으로 칸을 찾는다.** 품셈의 직종 순서와 가이드의 열 순서가 같다는
-    // 보장이 없다. 순서로 쓰면 보통인부의 품이 통신설비공 칸에 들어가고,
-    // 노임이 달라 금액이 조용히 틀린다.
-    const index = guide.trades.indexOf(trade.trade);
-    if (index === -1) {
-      // 가이드에 없는 직종이다. 아무 칸에나 쓰지 않는다 — 계산 엔진이
-      // 이미 `wage-missing` 으로 출력을 막았다.
-      continue;
+    // 가이드에 없는 직종은 쓸 칸이 없다. 아무 칸에나 넣지 않는다 —
+    // 계산 엔진이 이미 `wage-missing` 으로 출력을 막았다.
+    if (!guide.trades.includes(trade.trade)) continue;
+    quantityByTrade.set(trade.trade, trade.quantity.toFixed());
+  }
+
+  const amountColumns: string[] = [];
+  guide.trades.forEach((trade, index) => {
+    const pair = columns[index]!;
+    const quantity = quantityByTrade.get(trade);
+    if (quantity !== undefined) {
+      values.set(`${pair.quantity}${row}`, { value: quantity, numeric: true });
     }
-    const quantityColumn = columnName(firstIndex + index * 2);
-    const amountColumn = columnName(firstIndex + index * 2 + 1);
-    values.set(`${quantityColumn}${row}`, {
-      value: trade.quantity.toFixed(),
-      numeric: true,
-    });
-    // 금액도 **수식**이다. 품만 쓰고 금액을 비워 두면 근거가 반쪽이 된다.
-    values.set(`${amountColumn}${row}`, {
-      value: F.tradeAmount(quantityColumn, amountColumn, row, WAGE_ROW),
+    // 품이 없어도 금액 수식은 넣는다 — 사용자가 품을 넣으면 따라와야 한다.
+    values.set(`${pair.amount}${row}`, {
+      value: F.tradeAmount(pair.quantity, pair.amount, row, WAGE_ROW),
       numeric: false,
       formula: true,
     });
-    amountColumns.push(amountColumn);
-  }
+    amountColumns.push(pair.amount);
+  });
   return amountColumns;
 }

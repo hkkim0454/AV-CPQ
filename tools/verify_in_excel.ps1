@@ -438,6 +438,56 @@ try {
       }
     }
   }
+
+  # --- 품셈 편집 (0·1단계) ---
+  #
+  # **수량 편집 뒤에 둔다.** 앞에 두면 수량 설정이 먹히지 않는다 — 실측으로
+  # F6 에 1001 을 넣었는데 칸이 비워졌다. 같은 시트를 두 COM 래퍼로 잡고
+  # 번갈아 쓰면 생기는 일로 보인다. 순서를 바꿔 피한다.
+  #
+  # **비어 있던 직종에 품을 넣어도 따라오는가.**
+  # 품이 있는 직종만 수식을 넣으면, 사용자가 빈 직종에 품을 적어도 표준단가
+  # 합계가 그 칸을 안 쳐다본다. 금액은 바뀌는데 노무비는 그대로다 — 고치고도
+  # 안 고쳐진 줄 모른다.
+  if ($null -ne $layout -and $null -ne $layout.pumsemProbe) {
+    $probe = $layout.pumsemProbe
+    $row = [int]$probe.firstItemRow
+
+    $empty = $null
+    foreach ($pair in $probe.tradeColumns) {
+      $value = $detail.Range("$($pair.quantity)$row").Value2
+      if ($null -eq $value -or [double]$value -eq 0) { $empty = $pair; break }
+    }
+
+    if ($null -eq $empty) {
+      Unverified "품셈 편집: $row 행에 비어 있는 직종이 없다"
+    } else {
+      $beforeStandard = [double]$detail.Range($probe.standardUnitPriceCell).Value2
+      $beforeLabor = [double]$detail.Range($probe.laborUnitCell).Value2
+      $detail.Range("$($empty.quantity)$row").Value2 = 1
+      $xl.CalculateFullRebuild()
+      $afterStandard = [double]$detail.Range($probe.standardUnitPriceCell).Value2
+      $afterLabor = [double]$detail.Range($probe.laborUnitCell).Value2
+      $tradeAmount = [double]$detail.Range("$($empty.amount)$row").Value2
+      $wage = [double]$detail.Range("$($empty.amount)3").Value2
+
+      Write-Output ("품셈 편집 ({0}{1}=1): 직종금액 {2} (노임 {3})" -f `
+          $empty.quantity, $row, $tradeAmount, $wage)
+      Write-Output ("  표준단가 {0} -> {1}   노무단가 {2} -> {3}" -f `
+          $beforeStandard, $afterStandard, $beforeLabor, $afterLabor)
+
+      if ($tradeAmount -ne $wage) {
+        Fail "빈 직종에 품 1을 넣었는데 직종 금액이 노임과 다르다"
+      }
+      if ($afterStandard -ne ($beforeStandard + $wage)) {
+        Fail "빈 직종의 품이 표준단가 합계에 반영되지 않았다"
+      }
+      if ($afterLabor -eq $beforeLabor) {
+        Fail "빈 직종의 품이 노무비 단가에 반영되지 않았다"
+      }
+    }
+  }
+
 } catch {
   if ("$($_.Exception.Message)" -ne 'open-failed') {
     # 검증 도중 터진 예외를 "오류 0개"로 흘려보내지 않는다.

@@ -127,6 +127,32 @@ function exportedCover(
   };
 }
 
+/** 직종 블록의 `품 / 금액` 열 짝. 검증기가 빈 직종을 찾아 품을 넣어 본다. */
+function tradeProbeColumns(
+  layout: ReturnType<typeof selectGuide> extends never ? never : any,
+  guide: ReturnType<typeof guideOf>,
+): Array<{ quantity: string; amount: string }> {
+  const first = layout.column('tradeFirst') as string;
+  const index = [...first].reduce(
+    (acc: number, ch: string) => acc * 26 + (ch.charCodeAt(0) - 64),
+    0,
+  );
+  const name = (at: number): string => {
+    let out = '';
+    let rest = at;
+    while (rest > 0) {
+      const rem = (rest - 1) % 26;
+      out = String.fromCharCode(65 + rem) + out;
+      rest = Math.floor((rest - 1) / 26);
+    }
+    return out;
+  };
+  return guide.trades.map((_trade, i) => ({
+    quantity: name(index + i * 2),
+    amount: name(index + i * 2 + 1),
+  }));
+}
+
 const SITE = '합성 현장 A동';
 const DATE = '2026-10-04';
 
@@ -289,6 +315,18 @@ function build(profile: IndirectProfileId, level: OutputLevel, itemCount: number
         coverAmountTextCell: 'C8',
         grandTotalRow: layout.grandTotalRow,
         printArea: layout.printArea,
+        // 0·1단계 품셈 편집 검증용 — 비어 있던 직종에 품을 넣어도
+        // 표준단가와 노무비가 따라오는지 본다.
+        ...(level === 2
+          ? {}
+          : {
+              pumsemProbe: {
+                firstItemRow: layout.itemRows[0]!.row,
+                standardUnitPriceCell: `${layout.column('standardUnitPrice')}${layout.itemRows[0]!.row}`,
+                laborUnitCell: `${layout.column('labor.unit')}${layout.itemRows[0]!.row}`,
+                tradeColumns: tradeProbeColumns(layout, guide),
+              },
+            }),
       },
       null,
       2,

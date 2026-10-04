@@ -198,6 +198,29 @@ export function standardUnitPrice(amountColumns: readonly string[], row: number)
   return `SUM(${amountColumns.map((column) => `${column}${row}`).join(',')})`;
 }
 
+/** 가이드의 직종 블록 전체 — `품 / 금액` 두 칸 묶음이 직종 수만큼. */
+export function tradeColumns(
+  layout: GuideSheetLayout,
+  tradeCount: number,
+): Array<{ quantity: string; amount: string }> {
+  const first = layout.column('tradeFirst');
+  const index = [...first].reduce((acc, ch) => acc * 26 + (ch.charCodeAt(0) - 64), 0);
+  const name = (at: number): string => {
+    let out = '';
+    let rest = at;
+    while (rest > 0) {
+      const rem = (rest - 1) % 26;
+      out = String.fromCharCode(65 + rem) + out;
+      rest = Math.floor((rest - 1) / 26);
+    }
+    return out;
+  };
+  return Array.from({ length: tradeCount }, (_unused, i) => ({
+    quantity: name(index + i * 2),
+    amount: name(index + i * 2 + 1),
+  }));
+}
+
 /**
  * 노무비 단가 — `=INT(SUM((R6*S6),S6)*Q6)`.
  *
@@ -205,15 +228,29 @@ export function standardUnitPrice(amountColumns: readonly string[], row: number)
  * 계산 엔진의 `excelInt(표준단가 × (1+surcharge) × itemRate × conversionFactor)`
  * 와 같아야 한다.
  *
- * **환산계수(conversionFactor)는 원본에 칸이 없다.** 1 이 아니면 이 수식으로는
- * 엔진과 달라지므로 호출부가 막는다.
+ * ## 환산계수에 칸이 없을 때
+ *
+ * 원본 양식에는 환산계수 칸이 없다. 그렇다고 **막지 않는다** — 그러면 지금까지
+ * 되던 품목이 안 되게 된다. 대신 계수를 **수식 안에 그대로 적는다.**
+ * 수식에 보이므로 근거가 사라지지도 않는다.
+ *
+ * ```
+ * 계수 1     =INT(SUM((R6*S6),S6)*Q6)         원본 그대로
+ * 계수 0.5   =INT(SUM((R6*S6),S6)*Q6*0.5)     한 칸 더
+ * ```
+ *
+ * 배포 품셈 1,331건은 전부 계수 1 이라 실제로는 첫 꼴만 나온다.
  */
 export function laborUnitPrice(
   layout: GuideSheetLayout,
   row: number,
+  conversionFactor = '1',
 ): string {
   const surcharge = layout.column('surcharge');
   const standard = layout.column('standardUnitPrice');
   const itemRate = layout.column('itemRate');
-  return `INT(SUM((${surcharge}${row}*${standard}${row}),${standard}${row})*${itemRate}${row})`;
+  const base = `INT(SUM((${surcharge}${row}*${standard}${row}),${standard}${row})*${itemRate}${row}`;
+  const factor = Number(conversionFactor);
+  // `1` 이면 원본 수식과 글자까지 같게 둔다. 공연히 달라 보이면 사람이 의심한다.
+  return factor === 1 ? `${base})` : `${base}*${conversionFactor})`;
 }
