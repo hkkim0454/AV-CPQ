@@ -486,14 +486,11 @@ test('미해결 모델/옵션 — 후보 선택·검색 연결로 실제 원인�
   await page.getByLabel('unknown-1 연결할 품목 검색').fill('E2E 테스트 품목');
   await page.getByRole('button', { name: '연결' }).click();
 
-  // 이 구성도는 배관(Flexible Conduit) 행도 자동으로 만든다 — 그건 이
-  // 기능(미해결 모델/옵션)이 다루는 경고가 아니므로 그대로 남아야
-  // 한다. "관련 없는 경고가 조용히 같이 지워지지 않는다"를 바로 그
-  // 경고로 확인한다.
+  // 둘 다 해소됐고, 이 구성도에는 다른 미해결 경고가 없다 — 배관은
+  // 더는 가져오기 시점에 자동으로 생기지 않는다(결정 D8 보강. 구성도에는
+  // 거리가 없어 설치 패널에서 거리를 입력해야 생긴다).
   const warningPanelAfterResolve = page.getByRole('alert').filter({ hasText: '확인이 필요합니다' });
-  await expect(warningPanelAfterResolve).not.toContainText('AMB-MODEL');
-  await expect(warningPanelAfterResolve).not.toContainText('NOPE-MODEL-XYZ');
-  await expect(warningPanelAfterResolve).toContainText('배관');
+  await expect(warningPanelAfterResolve).toHaveCount(0);
 
   // --- 실행취소 — 검색 연결만 되돌아가고, 후보 선택은 그대로 유지된다 ---
   await page.getByRole('button', { name: '실행 취소' }).click();

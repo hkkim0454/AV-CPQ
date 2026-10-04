@@ -239,6 +239,10 @@ export interface IndirectCostRule {
   source: string;
 }
 
+/** 배관 종류 — 후렉시블(기본) 또는 CD관(결정 D22). 케이블 트레이도
+ *  배관 분류이지만 기타자재 비율이 아직 미정(O25)이라 선택지에 없다. */
+export type ConduitType = 'flexible' | 'cd';
+
 export interface QuoteSystem {
   systemId: string;
   /**
@@ -260,6 +264,18 @@ export interface QuoteSystem {
   remark: string;
   /** 간접비 규칙. 시스템마다 다를 수 있다. */
   indirectCosts: IndirectCostRule[];
+
+  /**
+   * 배관 입력 (계획 Task 3, 결정 D8 보강). `indirectProfileId`와 같은
+   * 이유로 문서 안에 둔다 — 별도 state로 두면 실행취소가 문서만
+   * 되돌리고 이 값은 그대로 남아 수량이 어긋난다(이전에 프로파일에서
+   * 실제로 겪은 결함과 같은 모양).
+   */
+  farthestDeviceMeters?: DecimalText;
+  conduitRuns?: DecimalText;
+  conduitType?: ConduitType;
+  /** 퍼센트 문자열(`'20'`). 계산용 분수가 아니라 화면 입력 그대로다. */
+  conduitMaterialRate?: DecimalText;
 }
 
 /** 갑지의 로마자 구역 행 (`Ⅰ  사무3동 6층 CLEAN IEC 룸`). */

@@ -15,6 +15,7 @@ import { indirectCostsFor, type IndirectProfileId } from '../export/ooxml/guideT
 import { toRow } from '../domain/quote/buildDocument';
 import { computeActiveWarnings } from '../domain/quote/activeWarnings';
 import { withResolvedProduct } from '../domain/quote/resolveProduct';
+import { applyInstallationPatch, conduitRowSentinel, type InstallationPatch } from '../domain/quote/installation';
 import type { QuoteDocument, QuoteHeader } from '../domain/quote/types';
 import type { ImportWarning } from '../import/diagram/devices';
 import type { Resources } from './resources';
@@ -54,6 +55,11 @@ export interface Workspace {
   resolveDevice(nodeId: string, sku: string): void;
   /** 옵션 카드 경고를 해소한다 — optionId로 정확히 그 옵션 행만 찾는다. */
   resolveOption(optionId: string, sku: string): void;
+  /**
+   * 배관 입력(거리·줄 수·종류·기타자재 비율)을 바꾸고, 유효하면 배관
+   * 행과 `배관 기타자재` 파생행을 재산출한다(`installation.ts`).
+   */
+  setInstallationInput(systemId: string, patch: InstallationPatch): void;
   undo(): void;
   redo(): void;
 }
@@ -347,6 +353,27 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     [commit, resources],
   );
 
+  const setInstallationInput = useCallback(
+    (systemId: string, patch: InstallationPatch) => {
+      if (resources === undefined) return;
+      let warning: ImportWarning | undefined;
+      commit((document) => {
+        const result = applyInstallationPatch(document, systemId, patch, resources.catalog);
+        warning = result.warning;
+        return result.document;
+      });
+      // 거리·줄 수가 아직 없으면 `applyInstallationPatch`가 행을 만들지
+      // 않으므로 경고도 없다 — 그 경우 이전에 이미 만들어진 행(과 그
+      // 경고)은 그대로 둔다(입력을 지웠다고 기존 미해결 행을 지우지
+      // 않는다). 경고가 있으면 같은 표식(`nodeId`)의 이전 경고만 지우고
+      // 새로 교체한다 — 재산출마다 쌓이지 않는다.
+      if (warning === undefined) return;
+      const sentinel = conduitRowSentinel(systemId);
+      setAllImportWarnings((prev) => [...prev.filter((w) => w.nodeId !== sentinel), warning!]);
+    },
+    [commit, resources],
+  );
+
   const removeRow = useCallback(
     (rowId: string) => {
       commit((document) => ({
@@ -393,6 +420,7 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     removeRow,
     resolveDevice,
     resolveOption,
+    setInstallationInput,
     undo,
     redo,
   };

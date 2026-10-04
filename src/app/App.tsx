@@ -19,6 +19,7 @@ import { CoverSheet } from '../features/worksheet/CoverSheet';
 import { QuoteSheet } from '../features/worksheet/QuoteSheet';
 import { IndirectPanel } from '../features/worksheet/IndirectPanel';
 import { WarningList } from '../features/worksheet/WarningList';
+import { InstallationPanel } from '../features/installation/InstallationPanel';
 
 type LoadState = { kind: 'loading' } | ResourcesResult;
 
@@ -195,6 +196,14 @@ export function App() {
                     onRemarkChange={workspace.setRemark}
                     onRemoveRow={workspace.removeRow}
                   />
+                  {status.document.systems.map((system) => (
+                    <InstallationPanel
+                      key={system.systemId}
+                      system={system}
+                      document={status.document}
+                      onChange={(patch) => workspace.setInstallationInput(system.systemId, patch)}
+                    />
+                  ))}
                   {status.document.systems.map((system) => {
                     const calc = status.prepared.priced.calculation.systems.find(
                       (s) => s.systemId === system.systemId,

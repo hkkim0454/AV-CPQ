@@ -5,8 +5,10 @@
  * 품목 직접 선택 경로가 같은 함수를 쓰므로, 두 입구가 같은 문서 모양으로 모인다
  * (결정 D7 보강).
  *
- * 행 순서는 견적서 관행을 따른다:
- * **장비(+옵션 카드) → 케이블 → 커넥터 → 배관.**
+ * 행 순서는 견적서 관행을 따른다: **장비(+옵션 카드) → 케이블 → 커넥터.**
+ * 배관은 여기 없다 — 구성도에는 거리가 없어(결정 D8) 가져오기 시점에
+ * 만들 수 없다. 설치 패널에서 거리·줄 수를 입력한 뒤
+ * `applyInstallationPatch`(`domain/quote/installation.ts`)가 만든다.
  */
 import type { DecimalText, QuoteDocument, QuoteHeader } from '../../domain/quote/types';
 import {
@@ -120,11 +122,7 @@ export function diagramToQuote(
   const cableResult = buildCableLines(diagram, catalog);
   warnings.push(...cableResult.warnings);
 
-  const derivedResult = buildDerivedLines(
-    cableResult.lines,
-    systemOrder.length,
-    catalog,
-  );
+  const derivedResult = buildDerivedLines(cableResult.lines, catalog);
   warnings.push(...derivedResult.warnings);
 
   const systems: QuoteSystemInput[] = systemOrder.map((systemName, index) => {

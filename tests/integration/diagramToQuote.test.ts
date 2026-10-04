@@ -92,13 +92,16 @@ function itemNames(result: ReturnType<typeof diagramToQuote>): string[] {
 }
 
 describe('구성도 → 견적 문서', () => {
-  it('장비·케이블·커넥터·배관이 이 순서로 들어간다', () => {
+  it('장비·케이블·커넥터가 이 순서로 들어간다', () => {
+    // 배관은 여기 없다 — 구성도에는 거리가 없어 가져오기 시점에 만들 수
+    // 없다(결정 D8). `domain/quote/installation.ts`의
+    // `applyInstallationPatch`가 거리·줄 수 입력 후 따로 만든다.
     const names = itemNames(diagramToQuote(fixture(), parts(), options));
     const at = (p: string) => names.findIndex((n) => n.includes(p));
     expect(at('PTZ')).toBeGreaterThanOrEqual(0);
     expect(at('PTZ')).toBeLessThan(at('UTP'));
     expect(at('UTP')).toBeLessThan(at('Connector'));
-    expect(at('Connector')).toBeLessThan(at('Conduit'));
+    expect(at('Conduit')).toBe(-1);
   });
 
   it('두 번 불러도 결과가 같다 — 수량이 누적되지 않는다 (설계서 §7.3)', () => {
