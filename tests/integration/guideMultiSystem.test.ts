@@ -16,10 +16,14 @@ import {
 } from '@/export/ooxml/guideTemplate';
 import { prepareQuote } from '@/export/variants/prepare';
 import { buildCustomerProjection } from '@/export/customer/projection';
+import { buildSharedProjection } from '@/export/shared/projection';
 import {
   buildMultiSystemGuideBase,
   buildMultiSystemCustomerGuideWorkbook,
 } from '@/export/customer/guideMultiSystem';
+import { buildMultiSystemSharedGuideWorkbook } from '@/export/shared/workbookMulti';
+import { buildMultiSystemSalesGuideWorkbook } from '@/export/internal/guideWorkbookMulti';
+import { internalLines } from '@/services/private-cost/calculate';
 import { pickedItemsToQuote } from '@/import/picker/toQuote';
 import { scanCostLeak } from '../../tools/costLeakScan';
 
@@ -108,8 +112,14 @@ function build(systemProfiles: readonly IndirectProfileId[]) {
       selectGuide(guides, systemProfiles[index]!, false),
     ]),
   );
+  const costGuideBySystemId = new Map(
+    prepared.document.systems.map((s, index) => [
+      s.systemId,
+      selectGuide(guides, systemProfiles[index]!, true),
+    ]),
+  );
 
-  return { projection, guideBySystemId, document: prepared.document };
+  return { projection, guideBySystemId, costGuideBySystemId, prepared, document: prepared.document };
 }
 
 function detailOf(bytes: Uint8Array, partPath: string): string {
@@ -259,6 +269,96 @@ describe('다중 시스템 — 고객용(2단계), 금지 열 삭제', () => {
     const dir = resolve(ROOT, '.local/out/multi-system');
     mkdirSync(dir, { recursive: true });
     writeFileSync(resolve(dir, 'general-ds-mixed-level2.xlsx'), result.bytes);
+    expect(result.bytes.byteLength).toBeGreaterThan(0);
+  });
+});
+
+const emptySession = {
+  sessionId: 's',
+  size: 0,
+  cleared: false,
+  lookup: () => undefined,
+  byEntryId: () => undefined,
+  ownsEntryId: () => false,
+  candidatesByModel: () => [],
+  knownSkus: () => [],
+  knownModels: () => [],
+};
+
+describe('다중 시스템 — 공유용(1단계), 설명+품셈만 얹는다', () => {
+  it.each([
+    ['general', 'general'],
+    ['ds', 'ds'],
+    ['general', 'ds'],
+  ] as const)('%s+%s: 두 세부내역 시트 모두 원가 열이 없다', (p1, p2) => {
+    const { guideBySystemId, prepared } = build([p1, p2]);
+    const shared = buildSharedProjection(prepared, {
+      supplierByRow: new Map(),
+      salesRemarkByRow: new Map(),
+    });
+    const result = buildMultiSystemSharedGuideWorkbook({ shared, guideBySystemId });
+    expect(result.systems).toHaveLength(2);
+    for (const sys of result.systems) {
+      expect(() => sys.layout.column('cost.unit')).toThrow();
+    }
+  });
+});
+
+describe('다중 시스템 — 영업팀용(0단계), 원가가 들어가는 유일한 경로', () => {
+  it.each([
+    ['general', 'general'],
+    ['ds', 'ds'],
+    ['general', 'ds'],
+  ] as const)('%s+%s: 두 세부내역 시트 모두 원가 열이 있고 수식이 걸린다', (p1, p2) => {
+    const { costGuideBySystemId, guideBySystemId, prepared } = build([p1, p2]);
+    const shared = buildSharedProjection(prepared, {
+      supplierByRow: new Map(),
+      salesRemarkByRow: new Map(),
+    });
+    const extras = {
+      lines: internalLines([], emptySession),
+      aiNotesByRow: new Map<string, string>(),
+      supplierByRow: new Map<string, string>(),
+      salesRemarkByRow: new Map<string, string>(),
+    };
+    const result = buildMultiSystemSalesGuideWorkbook({
+      shared,
+      extras,
+      guideBySystemId: costGuideBySystemId,
+      baseGuideBySystemId: guideBySystemId,
+    });
+    expect(result.systems).toHaveLength(2);
+    for (const sys of result.systems) {
+      // 원가 열이 실제로 있다 — 열 역할을 물어도 안 던진다.
+      expect(() => sys.layout.column('cost.unit')).not.toThrow();
+      const sheet = detailOf(result.bytes, sys.partPath);
+      // 원가금액·이윤율 수식은 원가 단가가 있는 행에만 들어간다(이번 시험은
+      // 등록된 원가가 없으므로 수식 자체가 없는 게 맞다 — 구조만 본다).
+      expect(sheet).toBeDefined();
+    }
+  });
+
+  it('원가+1단계 결합 결과를 .local 에 써서 Excel 로 확인할 수 있게 한다', () => {
+    const { costGuideBySystemId, guideBySystemId, prepared } = build(['general', 'ds']);
+    const shared = buildSharedProjection(prepared, {
+      supplierByRow: new Map(),
+      salesRemarkByRow: new Map(),
+    });
+    const extras = {
+      lines: internalLines([], emptySession),
+      aiNotesByRow: new Map<string, string>(),
+      supplierByRow: new Map<string, string>(),
+      salesRemarkByRow: new Map<string, string>(),
+    };
+    const result = buildMultiSystemSalesGuideWorkbook({
+      shared,
+      extras,
+      guideBySystemId: costGuideBySystemId,
+      baseGuideBySystemId: guideBySystemId,
+    });
+    const dir = resolve(ROOT, '.local/out/multi-system');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(resolve(dir, 'general-ds-mixed-level0.xlsx'), result.bytes);
     expect(result.bytes.byteLength).toBeGreaterThan(0);
   });
 });

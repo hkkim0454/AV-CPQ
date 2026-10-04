@@ -61,7 +61,7 @@ function escapeXml(value: string): string {
  *
  * 순서가 어긋나면 Excel 이 복구를 요구한다.
  */
-function overwrite(
+export function overwrite(
   sheetXml: string,
   valuesByRef: ReadonlyMap<string, { value: string; numeric: boolean }>,
 ): string {
@@ -206,7 +206,7 @@ export function buildSalesGuideWorkbook(
 }
 
 /** 원가 금액·이윤율 수식을 넣은 칸. 유출 검사가 출처를 알아야 한다. */
-function rowsWithCostFormulas(
+export function rowsWithCostFormulas(
   layout: GuideWorkbookResult['layout'],
   values: ReadonlyMap<string, { value: string; numeric: boolean }>,
 ): Set<string> {
@@ -228,7 +228,7 @@ function rowsWithCostFormulas(
  * **원가 단가가 있는 행에만** 넣는다. 없는 행에 수식을 넣으면 0 으로 나누기가
  * 되거나 0 원이 되어, 원가가 없는 것과 공짜인 것이 같아 보인다.
  */
-function addCostFormulas(
+export function addCostFormulas(
   sheetXml: string,
   layout: GuideWorkbookResult['layout'],
   values: ReadonlyMap<string, { value: string; numeric: boolean }>,
