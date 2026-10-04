@@ -541,7 +541,14 @@ function buildCoverSheet(
 // 패키지
 // ---------------------------------------------------------------------------
 
-interface SheetEntry {
+/**
+ * 통합문서를 다시 쓰는 데 필요한 시트 한 장의 정보.
+ *
+ * `rebuildWorkbookXml`·`rebuildWorkbookRels`·`rebuildContentTypes` 는
+ * 이 모양만 알면 되므로, 다중 시스템 가이드 조립(`guideMultiSystem.ts`)도
+ * 그대로 재사용한다 — "sheetId·관계·Content_Types 갱신"을 두 번 짓지 않는다.
+ */
+export interface SheetEntry {
   name: string;
   path: string;
   relId: string;
@@ -555,7 +562,7 @@ function serializeWithDeclaration(doc: XmlDocument): string {
   return serializeXml(doc);
 }
 
-function rebuildWorkbookXml(workbook: XmlDocument, sheets: readonly SheetEntry[]): string {
+export function rebuildWorkbookXml(workbook: XmlDocument, sheets: readonly SheetEntry[]): string {
   const root = workbook.root;
   root.children = root.children.filter(
     (c) => c.tag !== 'sheets' && c.tag !== 'definedNames' && c.tag !== 'externalReferences',
@@ -608,7 +615,7 @@ function rebuildWorkbookXml(workbook: XmlDocument, sheets: readonly SheetEntry[]
   return serializeWithDeclaration(workbook);
 }
 
-function rebuildWorkbookRels(rels: XmlDocument, sheets: readonly SheetEntry[]): string {
+export function rebuildWorkbookRels(rels: XmlDocument, sheets: readonly SheetEntry[]): string {
   const WORKSHEET_TYPE =
     'http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet';
 
@@ -632,7 +639,7 @@ function rebuildWorkbookRels(rels: XmlDocument, sheets: readonly SheetEntry[]): 
   return serializeWithDeclaration(rels);
 }
 
-function rebuildContentTypes(
+export function rebuildContentTypes(
   contentTypes: XmlDocument,
   sheets: readonly SheetEntry[],
 ): string {
@@ -651,7 +658,7 @@ function rebuildContentTypes(
 }
 
 /** `xl/worksheets/sheet1.xml` → `xl/worksheets/_rels/sheet1.xml.rels` */
-function relsPathOf(partPath: string): string {
+export function relsPathOf(partPath: string): string {
   const at = partPath.lastIndexOf('/');
   return `${partPath.slice(0, at)}/_rels${partPath.slice(at)}.rels`;
 }
