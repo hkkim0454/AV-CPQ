@@ -23,6 +23,7 @@ import {
   columnIndex,
   columnName,
   deleteSheetColumns,
+  pruneSharedStrings,
 } from '../ooxml/guideColumns';
 import {
   blank,
@@ -39,6 +40,14 @@ export interface GuideWorkbookResult {
   bytes: Uint8Array;
   layout: GuideSheetLayout;
   sheetNames: { cover: string; detail: string };
+  /**
+   * 생성기가 **값을 쓴 칸.** `xl/worksheets/sheet2.xml!J15` 꼴.
+   *
+   * 유출 검사가 "이 숫자가 여기 있는 게 정상인가"를 가리는 데 쓴다.
+   * 값 목록으로 봐주면 같은 숫자가 금지 칸에 있어도 통과한다 —
+   * 독립 검토에서 그대로 재현됐다.
+   */
+  writtenCells: ReadonlySet<string>;
 }
 
 export class GuideWorkbookError extends Error {
@@ -50,6 +59,25 @@ export class GuideWorkbookError extends Error {
 
 const DETAIL_PART = 'xl/worksheets/sheet2.xml';
 const COVER_PART = 'xl/worksheets/sheet1.xml';
+
+/** 갑지에서 생성기가 채우는 칸. */
+const COVER_CELLS = [
+  'C2',
+  'C3',
+  'C4',
+  'C5',
+  'C6',
+  'B10',
+  'C10',
+  'C11',
+  'D11',
+  'E11',
+  'F11',
+  'G11',
+  // 템플릿이 계산하는 칸 — 합계와 절사.
+  'H11',
+  'H12',
+] as const;
 
 /** `0.0486` → `4.86`. 원본이 퍼센트 표기를 쓴다. */
 function ratePercent(rate: string): string {
@@ -115,8 +143,12 @@ export function buildGuideBase(
   const calcByRowId = new Map(calculation.rows.map((r) => [r.rowId, r]));
 
   const contentByRow = new Map<number, RowContent>();
+  const written = new Set<string>();
   const put = (row: number, cells: Record<string, CellValue>): void => {
     contentByRow.set(row, new Map(Object.entries(cells)));
+    for (const column of Object.keys(cells)) {
+      written.add(`${DETAIL_PART}!${column}${row}`);
+    }
   };
 
   // --- 품목 ---
@@ -256,6 +288,7 @@ export function buildGuideBase(
   );
 
   // 갑지 — 공사명과 세부내역 합계 참조.
+  for (const ref of COVER_CELLS) written.add(`${COVER_PART}!${ref}`);
   const cover = files[COVER_PART];
   if (cover !== undefined) {
     patched[COVER_PART] = strToU8(
@@ -281,6 +314,7 @@ export function buildGuideBase(
     bytes: zipSync(ordered),
     layout,
     sheetNames: guide.sheets,
+    writtenCells: written,
   };
 }
 
@@ -413,6 +447,16 @@ function stripInternalColumns(
     );
   }
 
+  // **공유 문자열도 추려야 한다.** 칸을 지워도 글자는 표에 남는다 —
+  // 실측으로 고객용 파일의 공유 문자열에서 '제조사/구매처'와 '영업비고'가 나왔다.
+  const asText: Record<string, string> = {};
+  for (const [name, bytes] of Object.entries(patched)) {
+    if (name.endsWith('.xml')) asText[name] = strFromU8(bytes);
+  }
+  for (const [name, xml] of Object.entries(pruneSharedStrings(asText))) {
+    patched[name] = strToU8(xml);
+  }
+
   const ordered: Record<string, Uint8Array> = {
     '[Content_Types].xml': patched['[Content_Types].xml']!,
   };
@@ -433,9 +477,26 @@ function stripInternalColumns(
     return columnName(after);
   };
 
+  // 쓴 칸 목록도 새 주소로 옮긴다. 안 옮기면 유출 검사가 지우기 전 주소를
+  // 보고 멀쩡한 칸을 유출로 잡는다.
+  const movedCells = new Set<string>();
+  for (const cell of base.writtenCells) {
+    const [part, ref] = cell.split('!') as [string, string];
+    if (part !== DETAIL_PART) {
+      movedCells.add(cell);
+      continue;
+    }
+    const column = ref.replace(/\d+$/, '');
+    const row = ref.slice(column.length);
+    const moved = stripped.map.get(columnIndex(column));
+    if (moved === undefined) continue; // 지워진 칸
+    movedCells.add(`${part}!${columnName(moved)}${row}`);
+  }
+
   return {
     ...base,
     bytes: zipSync(ordered),
+    writtenCells: movedCells,
     layout: {
       ...layout,
       printArea: `A1:${lastColumn}${layout.grandTotalRow}`,

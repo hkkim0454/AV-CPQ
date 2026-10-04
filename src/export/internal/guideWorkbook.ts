@@ -191,7 +191,35 @@ export function buildSalesGuideWorkbook(
     if (name !== '[Content_Types].xml') ordered[name] = bytes;
   }
 
-  return { ...base, bytes: zipSync(ordered) };
+  return {
+    ...base,
+    bytes: zipSync(ordered),
+    writtenCells: new Set([
+      ...base.writtenCells,
+      ...[...values.keys()].map((ref) => `${DETAIL_PART}!${ref}`),
+      // 원가 금액과 이윤율 수식을 넣은 칸.
+      ...[...rowsWithCostFormulas(layout, values)].map(
+        (ref) => `${DETAIL_PART}!${ref}`,
+      ),
+    ]),
+  };
+}
+
+/** 원가 금액·이윤율 수식을 넣은 칸. 유출 검사가 출처를 알아야 한다. */
+function rowsWithCostFormulas(
+  layout: GuideWorkbookResult['layout'],
+  values: ReadonlyMap<string, { value: string; numeric: boolean }>,
+): Set<string> {
+  const costUnit = layout.column('cost.unit');
+  const out = new Set<string>();
+  for (const ref of values.keys()) {
+    if (!ref.startsWith(costUnit)) continue;
+    const row = Number.parseInt(ref.slice(costUnit.length), 10);
+    if (Number.isNaN(row)) continue;
+    out.add(`${layout.column('cost.amount')}${row}`);
+    out.add(`${layout.column('profit')}${row}`);
+  }
+  return out;
 }
 
 /**

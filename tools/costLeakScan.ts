@@ -10,6 +10,16 @@
  * (`buildCustomerProjection`은 `PrivateCostSession`을 인자로 받지 않는다 — 설계서
  * §10.4, `audit-exports.mjs` 6번 규칙), 그건 이미 있다. 이것은 보조다.
  *
+ * ## 값이 아니라 **칸**으로 가른다
+ *
+ * 처음에는 "정당하게 들어갈 수 있는 값"이면 어디에 있든 봐주었다.
+ * 그건 못 쓴다 — 같은 숫자가 판매가 칸(A1)에도 있고 금지 칸(Z1)에도 있으면
+ * 둘 다 통과한다. 독립 검토에서 그대로 재현됐다.
+ *
+ * 이제 **어느 칸이 판매측인지**를 받는다. 같은 값이라도 그 칸이면 정상이고
+ * 아니면 유출이다. 마진 0 제품은 판매가 칸에 있으니 통과하고, 품셈 블록이나
+ * 인쇄 영역 밖에 같은 값이 나오면 걸린다.
+ *
  * ## 왜 느슨하게 만들었나
  *
  * 처음 판은 고객용 파일에서 **35종을 찾았고 전부 오경보**였다.
@@ -52,7 +62,7 @@ export const FORBIDDEN_WORDS = [
 ] as const;
 
 export interface LeakFinding {
-  kind: 'cost-value' | 'forbidden-word';
+  kind: 'cost-value' | 'forbidden-word' | 'forbidden-part';
   part: string;
   /** 셀 주소. 셀이 아니면 없다. */
   ref?: string;
@@ -64,12 +74,25 @@ export interface ScanInput {
   /** 대조할 원가 값. 이 배열은 호출부 메모리에만 있고 어디에도 쓰지 않는다. */
   costValues: readonly string[];
   /**
-   * 정당하게 들어갈 수 있는 값 — 판매단가, 계산된 금액, 합계, 수량 등.
+   * **판매측 숫자가 정당하게 들어가는 칸.** `xl/worksheets/sheet2.xml!J15` 꼴.
    *
-   * 이게 없으면 마진 0 제품과 우연히 일치한 금액이 전부 오경보가 된다.
+   * 값 목록이 아니라 **칸 목록**이다. 값으로 봐주면 같은 숫자가 금지 칸에
+   * 있어도 통과한다 — 그게 이전 판의 구멍이었다.
+   *
+   * 호출부가 만든다. 생성기가 어느 칸에 판매단가·금액·합계를 썼는지 알기
+   * 때문이다. 모르면 빈 집합을 넘겨 **전부 검사**하면 된다.
    */
-  allowedValues: readonly string[];
+  allowedCells: ReadonlySet<string>;
 }
+
+/**
+ * 고객용 통합문서에 **있으면 안 되는 파트.**
+ *
+ * 메모·사용자 지정 XML·외부 링크·매크로는 열어 보지 않으면 모른다.
+ * 숫자를 뒤지기 전에 파트 목록부터 본다.
+ */
+const FORBIDDEN_PARTS =
+  /comments|threadedComment|person|customXml|docProps\/custom|externalLink|vbaProject|oleObject|embeddings/i;
 
 /** `"1,234,567.00"` → `"1234567"`. 표기가 달라도 같은 값으로 본다. */
 function canonical(raw: string): string | undefined {
@@ -84,8 +107,15 @@ function canonical(raw: string): string | undefined {
   return negative && out !== '0' ? `-${out}` : out;
 }
 
-/** 워크시트의 `<c>` 를 훑는다. 정규식이지만 **셀 요소 안**만 본다. */
-const CELL = /<c\b([^>]*)>([\s\S]*?)<\/c>|<c\b([^>]*)\/>/g;
+/**
+ * 워크시트의 `<c>` 를 훑는다. 정규식이지만 **셀 요소 안**만 본다.
+ *
+ * **자기닫기 꼴을 먼저 둔다.** 뒤에 두면 빈 칸이 여닫이 분기에 먼저 걸려
+ * `[^>]*` 가 `/` 를 먹고, 본문 분기가 **다음 셀의 값까지** 삼킨다.
+ * 그러면 빈 칸이 남의 값을 가진 것으로 보고된다. 실측으로 빈 칸 여덟 개가
+ * 유출로 잡혔다.
+ */
+const CELL = /<c([^>]*?)\/>|<c([^>]*)>([\s\S]*?)<\/c>/g;
 const ATTR = (source: string, name: string): string | undefined =>
   new RegExp('(?:^|[ \t])' + name + '="([^"]*)"').exec(source)?.[1];
 
@@ -93,14 +123,15 @@ function scanWorksheet(
   part: string,
   xml: string,
   costs: ReadonlySet<string>,
-  allowed: ReadonlySet<string>,
+  allowedCells: ReadonlySet<string>,
   findings: LeakFinding[],
 ): void {
   CELL.lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = CELL.exec(xml)) !== null) {
-    const attrs = match[1] ?? match[3] ?? '';
-    const body = match[2] ?? '';
+    // 1번 그룹 = 자기닫기 속성, 2·3번 = 여닫이 속성·본문.
+    const attrs = match[1] ?? match[2] ?? '';
+    const body = match[3] ?? '';
     const ref = ATTR(attrs, 'r');
     const type = ATTR(attrs, 't');
 
@@ -118,8 +149,9 @@ function scanWorksheet(
     if (raw === undefined) continue;
     const value = canonical(raw);
     if (value === undefined) continue;
-    if (allowed.has(value)) continue; // 정당하게 들어갈 수 있는 값
     if (!costs.has(value)) continue;
+    // **칸으로 가린다.** 같은 값이라도 판매측 칸이면 정상, 아니면 유출이다.
+    if (ref !== undefined && allowedCells.has(`${part}!${ref}`)) continue;
     findings.push({ kind: 'cost-value', part, ...(ref !== undefined ? { ref } : {}) });
   }
 }
@@ -145,19 +177,21 @@ export function scanCostLeak(bytes: Uint8Array, input: ScanInput): LeakFinding[]
   const costs = new Set(
     input.costValues.map(canonical).filter((v): v is string => v !== undefined),
   );
-  const allowed = new Set(
-    input.allowedValues.map(canonical).filter((v): v is string => v !== undefined),
-  );
-
   const files = unzipSync(bytes);
   const findings: LeakFinding[] = [];
+
+  for (const part of Object.keys(files)) {
+    if (FORBIDDEN_PARTS.test(part)) {
+      findings.push({ kind: 'forbidden-part', part });
+    }
+  }
 
   for (const [part, raw] of Object.entries(files)) {
     if (!part.endsWith('.xml')) continue;
     const xml = strFromU8(raw);
 
     if (/^xl\/worksheets\/sheet\d+\.xml$/.test(part)) {
-      scanWorksheet(part, xml, costs, allowed, findings);
+      scanWorksheet(part, xml, costs, input.allowedCells, findings);
       continue;
     }
 

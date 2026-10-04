@@ -2,6 +2,8 @@
 
 확인일: 2026-10-03
 
+사용자 재확정(2026-10-04): 사용자가 직접 제작한 RTCOM `https://seoulav.github.io/rtcom-configurator/#matrix-configurator`와 LED `https://hkkim0454.github.io/svt-led-calculator/src/index.html`의 디자인을 그대로 계승해 앱 간 통일감을 유지한다. 아래 대응표를 화면 구현 기준으로 사용한다. 기존 사례 선택, 원가 파일 불러오기, 공수·노임·적용률 관리 화면에도 같은 글꼴·색상·버튼·입력창·패널·간격을 적용한다. 실제 화면 검수 전 디자인 일치 완료로 보고하지 않는다.
+
 ## 1. 기준 화면과 소스
 
 | # | 앱 | 공개 URL | 로컬 소스 (확인한 경로) | 역할 |

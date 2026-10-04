@@ -228,3 +228,63 @@ export function deleteSheetColumns(input: DeleteColumnsInput): {
 
   return { sheetXml: out, map, lastColumn };
 }
+
+/**
+ * 안 쓰이는 공유 문자열을 버리고 색인을 다시 매긴다.
+ *
+ * ## 칸을 지워도 글자는 남는다
+ *
+ * 열을 지우면 `<c t="s"><v>37</v></c>` 같은 셀이 사라지지만, 37번 자리의
+ * **문자열 자체는 공유 문자열 표에 그대로** 있다. 실측으로 고객용 파일에서
+ * `제조사/구매처` 와 `영업비고` 가 거기서 나왔다. 시트에는 없는데 파일에는
+ * 있는 것이다 — 평택 원본 감사에서 인쇄 영역 밖 메모가 나온 것과 같은 종류다.
+ *
+ * @returns 바뀐 파트만. 공유 문자열 표가 없으면 빈 객체.
+ */
+export function pruneSharedStrings(
+  parts: Readonly<Record<string, string>>,
+): Record<string, string> {
+  const table = parts['xl/sharedStrings.xml'];
+  if (table === undefined) return {};
+
+  const entries = [...table.matchAll(/<si(?:\s[^>]*)?>[\s\S]*?<\/si>|<si\s*\/>/g)].map(
+    (m) => m[0],
+  );
+  if (entries.length === 0) return {};
+
+  const sheetNames = Object.keys(parts).filter((name) =>
+    /^xl\/worksheets\/sheet\d+\.xml$/.test(name),
+  );
+
+  // `t="s"` 셀이 가리키는 색인만 모은다.
+  const used = new Set<number>();
+  const cellRe = /<c [^>]*\/>|<c [^>]*>[\s\S]*?<\/c>/g;
+  for (const name of sheetNames) {
+    for (const cell of parts[name]!.matchAll(cellRe)) {
+      if (!/\bt="s"/.test(cell[0])) continue;
+      const index = Number.parseInt(/<v>(\d+)<\/v>/.exec(cell[0])?.[1] ?? '', 10);
+      if (!Number.isNaN(index)) used.add(index);
+    }
+  }
+
+  const order = [...used].sort((a, b) => a - b);
+  const remap = new Map(order.map((old, next) => [old, next]));
+
+  const out: Record<string, string> = {};
+  for (const name of sheetNames) {
+    out[name] = parts[name]!.replace(cellRe, (cell) => {
+      if (!/\bt="s"/.test(cell)) return cell;
+      const index = Number.parseInt(/<v>(\d+)<\/v>/.exec(cell)?.[1] ?? '', 10);
+      const moved = remap.get(index);
+      if (moved === undefined) return cell;
+      return cell.replace(/<v>\d+<\/v>/, `<v>${moved}</v>`);
+    });
+  }
+
+  const kept = order.map((index) => entries[index] ?? '<si><t></t></si>').join('');
+  out['xl/sharedStrings.xml'] =
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"' +
+    ` count="${order.length}" uniqueCount="${order.length}">${kept}</sst>`;
+  return out;
+}

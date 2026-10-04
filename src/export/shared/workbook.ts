@@ -245,7 +245,16 @@ export function applySharedOverlay(
     if (name !== '[Content_Types].xml') ordered[name] = bytes;
   }
 
-  return { ...base, bytes: zipSync(ordered) };
+  return {
+    ...base,
+    bytes: zipSync(ordered),
+    writtenCells: new Set([...base.writtenCells, ...values.keys()].map(withPart)),
+  };
+}
+
+/** 칸 주소에 파트 이름을 붙인다. 이미 붙어 있으면 그대로. */
+function withPart(ref: string): string {
+  return ref.includes('!') ? ref : `${DETAIL_PART}!${ref}`;
 }
 
 function pumsemCellsOf(breakdown: LaborBreakdown): PumsemCells {
