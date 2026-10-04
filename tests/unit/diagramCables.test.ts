@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { bulkUnits, buildCableLines, snapToStep } from '@/import/diagram/cables';
+import type { RouteInput } from '@/domain/quote/installation';
 import { cat, diagram, edge, node } from '../fixtures/diagram';
 import type { DiagramBomRow } from '@/import/diagram/types';
+import type { Catalog, CatalogProduct } from '@/data/catalog/load';
 
 /** 계획 2026-10-04 Task 4, 결정 D8 규칙 1. */
 
@@ -356,5 +358,111 @@ describe('최종 검토 — 길이가 조용히 뭉개지지 않는다', () => {
     const result = buildCableLines(d, cat());
     expect(result.lines[0]!.quantity).toBeUndefined();
     expect(result.warnings.some((w) => w.blocking)).toBe(true);
+  });
+});
+
+describe('RouteInput — 실측 거리가 있으면 그걸 쓴다(결정 D8 보강)', () => {
+  function familyCatalog(): Catalog {
+    const family = (sku: string, meters: string): CatalogProduct => ({
+      productId: sku,
+      sku,
+      brand: '',
+      model: sku,
+      quoteName: 'HDMI Cable',
+      quoteSpec: `Aluminum shell injection molding 2.0v ${meters}M`,
+      unit: 'EA',
+      options: { group: 'CS_HDMI 케이블' },
+      currency: 'KRW',
+      evidence: 'review-required',
+    });
+    return cat(
+      [family('HDMI-1', '1'), family('HDMI-3', '3'), family('HDMI-5', '5')],
+      { 'HDMI-1': '10000', 'HDMI-3': '15000', 'HDMI-5': '20000' },
+    );
+  }
+
+  const twoNodeDiagram = (edges: Parameters<typeof diagram>[1]) =>
+    diagram([node('n1', 'A', 'SRG-X40UH'), node('n2', 'B', 'XDM-12')], edges);
+
+  it('완제품 — 경로 계산 거리로 다시 계단을 구해 같은 묶음에서 그 길이의 제품을 찾는다', () => {
+    const route: RouteInput = {
+      edgeId: 'e1',
+      systemId: 's1',
+      source: 'measured-route',
+      horizontalMeters: '2',
+      riseMeters: '0',
+      dropMeters: '0',
+    }; // 2 × 1.3 = 2.6m → 3m 계단
+    const d = twoNodeDiagram([
+      edge('e1', 'n1', 'n2', 'video', {
+        bomRows: [{ cableType: 'ready-made', productName: 'HDMI-1', length: '1', quantity: '1' }],
+      }),
+    ]);
+    const result = buildCableLines(d, familyCatalog(), new Map([['e1', route]]));
+    expect(result.lines[0]).toMatchObject({ sku: 'HDMI-3', specification: expect.stringContaining('3M') });
+    // BOM.length(제품 규격) 원본 문구는 바뀌지 않는다 — 새로 찾은 제품의
+    // 규격을 그대로 쓴 것이지, 기존 글자에 새 길이만 붙인 게 아니다.
+    expect(result.lines[0]!.specification).not.toContain('1M');
+  });
+
+  it('완제품 — 계단에 맞는 제품을 묶음에서 못 찾으면 확인 필요로 남긴다(기존 SKU에 새 길이만 붙이지 않는다)', () => {
+    const route: RouteInput = {
+      edgeId: 'e1',
+      systemId: 's1',
+      source: 'confirmed-total',
+      confirmedTotalMeters: '9',
+    }; // 9m → 10m 계단, 이 묶음에는 10M 제품이 없다
+    const d = twoNodeDiagram([
+      edge('e1', 'n1', 'n2', 'video', {
+        bomRows: [{ cableType: 'ready-made', productName: 'HDMI-1', length: '1', quantity: '1' }],
+      }),
+    ]);
+    const result = buildCableLines(d, familyCatalog(), new Map([['e1', route]]));
+    expect(result.lines[0]!.sku).toBeUndefined();
+    expect(result.lines[0]!.specification).toBe('10m');
+    expect(result.warnings.some((w) => w.blocking && w.edgeId === 'e1')).toBe(true);
+  });
+
+  it('벌크 — 경로 계산 거리(측정값 보정)를 원본 bomRow 길이 대신 합산에 쓴다', () => {
+    const route: RouteInput = {
+      edgeId: 'e1',
+      systemId: 's1',
+      source: 'measured-route',
+      horizontalMeters: '10',
+      riseMeters: '0',
+      dropMeters: '0',
+    }; // 10 × 1.3 = 13m → ceil(13/10) = 2
+    const d = twoNodeDiagram([
+      edge('e1', 'n1', 'n2', 'network', {
+        bomRows: [{ cableType: 'manufactured', productName: 'UTP Cable (CAT6)', length: '999', quantity: '1' }],
+      }),
+    ]);
+    const result = buildCableLines(d, cat(), new Map([['e1', route]]));
+    expect(result.lines[0]!.totalMeters).toBe('13');
+    expect(result.lines[0]!.quantity).toBe('2');
+  });
+
+  it('벌크 — confirmed-total은 재보정 없이 그대로 합산된다', () => {
+    const route: RouteInput = { edgeId: 'e1', systemId: 's1', source: 'confirmed-total', confirmedTotalMeters: '21' };
+    const d = twoNodeDiagram([
+      edge('e1', 'n1', 'n2', 'network', {
+        bomRows: [{ cableType: 'manufactured', productName: 'UTP Cable (CAT6)', length: '1', quantity: '1' }],
+      }),
+    ]);
+    const result = buildCableLines(d, cat(), new Map([['e1', route]]));
+    expect(result.lines[0]!.totalMeters).toBe('21');
+    expect(result.lines[0]!.quantity).toBe('3'); // ceil(21/10)
+  });
+
+  it('경로 입력이 없는 구간은 기존 bomRow 길이를 그대로 쓴다 — 역산하지 않는다', () => {
+    const d = twoNodeDiagram([
+      edge('e1', 'n1', 'n2', 'network', {
+        bomRows: [{ cableType: 'manufactured', productName: 'UTP Cable (CAT6)', length: '12', quantity: '1' }],
+      }),
+    ]);
+    const withoutRoutes = buildCableLines(d, cat());
+    const withEmptyRouteMap = buildCableLines(d, cat(), new Map());
+    expect(withoutRoutes.lines[0]!.totalMeters).toBe('12');
+    expect(withEmptyRouteMap.lines[0]!.totalMeters).toBe('12');
   });
 });

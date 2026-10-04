@@ -13,11 +13,30 @@
  * 실물 샘플이 그렇다 — `edges[].data.bomRows`가 전부 비어 있다.
  * 선을 무시하면 **케이블 없는 견적**이 나간다. 선 종류별로 행을 만들되
  * 수량을 비우고 확정을 막는다 (설계서 §7.5).
+ *
+ * ## 구간 거리(`RouteInput`) — 있으면 쓰고, 없으면 기존 그대로다
+ *
+ * `routes`(edgeId → `RouteInput`)는 설치 패널에서 사람이 입력한 실측
+ * 거리다(`domain/quote/installation.ts`의 `calcRouteMeters` — 결정
+ * D8: measured-route는 `(수평+입상+입하)×1.3`, confirmed-total은
+ * 재보정 없이 그대로). 아직 입력하지 않은 구간은 이 맵에 없고, 그
+ * 구간은 지금처럼 `bomRows[].length`(원본 값, 실물 샘플에서는 거의
+ * 늘 비어 있다)를 그대로 쓴다 — **경로 입력이 없다고 제품 길이로
+ * 거리를 역산하지 않는다.**
+ *
+ * 경로 거리가 있으면:
+ * - **벌크**는 그 거리를 합산에 쓴다(보정 전 원본 길이 대신).
+ * - **완제품**은 그 거리로 다시 계단을 구하고, **원래 맞은 제품과 같은
+ *   품셈 묶음(`options.group`)에서 그 계단 길이의 SKU를 다시 찾는다.**
+ *   `BOM.length`(제품 규격)는 바꾸지 않는다 — 찾아낸 제품의 SKU·규격·
+ *   가격을 통째로 쓴다. 그 길이의 제품을 묶음에서 찾지 못하면 **확인
+ *   필요로 남긴다** — 기존 SKU에 새 길이 글자만 붙이지 않는다.
  */
 import type { DecimalText } from '../../domain/quote/types';
-import type { Catalog } from '../../data/catalog/load';
+import type { Catalog, CatalogProduct } from '../../data/catalog/load';
 import { Decimal, dec, text } from '../../domain/calculation/rounding';
-import { matchByModel } from './matchCatalog';
+import { matchByModel, type MatchResult } from './matchCatalog';
+import { calcRouteMeters, type RouteInput } from '../../domain/quote/installation';
 import type { ImportWarning } from './devices';
 import type { DiagramBomRow, DiagramFile } from './types';
 
@@ -90,9 +109,39 @@ function toNumber(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+/** `quoteSpec`/`quoteName`에서 `…1M`/`…1m` 꼴의 길이 토큰을 읽는다. */
+const LENGTH_TOKEN = /(\d+(?:\.\d+)?)\s*[Mm]\b/;
+
+function lengthOf(product: CatalogProduct): number | undefined {
+  const found = LENGTH_TOKEN.exec(product.quoteSpec) ?? LENGTH_TOKEN.exec(product.quoteName);
+  return found !== null ? Number(found[1]) : undefined;
+}
+
+/**
+ * 원래 맞은 제품과 **같은 품셈 묶음**에서 `step`(m) 길이의 제품을
+ * 찾는다. 묶음이 없거나(원래부터 미매칭) 그 길이의 제품이 묶음에
+ * 없으면 `undefined` — 호출부가 확인 필요로 남긴다.
+ */
+export function findReadyMadeAtStep(
+  catalog: Catalog,
+  original: CatalogProduct | undefined,
+  step: number,
+): CatalogProduct | undefined {
+  const group = original?.options['group'];
+  if (group === undefined) return undefined;
+  return catalog.products.find((p) => p.options['group'] === group && lengthOf(p) === step);
+}
+
+function matchFor(product: CatalogProduct | undefined, catalog: Catalog): MatchResult {
+  if (product === undefined) return { matchedBy: 'none' };
+  const price = catalog.prices.get(product.sku);
+  return { product, ...(price !== undefined ? { sellingUnitPrice: price } : {}), matchedBy: 'model-fragment' };
+}
+
 export function buildCableLines(
   diagram: DiagramFile,
   catalog: Catalog,
+  routes: ReadonlyMap<string, RouteInput> = new Map(),
 ): BuildCableLinesResult {
   const warnings: ImportWarning[] = [];
   const lines: CableLine[] = [];
@@ -168,14 +217,42 @@ export function buildCableLines(
       continue;
     }
 
+    // 이 구간의 실측 거리 — 아직 입력 안 했으면 undefined(기존 bomRow
+    // 길이를 그대로 쓴다). source별 계산(D8)은 calcRouteMeters가 한다.
+    const route = routes.get(edge.id);
+    const routeMeters = route !== undefined ? calcRouteMeters(route) : undefined;
+
     for (const row of rows) {
       const productName = row.productName?.trim() ?? '';
       if (productName === '') continue;
 
-      const match = matchByModel(productName, catalog);
+      const originalMatch = matchByModel(productName, catalog);
       const bulk = isBulk(row);
       const count = toNumber(row.quantity, 1);
-      const meters = toNumber(row.length, 0);
+      const meters = routeMeters !== undefined ? Number(routeMeters) : toNumber(row.length, 0);
+
+      // 완제품이고 실측 거리가 있으면, 원래 맞은 제품의 품셈 묶음에서
+      // 그 거리에 맞는 계단 길이의 SKU를 다시 찾는다. BOM.length(제품
+      // 규격)는 바꾸지 않는다 — 찾아낸 제품의 SKU·규격·가격을 통째로
+      // 쓰거나, 못 찾으면 확인 필요로 남긴다(기존 SKU에 새 길이
+      // 글자만 붙이지 않는다).
+      const reroutedProduct =
+        !bulk && routeMeters !== undefined
+          ? findReadyMadeAtStep(catalog, originalMatch.product, snapToStep(meters))
+          : undefined;
+      const rerouted = !bulk && routeMeters !== undefined;
+      const match = rerouted ? matchFor(reroutedProduct, catalog) : originalMatch;
+
+      if (rerouted && reroutedProduct === undefined) {
+        warnings.push({
+          code: 'cable-item-unresolved',
+          blocking: true,
+          message:
+            `'${productName}' 구간의 실측 거리(${routeMeters}m → ${snapToStep(meters)}m 계단)에 맞는 ` +
+            '제품을 같은 묶음에서 찾지 못했다. 품목을 다시 확인해야 한다.',
+          edgeId: edge.id,
+        });
+      }
 
       // 완제품은 **길이가 다르면 다른 품목이다.** 길이를 키에서 빼면
       // 3m 구간과 15m 구간이 한 행으로 합쳐지고, 먼저 온 쪽 길이가 남아
