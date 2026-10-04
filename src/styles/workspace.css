@@ -1,0 +1,46 @@
+/*
+ * 본문 작업면 — 안내/오류 배너, 입구 카드. 견적 표 자체는 Task 2에서
+ * 이어 만든다(§4 파일 책임 — 이 파일이 그 표의 스크롤/반응형까지 맡는다).
+ */
+.q-notice {
+  padding: 12px 15px;
+  margin: 0 0 16px;
+  background: var(--q-tint);
+  color: var(--q-accent);
+  border-radius: var(--q-r-chip);
+  font-size: 13px;
+}
+
+.q-notice-error {
+  background: var(--q-v-no-tint);
+  color: var(--q-v-no-ink);
+  border: 1px solid var(--q-v-no-border);
+}
+
+.q-notice-error h2 {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: var(--q-fw-medium);
+}
+
+.q-notice-error ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.q-card {
+  border: 1px solid var(--q-line);
+  background: var(--q-bg);
+  padding: 20px;
+  border-radius: var(--q-r-card);
+}
+
+.q-card h3 {
+  margin: 0 0 8px;
+  font-weight: var(--q-fw-medium);
+}
+
+.q-muted {
+  color: var(--q-muted);
+  font-size: 13px;
+}

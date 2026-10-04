@@ -1,7 +1,15 @@
-﻿// 진입점 자리표시자. 화면은 단계 3에서 만든다 (docs/stage-status.md).
-// 지금은 빌드 파이프라인(배포 데이터 복사)을 검증하기 위한 최소 진입점이다.
-const root = document.getElementById("root");
-if (root !== null) {
-  root.textContent = "AV 견적 — 화면은 단계 3에서 만든다.";
-}
-export {};
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import { App } from './app/App';
+import './styles/tokens.css';
+import './styles/base.css';
+import './styles/workspace.css';
+
+const root = document.getElementById('root');
+if (root === null) throw new Error('#root 요소를 찾지 못했다.');
+
+createRoot(root).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+);

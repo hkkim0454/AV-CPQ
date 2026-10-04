@@ -4,6 +4,7 @@ coverage/
 test-results/
 playwright-report/
 .superpowers/
+*.tsbuildinfo
 
 # 원본 분석 산출물 — 구조 분석용 중간 파일은 저장소에 넣지 않는다 (설계서 §4.5)
 docs/template/_raw-*.txt

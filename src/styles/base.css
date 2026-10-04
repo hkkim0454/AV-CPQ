@@ -1,0 +1,222 @@
+/*
+ * 공통 리셋 + 셸(헤더/툴바/본문 카드) — RTCOM `.rt-top`/`.rt-workspace`/
+ * `.rt-main` 구조 계승 (docs/design/reference-map.md §3).
+ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--q-font);
+  color: var(--q-ink);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+.q-page {
+  min-height: 100%;
+  background-color: var(--q-page-bg);
+  background-image: var(--q-page-wash);
+  background-attachment: fixed;
+  padding: 18px;
+}
+
+.q-shell {
+  max-width: var(--q-max-w);
+  margin: 0 auto;
+}
+
+.q-top,
+.q-workspace,
+.q-main {
+  background: var(--q-glass-fill);
+  border: 1px solid var(--q-glass-stroke);
+  box-shadow: var(--q-glass-shadow);
+  backdrop-filter: var(--q-glass-blur);
+}
+
+.q-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 0 var(--q-gutter);
+  padding: var(--q-pad-shell);
+  border-radius: var(--q-r-shell);
+}
+
+.q-brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.q-brand-mark {
+  display: grid;
+  place-items: center;
+  width: 50px;
+  height: 50px;
+  border-radius: 15px;
+  background: var(--q-mark-grad);
+  color: #fff;
+  font-size: 20px;
+  font-weight: 800;
+  box-shadow: var(--q-mark-shadow);
+}
+
+.q-brand {
+  font-size: 23px;
+  font-weight: var(--q-fw-strong);
+  letter-spacing: -0.7px;
+}
+
+.q-brand span {
+  color: var(--q-accent);
+}
+
+.q-brand-sub {
+  display: block;
+  margin-top: 6px;
+  color: var(--q-muted);
+  font-size: 9px;
+  font-weight: var(--q-fw-medium);
+  letter-spacing: 1.55px;
+}
+
+.q-meta {
+  padding: 8px 14px;
+  border-radius: var(--q-r-pill);
+  background: var(--q-soft);
+  text-align: right;
+  line-height: 1.35;
+  font-size: 12px;
+  color: var(--q-muted);
+}
+
+.q-meta b {
+  font-weight: 700;
+  color: var(--q-accent);
+}
+
+.q-workspace {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 12px var(--q-gutter) 0;
+  padding: 10px 16px;
+  border-radius: var(--q-r-panel);
+}
+
+.q-tools {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.q-button {
+  border: 0;
+  border-radius: var(--q-r-pill);
+  background: var(--q-btn-face);
+  color: var(--q-btn-ink);
+  font-weight: var(--q-fw-medium);
+  font-size: 12px;
+  min-height: var(--q-h-control);
+  padding: 10px 17px;
+  cursor: pointer;
+}
+
+.q-button:hover:not(:disabled) {
+  background: var(--q-btn-face-hover);
+  color: var(--q-btn-ink-hover);
+}
+
+.q-button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.q-button:focus-visible {
+  outline: 3px solid var(--q-accent);
+  outline-offset: 3px;
+}
+
+.q-button.q-primary {
+  background: var(--q-cta);
+  color: var(--q-cta-ink);
+  box-shadow: 0 9px 20px #4a6fe82b;
+}
+
+.q-grade {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--q-muted);
+}
+
+.q-grade-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.q-grade-option input {
+  accent-color: var(--q-accent);
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
+.q-main {
+  margin: 12px var(--q-gutter) 16px;
+  padding: var(--q-pad-main);
+  border-radius: var(--q-r-main);
+  min-height: 420px;
+}
+
+@media (max-width: 720px) {
+  .q-page {
+    padding: 0;
+  }
+  .q-top,
+  .q-workspace,
+  .q-main {
+    margin-left: 0;
+    margin-right: 0;
+    border-radius: 0;
+  }
+  .q-main {
+    padding: 20px 16px;
+  }
+}
+
+@media (pointer: coarse) {
+  .q-button,
+  .q-grade-option input {
+    min-height: var(--q-h-touch);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
