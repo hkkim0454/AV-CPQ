@@ -611,7 +611,12 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     let beforeTotal: string | undefined;
     if (laborWageUnchanged) {
       try {
-        beforeTotal = priceQuote(present, basis.reference).calculation.cover.finalTotal.toString();
+        const beforePriced = priceQuote(present, basis.reference);
+        // 기준이 같아도 계산 자체가 막혔으면(예: 품셈이 못 다루는
+        // 직종) 그 합계는 신뢰할 수 있는 "완결된 계산"이 아니다 —
+        // 일부가 빠지거나 0으로 깔린 값일 수 있다. 숫자를 보여주는
+        // 대신 재현 불가로 둔다(독립 검토 지적).
+        beforeTotal = beforePriced.blocking ? undefined : beforePriced.calculation.cover.finalTotal.toString();
       } catch {
         beforeTotal = undefined;
       }

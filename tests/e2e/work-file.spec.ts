@@ -145,12 +145,14 @@ test('재계산은 미리보기→취소(원본 유지)→다시 미리보기→
   const conflict = page.getByRole('alert').filter({ hasText: '계산 기준이 바뀌었습니다' });
   await expect(conflict).toBeVisible();
 
-  // 1) 미리보기 — 아직 적용 전, 편집 화면은 뜨지 않는다. labor/wage는
-  // 저장 당시와 같으니(카탈로그만 바뀜) 이전 합계를 실제로 재현해
-  // 보여줘야 한다 — "재현할 수 없습니다"가 아니다(독립 검토 지적).
+  // 1) 미리보기 — 아직 적용 전, 편집 화면은 뜨지 않는다. 이 합성
+  // 품목은 품셈 연결이 없어(labor-mappings.json 기본 fixture가
+  // 비어 있다) 계산 자체가 blocking이다 — labor/wage가 저장 당시와
+  // 같아도 "이전 합계"는 완결된 계산이 아니므로 재현 불가로 보여야
+  // 한다(아래 beforeTotal의 blocking 검사, 독립 검토 지적).
   await conflict.getByRole('button', { name: '현재 기준으로 다시 계산 — 미리보기' }).click();
   await expect(conflict.getByText(/10000.*20000/)).toBeVisible();
-  await expect(conflict.getByText('이전 기준을 재현할 수 없습니다')).toHaveCount(0);
+  await expect(conflict.getByText('이전 기준을 재현할 수 없습니다', { exact: false })).toBeVisible();
   await expect(page.locator('.q-quote-table')).toHaveCount(0);
 
   // 2) 취소 — 원본 그대로, 충돌도 그대로다.
@@ -334,6 +336,50 @@ test('케이블 가격만 바뀌고 수동 수정이 없으면 재계산이 가�
   await expect(page.locator('.q-quote-table tbody tr', { hasText: '합성 HDMI' }).locator('td').nth(6)).toHaveText('200');
 });
 
+test('계산이 막히지 않고 labor/wage도 그대로면 이전 합계를 실제로 재현해 보여준다(독립 검토 지적)', async ({ page }) => {
+  await mockResources(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: '품목 직접 선택' }).click();
+  await page.getByLabel('품목 검색').fill('합성 테스트 품목');
+  await page.getByRole('button', { name: '추가', exact: true }).click();
+  await page.getByRole('button', { name: '견적 만들기' }).click();
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: '작업 파일로 저장' }).click(),
+  ]);
+  const saved = JSON.parse(readFileSync((await download.path())!, 'utf8')) as {
+    rows: Array<{ type: string; laborMode?: string; manualLaborUnitPrice?: string; overrideReason?: string }>;
+  };
+  // 기본 fixture 품목은 품셈 연결이 없어 laborMode:'unresolved'로
+  // blocking이다(의도된 동작 — 모르면 노무비를 0으로 깔지 않는다).
+  // "계산이 막히지 않는 정상 경로"를 보려면 노무비 처리 방식을 직접
+  // 확정해 둬야 한다 — 수동 지정은 품셈 매핑 확인 절차와 무관하다.
+  const itemRow = saved.rows.find((r) => r.type === 'item')!;
+  itemRow.laborMode = 'manual';
+  itemRow.manualLaborUnitPrice = '0';
+  itemRow.overrideReason = '시험 — 노무비 수동 지정으로 blocking을 피한다';
+
+  const common = { schemaVersion: 1, generatedOn: '2026-01-01', sourceSha256: 'f'.repeat(64) };
+  await mockResources(page, {
+    '/data/approved/products.json': { ...common, products: [{
+      productId: 'FIX-0001', sku: 'FIX-0001', brand: '', model: 'FIX', quoteName: '합성 테스트 품목',
+      quoteSpec: 'FIX-SPEC', unit: 'EA', options: { group: '합성 장비' }, currency: 'KRW', evidence: 'verified',
+    }] },
+    '/data/approved/prices.json': { ...common, currency: 'KRW', prices: { 'FIX-0001': { sellingUnitPrice: '20000', currency: 'KRW' } } },
+  });
+  await page.goto('/');
+  await page.getByLabel('작업 파일 선택').setInputFiles({
+    name: 'saved.avcpq.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(saved)),
+  });
+  const conflict = page.getByRole('alert').filter({ hasText: '계산 기준이 바뀌었습니다' });
+  await conflict.getByRole('button', { name: '현재 기준으로 다시 계산 — 미리보기' }).click();
+  // labor/wage는 저장 당시와 같고(카탈로그만 바뀜) 계산도 막히지
+  // 않으니, "재현할 수 없습니다"가 아니라 실제 이전 합계가 보여야 한다.
+  await expect(conflict.getByText('이전 기준을 재현할 수 없습니다', { exact: false })).toHaveCount(0);
+  await expect(conflict.getByText(/합계: \d+/)).toBeVisible();
+});
+
 test('재계산은 입력이 부족한 케이블 구간을 현재 규칙으로도 무조건 승인하지 않는다(독립 검토 지적)', async ({ page }) => {
   await mockResources(page);
   await page.goto('/');
@@ -368,6 +414,10 @@ test('재계산은 입력이 부족한 케이블 구간을 현재 규칙으로�
   });
   const conflict = page.getByRole('alert').filter({ hasText: '계산 기준이 바뀌었습니다' });
   await conflict.getByRole('button', { name: '현재 기준으로 다시 계산 — 미리보기' }).click();
+  // labor/wage는 안 바뀌었지만(rule만 바뀜), 이 문서는 quantityUnresolved
+  // 행 때문에 계산 자체가 blocking이다 — 그런 상태의 "합계"는 완결된
+  // 계산이 아니므로 재현 불가로 표시해야 한다(독립 검토 지적).
+  await expect(conflict.getByText('이전 기준을 재현할 수 없습니다', { exact: false })).toBeVisible();
   await conflict.getByRole('button', { name: '적용', exact: true }).click();
 
   // 입력 부족은 재계산으로도 안 풀린다 — 여전히 확인이 필요하다.
