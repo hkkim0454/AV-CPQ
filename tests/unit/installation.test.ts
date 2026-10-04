@@ -5,7 +5,10 @@ import {
   calcRouteMeters,
   ceilPurchaseUnits,
   computeInstallationWarnings,
+  conduitLabel,
   conduitRowSentinel,
+  DEFAULT_CONDUIT_MATERIAL_RATE,
+  DEFAULT_CONDUIT_MATERIAL_RATE_SOURCE,
   isConduitGroup,
   isConduitSentinel,
   purchaseUnitMetersForGroup,
@@ -42,6 +45,15 @@ function catalogWithFlexibleOnly(): Catalog {
       product({ sku: 'CBL-F28', group: '후렉시블', quoteSpec: '28㎜' }),
     ],
     prices: new Map([['CBL-F16', '31000']]),
+    pricesAvailable: true,
+  };
+}
+
+function catalogWithTrayOnly(): Catalog {
+  return {
+    sourceSha256: 'x'.repeat(64),
+    products: [product({ sku: 'TRAY-100', group: '케이블 트레이', quoteSpec: '100mm x 100mm' })],
+    prices: new Map([['TRAY-100', '12000']]),
     pricesAvailable: true,
   };
 }
@@ -453,5 +465,60 @@ describe('computeInstallationWarnings — sku+price만으로 해소를 단정하
     const warnings = computeInstallationWarnings(bypassed, catalogWithFlexibleOnly());
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toMatchObject({ installationSystemId: 'S1' });
+  });
+});
+
+describe('케이블 트레이(tray) — O25 닫힘: 기타자재 30%는 품셈이 아니라 사용자 구술 출처다', () => {
+  it('기본값 30%, 출처는 품셈이 아니라고 명시한다', () => {
+    expect(DEFAULT_CONDUIT_MATERIAL_RATE.tray).toBe('30');
+    expect(DEFAULT_CONDUIT_MATERIAL_RATE_SOURCE.tray).toContain('사용자');
+    expect(DEFAULT_CONDUIT_MATERIAL_RATE_SOURCE.tray).toContain('품셈 근거 아님');
+    expect(DEFAULT_CONDUIT_MATERIAL_RATE_SOURCE.flexible).toContain('품셈');
+    expect(DEFAULT_CONDUIT_MATERIAL_RATE_SOURCE.cd).toContain('품셈');
+  });
+
+  it('표시 이름은 "케이블 트레이"다', () => {
+    expect(conduitLabel('tray')).toBe('케이블 트레이');
+  });
+
+  it('수량은 10M이 아니라 3M 단위로 올림하고, 단위는 EA로 표시한다', () => {
+    const document = applyInstallationPatch(
+      baseDocument(), 'S1', { farthestDeviceMeters: '7', conduitRuns: '1', conduitType: 'tray' }, catalogWithTrayOnly(),
+    );
+    const row = conduitRowOf(document, 'S1')!;
+    // 7m × 1줄 = 7m → 3M 단위 올림 = 3개
+    expect(row.quantity).toBe('3');
+    expect(row.unit).toBe('EA');
+  });
+
+  it('기본값을 쓰면 배관 기타자재 파생행의 비율이 30%다', () => {
+    const document = applyInstallationPatch(
+      baseDocument(), 'S1', { farthestDeviceMeters: '7', conduitRuns: '1', conduitType: 'tray' }, catalogWithTrayOnly(),
+    );
+    const materialRow = document.derivedRows.find((d) => d.rowId === 'derived-conduitmat-S1')!;
+    expect(materialRow.specification).toBe('배관자재30%');
+    expect(materialRow.rate).toBe('0.3');
+  });
+
+  it('resolveConduitProduct는 "케이블 트레이" 묶음 제품만 받는다', () => {
+    const document = applyInstallationPatch(
+      baseDocument(), 'S1', { farthestDeviceMeters: '7', conduitRuns: '1', conduitType: 'tray' }, catalogWithTrayOnly(),
+    );
+    // 후렉시블 제품으로는 트레이 행을 해소할 수 없다.
+    const rejected = resolveConduitProduct(document, 'S1', 'CBL-F16', { ...catalogWithTrayOnly(), products: [...catalogWithTrayOnly().products, ...catalogWithFlexibleOnly().products] });
+    expect(conduitRowOf(rejected, 'S1')?.sku).toBeUndefined();
+    const resolved = resolveConduitProduct(document, 'S1', 'TRAY-100', catalogWithTrayOnly());
+    expect(conduitRowOf(resolved, 'S1')?.sku).toBe('TRAY-100');
+  });
+
+  it('후렉시블→트레이로 종류를 바꾸면 수량·단위가 트레이 기준으로 다시 산출된다', () => {
+    const first = applyInstallationPatch(
+      baseDocument(), 'S1', { farthestDeviceMeters: '7', conduitRuns: '1', conduitType: 'flexible' }, catalogWithFlexibleOnly(),
+    );
+    expect(conduitRowOf(first, 'S1')!.unit).toBe('10M');
+    const switched = applyInstallationPatch(first, 'S1', { conduitType: 'tray' }, catalogWithTrayOnly());
+    const row = conduitRowOf(switched, 'S1')!;
+    expect(row.unit).toBe('EA');
+    expect(row.quantity).toBe('3');
   });
 });

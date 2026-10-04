@@ -4,6 +4,7 @@ import { mockResources } from './fixtures';
 const SKU_DEVICE = 'E2E-100';
 const SKU_CONDUIT_A = 'E2E-101';
 const SKU_CONDUIT_B = 'E2E-102';
+const SKU_TRAY = 'E2E-103';
 const SHA = 'd'.repeat(64);
 
 /**
@@ -55,6 +56,18 @@ function customProducts(): unknown {
         currency: 'KRW',
         evidence: 'review-required',
       },
+      {
+        productId: SKU_TRAY,
+        sku: SKU_TRAY,
+        brand: '',
+        model: '100mm x 100mm',
+        quoteName: 'E2E 케이블 트레이',
+        quoteSpec: '100mm x 100mm',
+        unit: 'EA',
+        options: { group: '케이블 트레이' },
+        currency: 'KRW',
+        evidence: 'review-required',
+      },
     ],
   };
 }
@@ -69,6 +82,7 @@ function customPrices(): unknown {
       [SKU_DEVICE]: { sellingUnitPrice: '100000', currency: 'KRW' },
       [SKU_CONDUIT_A]: { sellingUnitPrice: '31000', currency: 'KRW' },
       [SKU_CONDUIT_B]: { sellingUnitPrice: '45000', currency: 'KRW' },
+      [SKU_TRAY]: { sellingUnitPrice: '12000', currency: 'KRW' },
     },
   };
 }
@@ -231,4 +245,28 @@ test('기타자재 비율을 "직접 지정"으로 20%를 명시하면, 배관 �
   // "기본값 사용"으로 되돌리면 그제서야 CD 기본값을 따라간다.
   await page.getByRole('radio', { name: /기본값 사용/ }).check();
   await expect(page.getByRole('radio', { name: /기본값 사용 \(40%\)/ })).toBeChecked();
+});
+
+test('케이블 트레이 — 기본값 30%는 품셈이 아니라 사용자 구술 출처로 표시되고, 수량은 EA 단위다(O25 닫힘)', async ({ page }) => {
+  await startDocument(page);
+
+  await page.getByLabel('시스템1 장비실→가장 먼 장비 거리(m)').fill('7');
+  await page.getByLabel('시스템1 장비실→가장 먼 장비 거리(m)').blur();
+  await page.getByLabel('시스템1 배관 줄 수').fill('1');
+  await page.getByLabel('시스템1 배관 줄 수').blur();
+
+  await page.getByRole('radio', { name: '케이블 트레이' }).check();
+  await expect(page.getByRole('radio', { name: /기본값 사용 \(30%\)/ })).toBeChecked();
+  await expect(page.getByText('사용자 구술 지정')).toBeVisible();
+
+  const status = page.locator('.q-installation-panel p[role="status"]');
+  await expect(status).toContainText('EA');
+
+  const warnings = page.getByRole('alert').filter({ hasText: '확인이 필요합니다' });
+  await expect(warnings).toContainText('케이블 트레이');
+  await warnings.getByRole('button', { name: '선택' }).first().click();
+  const trayRow = page.locator('.q-quote-table tbody tr', { hasText: 'E2E 케이블 트레이' });
+  // 7m × 1줄 = 7m → 3M 단위 올림 = 3EA
+  await expect(trayRow).toContainText('3');
+  await expect(trayRow).toContainText('EA');
 });

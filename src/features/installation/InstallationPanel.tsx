@@ -11,7 +11,9 @@ import { useEffect, useState } from 'react';
 import type { InstallationPatch } from '../../domain/quote/installation';
 import {
   DEFAULT_CONDUIT_MATERIAL_RATE,
+  DEFAULT_CONDUIT_MATERIAL_RATE_SOURCE,
   DEFAULT_CONDUIT_RUNS,
+  conduitLabel,
   conduitRowSentinel,
   validateConduitRuns,
 } from '../../domain/quote/installation';
@@ -99,24 +101,17 @@ export function InstallationPanel({ system, document: doc, onChange }: Installat
           onCommit={(conduitRuns) => onChange({ conduitRuns })}
         />
         <span role="radiogroup" aria-label={`${system.name} 배관 종류`}>
-          <label className="q-grade-option">
-            <input
-              type="radio"
-              name={`conduit-type-${system.systemId}`}
-              checked={conduitType === 'flexible'}
-              onChange={() => onChange({ conduitType: 'flexible' })}
-            />
-            후렉시블
-          </label>
-          <label className="q-grade-option">
-            <input
-              type="radio"
-              name={`conduit-type-${system.systemId}`}
-              checked={conduitType === 'cd'}
-              onChange={() => onChange({ conduitType: 'cd' })}
-            />
-            CD관
-          </label>
+          {(['flexible', 'cd', 'tray'] as const).map((type) => (
+            <label key={type} className="q-grade-option">
+              <input
+                type="radio"
+                name={`conduit-type-${system.systemId}`}
+                checked={conduitType === type}
+                onChange={() => onChange({ conduitType: type })}
+              />
+              {conduitLabel(type)}
+            </label>
+          ))}
         </span>
         <span className="q-rate-mode">
           <span role="radiogroup" aria-label={`${system.name} 배관 기타자재 비율 방식`}>
@@ -139,6 +134,9 @@ export function InstallationPanel({ system, document: doc, onChange }: Installat
               직접 지정
             </label>
           </span>
+          {!manualRate && (
+            <span className="q-muted">출처: {DEFAULT_CONDUIT_MATERIAL_RATE_SOURCE[conduitType]}</span>
+          )}
           {manualRate && (
             <DraftField
               label={`${system.name} 배관 기타자재 비율(%)`}

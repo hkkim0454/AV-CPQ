@@ -264,9 +264,16 @@ export interface IndirectCostRule {
   source: string;
 }
 
-/** 배관 종류 — 후렉시블(기본) 또는 CD관(결정 D22). 케이블 트레이도
- *  배관 분류이지만 기타자재 비율이 아직 미정(O25)이라 선택지에 없다. */
-export type ConduitType = 'flexible' | 'cd';
+/**
+ * 배관 종류 — 후렉시블(기본)·CD관·케이블 트레이(결정 D22, O25 닫힘
+ * 2026-10-05). 트레이 기타자재 비율 30%는 품셈 실측이 아니라 **사용자
+ * 구술 지정**이다(후렉시블 20%·CD관 40%는 품셈 설명 칸 실측값과 다른
+ * 출처다) — `installation.ts`의 `DEFAULT_CONDUIT_MATERIAL_RATE_SOURCE`가
+ * 그 출처를 구분해 들고 다닌다. 품셈에 나중에 트레이 근거가 생겨도
+ * 이미 저장된 문서의 `conduitMaterialRate`는 조용히 갱신되지 않는다 —
+ * 그 값은 구체적 숫자로 저장되지, 상수를 매번 다시 읽지 않는다.
+ */
+export type ConduitType = 'flexible' | 'cd' | 'tray';
 
 export interface QuoteSystem {
   systemId: string;

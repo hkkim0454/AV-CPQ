@@ -34,12 +34,17 @@
  * 단위가 다르므로 하나로 뭉뚱그리면 트레이 수량이 3배 넘게 틀린다.
  * `purchaseUnitMetersForGroup`가 묶음별로 다른 단위를 돌려준다.
  *
- * ## 기타자재 비율의 기본값은 품셈 설명 칸에 적힌 값이다
+ * ## 기타자재 비율의 기본값 — 출처가 둘로 갈린다
  *
- * 후렉시블 20%, CD관 40% — 추측이 아니라 품셈 `배관 기타자재` 행
- * 설명 칸의 실측값이다(결정 D22-2). 트레이의 비율은 **아직 없다**(O25,
- * 미결정) — 이 모듈은 트레이를 배관 종류 선택지(`ConduitType`)에 넣지
- * 않는다. 넣으려면 그 비율부터 사용자에게 확인해야 한다.
+ * 후렉시블 20%, CD관 40%는 품셈 `배관 기타자재` 행 설명 칸의 실측값이다
+ * (결정 D22-2). 트레이 30%는 **품셈 근거가 아니라 사용자 구술 지정**이다
+ * (O25 닫힘, 2026-10-05) — 나중에 품셈에 트레이 근거가 생겨도 그건
+ * **다른 출처**이므로 이 상수를 그 근거로 바꾸지 않는다. 화면은
+ * `DEFAULT_CONDUIT_MATERIAL_RATE_SOURCE`로 두 출처를 구분해 보여준다.
+ * 이미 저장된 문서의 `conduitMaterialRate`는 이 상수가 나중에 바뀌어도
+ * 조용히 따라 바뀌지 않는다 — 저장 시점에 구체적 숫자로 적히고,
+ * `applyInstallationPatch`는 종류가 실제로 바뀌거나 사용자가 명시로
+ * 다시 고를 때만 이 상수를 다시 읽는다.
  */
 import type { Catalog, CatalogProduct } from '../../data/catalog/load';
 import type { ImportWarning } from '../../import/diagram/devices';
@@ -103,25 +108,46 @@ export function calcRouteMeters(route: RouteInput): DecimalText | undefined {
 /** 공간의 새 배관 입력에 쓰는 기본 줄 수(결정 D8). */
 export const DEFAULT_CONDUIT_RUNS = '3';
 
-/** 배관 종류 → 품셈 `options.group` 원문(결정 D22-1). */
+/** 케이블 트레이의 품셈 묶음 이름(결정 D22-2). */
+export const TRAY_GROUP = '케이블 트레이';
+
+/** 배관 종류 → 품셈 `options.group` 원문(결정 D22-1, O25 닫힘). */
 export const CONDUIT_GROUP: Record<ConduitType, string> = {
   flexible: '후렉시블',
   cd: 'CD관',
+  tray: TRAY_GROUP,
 };
 
-/** 품셈 설명 칸에 적힌 기타자재 비율(%) — 추측값이 아니다(결정 D22-2). */
+/**
+ * 기타자재 비율(%) 기본값. 후렉시블·CD관은 품셈 실측값, 트레이는 사용자
+ * 구술 지정이다 — 출처는 `DEFAULT_CONDUIT_MATERIAL_RATE_SOURCE`에서
+ * 따로 보여준다(독립 검토 지적: 출처가 다른 값을 같은 표에 담되, 화면이
+ * "다 품셈 근거"인 것처럼 보이면 안 된다).
+ */
 export const DEFAULT_CONDUIT_MATERIAL_RATE: Record<ConduitType, DecimalText> = {
   flexible: '20',
   cd: '40',
+  tray: '30',
 };
 
-/** 케이블 트레이의 품셈 묶음 이름(결정 D22-2). 비율은 아직 미정(O25)이다. */
-export const TRAY_GROUP = '케이블 트레이';
+/** 위 기본값들이 각각 어디서 왔는지 — 화면에 그대로 보여줄 문구다. */
+export const DEFAULT_CONDUIT_MATERIAL_RATE_SOURCE: Record<ConduitType, string> = {
+  flexible: '품셈 "배관 기타자재" 설명 칸 실측값(결정 D22-2)',
+  cd: '품셈 "배관 기타자재" 설명 칸 실측값(결정 D22-2)',
+  tray: '사용자 구술 지정 — 품셈 근거 아님(O25, 2026-10-05)',
+};
 
 /** 후렉시블·CD관의 판매 단위(m). */
 export const CONDUIT_BULK_UNIT_METERS = 10;
 /** 케이블 트레이의 판매 단위(m) — 10M이 아니다(결정 D22-2 실측). */
 export const TRAY_UNIT_METERS = 3;
+
+/** 수량 계산 단위(m)와 달리, 행에 표시할 단위 **문자열**은 트레이만 다르다 — `EA`(결정 D22-2). */
+export const CONDUIT_UNIT_LABEL: Record<ConduitType, string> = {
+  flexible: `${CONDUIT_BULK_UNIT_METERS}M`,
+  cd: `${CONDUIT_BULK_UNIT_METERS}M`,
+  tray: 'EA',
+};
 
 /**
  * 묶음 이름으로 "길이를 올림해 수량을 정하는" 품목의 판매 단위(m)를
@@ -232,8 +258,14 @@ function conduitCandidates(catalog: Catalog, conduitType: ConduitType): readonly
   return catalog.products.filter((p: CatalogProduct) => p.options['group'] === group).map((p) => p.sku);
 }
 
+const CONDUIT_LABEL: Record<ConduitType, string> = {
+  flexible: '후렉시블',
+  cd: 'CD관',
+  tray: '케이블 트레이',
+};
+
 export function conduitLabel(conduitType: ConduitType): string {
-  return conduitType === 'flexible' ? '후렉시블' : 'CD관';
+  return CONDUIT_LABEL[conduitType];
 }
 
 type ItemSheetRow = Extract<QuoteDocument['rows'][number], { type: 'item' }>;
@@ -322,26 +354,30 @@ export function applyInstallationPatch(
 
   const conduitType: ConduitType = patchedSystem.conduitType ?? 'flexible';
   const ratePercent = patchedSystem.conduitMaterialRate ?? DEFAULT_CONDUIT_MATERIAL_RATE[conduitType];
-  const quantity = String(ceilPurchaseUnits(conduitMeters, CONDUIT_BULK_UNIT_METERS));
+  const group = CONDUIT_GROUP[conduitType];
+  // 트레이는 10M이 아니라 3M 단위에 `EA`로 표시한다(결정 D22-2) — 종류별로
+  // 수량 계산 단위와 화면 표시 단위가 다르므로 둘 다 종류에서 끌어온다.
+  const unitMeters = purchaseUnitMetersForGroup(group)!;
+  const unitLabel = CONDUIT_UNIT_LABEL[conduitType];
+  const quantity = String(ceilPurchaseUnits(conduitMeters, unitMeters));
   const sentinel = conduitRowSentinel(systemId);
   const basisText = conduitBasisText(patchedSystem.farthestDeviceMeters!, patchedSystem.conduitRuns!, conduitMeters);
 
   const existing = findConduitRow(withSystems, systemId);
 
-  const group = CONDUIT_GROUP[conduitType];
   const existingStillValid =
     existing?.sku !== undefined && catalog.products.find((p) => p.sku === existing.sku)?.options['group'] === group;
 
   const rowId = existing?.rowId ?? `derived-conduit-${systemId}`;
   const conduitRow: ItemSheetRow = existingStillValid
-    ? { ...existing!, rowId, unit: `${CONDUIT_BULK_UNIT_METERS}M`, quantity, remark: basisText, sourceNodeIds: [sentinel] }
+    ? { ...existing!, rowId, unit: unitLabel, quantity, remark: basisText, sourceNodeIds: [sentinel] }
     : {
         type: 'item',
         rowId,
         systemId,
         name: `${conduitLabel(conduitType)} 배관 (미정)`,
         specification: '',
-        unit: `${CONDUIT_BULK_UNIT_METERS}M`,
+        unit: unitLabel,
         quantity,
         laborMode: 'unresolved',
         remark: basisText,
