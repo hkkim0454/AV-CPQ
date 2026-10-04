@@ -191,3 +191,109 @@ describe('견적 행에 원가를 잇는다 — 사람이 확인한 연결만', 
     expect(line!.costRegistered).toBe(false);
   });
 });
+
+describe('필수 열 — 암묵 기본값을 만들지 않는다', () => {
+  it('통화 열이 없으면 거부한다', () => {
+    const table = readTable(
+      csv('품명,규격,매입단가,단위\nPTZ,SRG-A40,1000,EA\n'),
+      'csv',
+    );
+    const result = parsePrivatePrices(table, {
+      model: '규격',
+      purchaseUnitPrice: '매입단가',
+      currency: '통화',
+      unit: '단위',
+    });
+    expect(result.errors.map((e) => e.code)).toContain('column-missing');
+    expect(result.entries).toEqual([]);
+  });
+
+  it('단위 열이 없으면 거부한다', () => {
+    const table = readTable(
+      csv('품명,규격,매입단가,통화\nPTZ,SRG-A40,1000,KRW\n'),
+      'csv',
+    );
+    const result = parsePrivatePrices(table, {
+      model: '규격',
+      purchaseUnitPrice: '매입단가',
+      currency: '통화',
+      unit: '단위',
+    });
+    expect(result.errors.map((e) => e.code)).toContain('column-missing');
+  });
+
+  it('통화 칸이 빈 줄은 KRW 로 채우지 않고 막는다', () => {
+    const result = costFile('PTZ 카메라,SRG-A40,1000000,,EA');
+    expect(result.errors.map((e) => e.code)).toEqual(['currency-empty']);
+    expect(result.entries).toEqual([]);
+  });
+
+  it('단위 칸이 빈 줄은 EA 로 채우지 않고 막는다', () => {
+    const result = costFile('PTZ 카메라,SRG-A40,1000000,KRW,');
+    expect(result.errors.map((e) => e.code)).toEqual(['unit-empty']);
+  });
+
+  it('통화가 섞이면 막는다 — 모델명 경로에서도 같다', () => {
+    const result = costFile(
+      'PTZ 카메라,SRG-A40,1000000,KRW,EA',
+      '수입 카메라,SRG-B50,900,USD,EA',
+    );
+    expect(result.errors.map((e) => e.code)).toEqual(['currency-mixed']);
+  });
+});
+
+describe('원가 파일을 바꾸면 옛 연결이 되살아나지 않는다', () => {
+  const fileA = () =>
+    createSession(costFile('PTZ 카메라,SRG-A40,1000000,KRW,EA').entries);
+  const fileB = () =>
+    createSession(costFile('전혀 다른 제품,ZZZ-99,5000000,KRW,EA').entries);
+
+  it('세션마다 표식이 다르다 — 같은 파일을 다시 올려도', () => {
+    expect(fileA().sessionId).not.toBe(fileA().sessionId);
+  });
+
+  it('다른 파일의 자리표는 붙지 않는다', () => {
+    const a = fileA();
+    const oldLink = a.candidatesByModel('SRG-A40')[0]!.entryId;
+    const b = fileB();
+    expect(b.byEntryId(oldLink)).toBeUndefined();
+    expect(b.ownsEntryId(oldLink)).toBe(false);
+  });
+
+  it('옛 연결은 미등록이 아니라 「다시 연결」로 표시된다', () => {
+    const a = fileA();
+    const oldLink = a.candidatesByModel('SRG-A40')[0]!.entryId;
+    const [line] = internalLines(
+      [{ rowId: 'r1', costEntryId: oldLink, quantity: '1' }],
+      fileB(),
+    );
+    expect(line!.costRegistered).toBe(false);
+    expect(line!.costLinkStale).toBe(true);
+    expect(line!.purchaseUnitPrice).toBeUndefined();
+  });
+
+  it('연결을 아예 안 한 행은 「다시 연결」이 아니다', () => {
+    const [line] = internalLines([{ rowId: 'r1', quantity: '1' }], fileB());
+    expect(line!.costRegistered).toBe(false);
+    expect(line!.costLinkStale).toBeUndefined();
+  });
+
+  it('새 파일에서 같은 줄 번호라도 옛 자리표로는 안 붙는다', () => {
+    // 두 파일 모두 첫 줄이다. 표식이 없으면 숫자만 바뀌어 조용히 틀린다.
+    const a = fileA();
+    const oldLink = a.candidatesByModel('SRG-A40')[0]!.entryId;
+    const b = fileB();
+    const [line] = internalLines(
+      [{ rowId: 'r1', costEntryId: oldLink, quantity: '1' }],
+      b,
+    );
+    expect(line!.purchaseUnitPrice).toBeUndefined();
+    // 새 파일의 자리표로 다시 이으면 붙는다.
+    const newLink = b.candidatesByModel('ZZZ-99')[0]!.entryId;
+    const [fixed] = internalLines(
+      [{ rowId: 'r1', costEntryId: newLink, quantity: '1' }],
+      b,
+    );
+    expect(fixed!.purchaseUnitPrice!.toFixed()).toBe('5000000');
+  });
+});

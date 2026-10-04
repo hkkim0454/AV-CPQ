@@ -246,3 +246,42 @@ describe('자유 텍스트 — 구조로 못 막는 것은 알리기만 한다',
     expect(shared.suspiciousNotes.map((n) => n.field)).toContain('supplier');
   });
 });
+
+describe('공유용과 고객용은 서로 다른 객체다', () => {
+  it('공유용을 만들어도 고객용 직렬화에 덧붙은 것이 안 들어간다', () => {
+    const p = prepared();
+    const rowId = firstItemRowId(p);
+    const shared = buildSharedProjection(p, notes(rowId));
+
+    // 같은 입력으로 **따로** 만든 고객용.
+    const customerAlone = buildCustomerProjection(p.document, p.priced.calculation);
+    const text = JSON.stringify(customerAlone);
+    expect(text).not.toContain(SENTINEL_SUPPLIER);
+    expect(text).not.toContain(SENTINEL_SALES);
+    expect(text).not.toContain(SENTINEL_DESCRIPTION);
+
+    // 공유용 안의 고객용에도 덧붙은 것이 섞여 들어가지 않았다.
+    expect(JSON.stringify(shared.customer)).toBe(text);
+  });
+
+  it('공유용 쪽을 고쳐도 새로 만든 고객용은 그대로다', () => {
+    const p = prepared();
+    const rowId = firstItemRowId(p);
+    const shared = buildSharedProjection(p, notes(rowId));
+
+    // 공유용의 고객 부분을 억지로 오염시킨다.
+    (shared.customer.header as { customer: string }).customer = '오염됨';
+    const fresh = buildCustomerProjection(p.document, p.priced.calculation);
+    expect(fresh.header.customer).toBe('합성 고객');
+  });
+
+  it('덧붙은 자료는 고객용 바깥에만 있다', () => {
+    const p = prepared();
+    const shared = buildSharedProjection(p, notes(firstItemRowId(p)));
+    // 설명·품셈·거래처는 `customer` 가 아니라 형제 자리에 있다.
+    expect(shared.customer).not.toHaveProperty('details');
+    expect(shared.customer).not.toHaveProperty('notes');
+    expect(shared).toHaveProperty('details');
+    expect(shared).toHaveProperty('notes');
+  });
+});

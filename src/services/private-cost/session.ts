@@ -15,13 +15,31 @@
 import type { PriceEntry } from './parse';
 
 export interface PrivateCostSession {
+  /**
+   * 이 세션의 표식. **원가 파일을 바꾸면 달라진다.**
+   *
+   * 사람이 확인한 연결(`costEntryId`)은 이 표식을 품는다. 그래서 원가 파일을
+   * 바꾼 뒤 옛 연결을 그대로 쓰면 **붙지 않는다.** 표식이 없으면 새 파일의
+   * 3번째 줄이 옛 파일의 3번째 줄 자리에 조용히 들어간다 — 품목도 금액도
+   * 전혀 다른 줄인데 숫자만 바뀐다.
+   *
+   * 값이 아니라 표식이라 저장해도 원가가 새지 않는다.
+   */
+  readonly sessionId: string;
   /** 등록된 줄 수. 값이 아니라 개수만 노출한다. */
   readonly size: number;
   readonly cleared: boolean;
   /** SKU 정확 일치. 부분 일치로 엉뚱한 원가를 붙이지 않는다. */
   lookup(sku: string): PriceEntry | undefined;
-  /** 사람이 확인해 연결한 줄을 자리표로 꺼낸다. */
+  /**
+   * 사람이 확인해 연결한 줄을 자리표로 꺼낸다.
+   *
+   * **다른 세션의 자리표는 받지 않는다.** 원가 파일을 바꿨는데 옛 연결이
+   * 그대로 붙으면 엉뚱한 제품의 원가가 들어간다.
+   */
   byEntryId(entryId: string): PriceEntry | undefined;
+  /** 이 자리표가 이 세션의 것인가. 화면이 "다시 연결하세요"를 띄울 근거. */
+  ownsEntryId(entryId: string): boolean;
   /**
    * 모델명으로 **후보를 전부** 돌려준다. 하나를 고르지 않는다.
    *
@@ -41,18 +59,37 @@ function normalizeModel(value: string): string {
   return value.replace(/\s+/g, '').toUpperCase();
 }
 
+/**
+ * 세션 표식을 만든다.
+ *
+ * 내용에서 뽑지 않는다 — 같은 파일을 두 번 올리면 같은 표식이 되어, 그 사이
+ * 사용자가 파일을 고쳤어도 옛 연결이 되살아난다. **열 때마다 새 표식**이다.
+ */
+let sessionCounter = 0;
+function newSessionId(): string {
+  sessionCounter += 1;
+  const random = Math.floor(Math.random() * 0xffffffff).toString(16);
+  return `cs${sessionCounter}-${random}`;
+}
+
 class Session implements PrivateCostSession {
   /** `#` private 필드라 `JSON.stringify`와 `Object.keys`에 나오지 않는다. */
   #entries: Map<string, PriceEntry>;
   #cleared = false;
+  readonly sessionId = newSessionId();
 
   /** 모델명(정규화) → 그 모델인 줄들. 여러 줄일 수 있다. */
   #byModel: Map<string, PriceEntry[]>;
 
   constructor(entries: readonly PriceEntry[]) {
-    this.#entries = new Map(entries.map((e) => [e.entryId, e]));
+    // 자리표에 세션 표식을 붙인다. 파일을 바꾸면 자리표가 전부 달라진다.
+    const owned = entries.map((entry) => ({
+      ...entry,
+      entryId: `${this.sessionId}:${entry.entryId}`,
+    }));
+    this.#entries = new Map(owned.map((e) => [e.entryId, e]));
     this.#byModel = new Map();
-    for (const entry of entries) {
+    for (const entry of owned) {
       if (entry.model === undefined) continue;
       const key = normalizeModel(entry.model);
       const list = this.#byModel.get(key) ?? [];
@@ -77,7 +114,12 @@ class Session implements PrivateCostSession {
   }
 
   byEntryId(entryId: string): PriceEntry | undefined {
+    if (!this.ownsEntryId(entryId)) return undefined;
     return this.#entries.get(entryId);
+  }
+
+  ownsEntryId(entryId: string): boolean {
+    return entryId.startsWith(`${this.sessionId}:`);
   }
 
   candidatesByModel(model: string): PriceEntry[] {

@@ -64,6 +64,13 @@ export interface InternalLine {
   quantity: Decimal;
   /** 원가표에 이 SKU가 있었는지. `false`면 화면에 `미등록`으로 표시한다. */
   costRegistered: boolean;
+  /**
+   * 연결은 있는데 **이 원가 파일의 것이 아니다.**
+   *
+   * 원가 파일을 바꾸면 옛 연결이 전부 여기로 떨어진다. 화면은
+   * "미등록"이 아니라 "다시 연결하세요"를 띄워야 한다.
+   */
+  costLinkStale?: boolean;
   /** 견적의 판매 단가. 미등록이면 없다. */
   sellingUnitPrice?: Decimal;
   purchaseUnitPrice?: Decimal;
@@ -89,6 +96,8 @@ export function internalLines(
   return rows.map((row) => {
     const quantity = dec(row.quantity);
     // 사람이 확인한 연결이 있으면 그것을 쓴다. 없으면 SKU 정확 일치.
+    const stale =
+      row.costEntryId !== undefined && !session.ownsEntryId(row.costEntryId);
     const entry =
       row.costEntryId !== undefined
         ? session.byEntryId(row.costEntryId)
@@ -105,6 +114,7 @@ export function internalLines(
       unit: row.unit ?? '',
       quantity,
       costRegistered: entry !== undefined,
+      ...(stale ? { costLinkStale: true } : {}),
     };
 
     if (selling !== undefined) {
