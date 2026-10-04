@@ -64,6 +64,42 @@ function rowOf(ref: string): number {
   return Number.parseInt(ref.replace(/^[A-Z]+/, ''), 10);
 }
 
+/** 문자열 리터럴은 건드리지 않는다 — 수식 안의 따옴표 안 글자를 셀 참조로 착각하면 안 된다. */
+const STRING_LITERAL_RE = /"[^"]*"/g;
+/** `!` 바로 뒤는 다른 시트의 주소다 — 이 시트의 행 밀림과 무관하다. */
+const CELL_REF_RE = /(!)?(\$?)([A-Z]{1,3})(\$?)(\d{1,7})/g;
+
+/**
+ * 수식 본문 안의 **같은 시트** 셀 참조만 행 번호를 옮긴다.
+ *
+ * 밀리지 않는 행(예: 8행의 한글 금액 문구 `NUMBERSTRING(H12,1)`)이 밀린
+ * 행(12행 → 13행)을 참조하면, 행만 옮기고 그 행 자체의 `r=` 주소는 그대로
+ * 둬도 **참조 내용**은 반드시 따라가야 한다. 안 따라가면 수량을 고쳐도
+ * 한글 금액 문구가 조용히 안 바뀐다(실측).
+ */
+function shiftFormulaRowRefs(formula: string, shiftOf: (row: number) => number): string {
+  const segments: string[] = [];
+  let last = 0;
+  STRING_LITERAL_RE.lastIndex = 0;
+  for (const literal of formula.matchAll(STRING_LITERAL_RE)) {
+    segments.push(rewriteSegment(formula.slice(last, literal.index), shiftOf));
+    segments.push(literal[0]);
+    last = literal.index! + literal[0].length;
+  }
+  segments.push(rewriteSegment(formula.slice(last), shiftOf));
+  return segments.join('');
+}
+
+function rewriteSegment(segment: string, shiftOf: (row: number) => number): string {
+  return segment.replace(
+    CELL_REF_RE,
+    (whole, bang: string | undefined, colAbs: string, col: string, rowAbs: string, row: string) => {
+      if (bang) return whole; // 다른 시트 참조 — 손대지 않는다.
+      return `${colAbs}${col}${rowAbs}${shiftOf(Number.parseInt(row, 10))}`;
+    },
+  );
+}
+
 interface TemplateRow {
   styleByColumn: Map<string, string>;
 }
@@ -161,11 +197,18 @@ export function fillCoverMultiSystem(
       const newRow = shiftOf(row);
       let out = block.replace(/\br="\d+"/, `r="${newRow}"`);
       if (row === SUBTOTAL_ROW) {
-        // ROUNDDOWN(SUM(H11:H11),-3) 의 합산 범위를 실제 시스템 줄 전체로 늘린다.
+        // ROUNDDOWN(SUM(H11:H11),-3) 의 합산 범위를 실제 시스템 줄 전체로
+        // 늘린다. **이 행은 일반 수식 이동 대상이 아니다** — 아래
+        // `shiftFormulaRowRefs` 를 또 적용하면 이미 맞게 넣은 범위(예:
+        // "H11:H12")를 다시 한번 밀어 "H11:H13"으로 틀어진다.
         out = out.replace(
           /SUM\(H\d+:H\d+\)/,
           `SUM(H${FIRST_SYSTEM_ROW}:H${systemRows[systemRows.length - 1]})`,
         );
+      } else {
+        // 이 행 **안의 수식**이 가리키는 행도 같이 옮긴다 — 예를 들어
+        // 비고 박스 병합 셀에 다른 행을 참조하는 수식이 있을 수 있다.
+        out = out.replace(/<f>([\s\S]*?)<\/f>/g, (_w, body: string) => `<f>${shiftFormulaRowRefs(body, shiftOf)}</f>`);
       }
       // 이 행 안의 셀 r= 도 행 번호가 바뀌었으니 같이 옮긴다.
       out = out.replace(/\br="([A-Z]+)\d+"/g, (_w, col: string) => `r="${col}${newRow}"`);
@@ -173,9 +216,16 @@ export function fillCoverMultiSystem(
     })
     .join('');
 
+  // 안 밀리는 행(1~10행)도 **자기 자신은 그대로 두되, 그 안의 수식이
+  // 가리키는 행**은 옮겨야 한다. 8행의 한글 금액 문구
+  // (`NUMBERSTRING(H12,1)` 류)가 대표 사례다 — 8행 자체는 안 밀리지만
+  // 그 수식이 가리키는 "합계 행"은 12행에서 13행(+shift)으로 밀렸다.
+  // 안 옮기면 수량을 고쳐도 한글 금액 문구가 조용히 그대로다(실측).
   const headRowXml = rows
     .filter((r) => r.row < FIRST_SYSTEM_ROW)
-    .map((r) => r.block)
+    .map((r) =>
+      r.block.replace(/<f>([\s\S]*?)<\/f>/g, (_w, body: string) => `<f>${shiftFormulaRowRefs(body, shiftOf)}</f>`),
+    )
     .join('');
 
   let out = sheetXml.replace(/<sheetData>[\s\S]*?<\/sheetData>/, () =>

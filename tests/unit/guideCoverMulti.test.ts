@@ -59,6 +59,28 @@ describe('fillCoverMultiSystem — 갑지 시스템 줄 늘리기', () => {
     expect(result.sheetXml).toMatch(/<dimension ref="A1:O24"\/>/);
   });
 
+  /**
+   * 실측으로 걸린 결함(P2-1): 8행의 한글 금액 문구
+   * (`NUMBERSTRING(H12,1)` 류)는 **8행 자신은 안 밀리지만, 그 수식이
+   * 가리키는 12행(합계)은 밀린다.** 처음에는 밀리는 행의 `r=` 주소와
+   * 그 행 **안의 셀 r=** 만 옮기고, 수식 **본문**이 가리키는 행은 안
+   * 옮겼다 — 그래서 시스템을 늘려도 한글 금액 문구가 조용히 그대로였다
+   * (실제 Excel 편집 재계산 검증에서 발견). 8행은 안 밀리는 구역에
+   * 있으므로 더 놓치기 쉬웠다.
+   */
+  it('8행(한글 금액 문구)의 수식이 가리키는 합계 행 번호도 밀린다', () => {
+    const result = fillCoverMultiSystem(coverXmlOf('won'), [
+      { name: 'A', summarySpec: '', unit: '식', quantity: '1', totalReference: "'세부내역'!M25" },
+      { name: 'B', summarySpec: '', unit: '식', quantity: '1', totalReference: "'세부내역2'!M25" },
+      { name: 'C', summarySpec: '', unit: '식', quantity: '1', totalReference: "'세부내역3'!M20" },
+    ]);
+    expect(result.subtotalRow).toBe(14);
+    const row8 = cellOf(result.sheetXml, 'C8')!;
+    expect(row8).toContain('NUMBERSTRING(H14,1)');
+    expect(row8).toContain('TEXT(H14,');
+    expect(row8).not.toContain('H12');
+  });
+
   it('shiftCoverPrintArea 가 갑지 인쇄 영역의 마지막 행을 늘린다', () => {
     const workbookXml =
       '<workbook><definedNames>' +

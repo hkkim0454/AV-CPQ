@@ -30,6 +30,20 @@
 #
 #     powershell -File tools\verify_in_excel.ps1 -Path <파일.xlsx>
 #                [-Expected <기대값.json>] [-LayoutManifest <주소.json>]
+#                [-EditScenarios <시나리오.json>]
+#
+# 편집 시나리오 JSON — 배열, 각 항목이 "도메인 입력을 바꿔 독립적으로 다시
+# 계산한 기대값"과 그 값에 대응하는 Excel 칸 하나(`tools/probe_edit_scenarios.ts`
+# 가 만든다. P2-1):
+#   [
+#     { "label": "...", "sheet": "세부내역", "cell": "F6",
+#       "editValue": "38", "revertValue": "1",
+#       "expected": { "세부내역": { "J15": "..." }, "갑지": { "H12": "..." } } }
+#   ]
+#
+# 각 항목마다: `cell` 을 `editValue` 로 바꾸고 재계산 → `expected` 전부 대조
+# → `cell` 을 `revertValue` 로 되돌리고 재계산(다음 항목이 이 항목의 편집과
+# 안 섞이게). `revertValue` 가 빈 문자열이면 칸을 비운다(`ClearContents`).
 #
 # 기대값 JSON — 시트명 → 셀 주소 → 기대 문자열:
 #   { "갑지": { "H13": "3580000" }, "교육장 영상": { "J28": "..." } }
@@ -50,8 +64,20 @@
 param(
   [Parameter(Mandatory = $true)][string]$Path,
   [string]$Expected,
-  [string]$LayoutManifest
+  [string]$LayoutManifest,
+  [string]$EditScenarios
 )
+
+# 콘솔 코드페이지가 UTF-8 이 아닌 셸(예: Git Bash 에서 띄운 powershell.exe)에서
+# 부르면, `-Encoding UTF8` 로 읽은 JSON의 한글이 **메모리 안에서부터** 깨진다
+# (터미널 표시 문제가 아니다 — 깨진 문자열이 그대로 `Worksheets.Item()`에
+# 들어가 "시트를 찾을 수 없다"는 식으로 터진다. 실측: cp949 콘솔에서
+# 시나리오 JSON의 시트 이름이 깨져 전부 실패했다). 호출부의 코드페이지를
+# 믿지 않고 스스로 UTF-8 로 맞춘다.
+try {
+  [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+  [Console]::InputEncoding = [System.Text.Encoding]::UTF8
+} catch { }
 
 $ErrorActionPreference = 'Stop'
 $failures = New-Object System.Collections.ArrayList
@@ -70,6 +96,31 @@ function Unverified([string]$message) {
 function Release($obj) {
   if ($null -eq $obj) { return }
   try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($obj) } catch { }
+}
+
+# 기대값(시트명 → 셀 주소 → 기대 문자열)을 열린 통합문서와 대조한다.
+# 기준 대조(-Expected)와 편집 시나리오(-EditScenarios) 양쪽이 같은 함수를
+# 쓴다 — 대조 규칙을 두 번 적지 않는다. 대조한 셀 수를 돌려준다.
+function Compare-Expected($wb, $expectedData, [string]$labelPrefix) {
+  # **반환하지 않는다.** `Read-JsonFile`과 같은 이유다 — PowerShell 함수는
+  # `return` 값이 아니라 출력 스트림 전체를 돌려주고, 이 함수 안의 COM
+  # 호출(`$ws.Range(...).Value2` 등)이 스트림에 뭔가를 더 얹으면 호출부가
+  # 받는 값이 정수가 아니라 배열이 된다 — 실측으로 `$scenarioChecked +=
+  # $checked`가 "System.Object[]에 op_Addition이 없다"로 터졌다.
+  $script:compareChecked = 0
+  foreach ($sheetName in $expectedData.PSObject.Properties.Name) {
+    $ws = $null
+    try { $ws = $wb.Worksheets.Item($sheetName) } catch { Fail "$labelPrefix 시트 없음: $sheetName"; continue }
+    foreach ($cellRef in $expectedData.$sheetName.PSObject.Properties.Name) {
+      $want = [string]$expectedData.$sheetName.$cellRef
+      $got = $ws.Range($cellRef).Value2
+      $gotText = if ($null -eq $got) { "" } elseif ($got -is [double]) { $got.ToString("R") } else { [string]$got }
+      $script:compareChecked++
+      if ($gotText -ne $want) {
+        Fail "$labelPrefix$sheetName!$cellRef  기대=$want  Excel=$gotText"
+      }
+    }
+  }
 }
 
 # ---------------------------------------------------------------------------
@@ -135,6 +186,21 @@ if ($LayoutManifest) {
   Read-JsonFile '주소 manifest' $LayoutManifest
   $layout = $script:jsonResult
   if ($null -eq $layout) {
+    Write-Output "=== 미검증 $($unverified.Count)건 ==="
+    exit 2
+  }
+}
+
+# **이름이 매개변수와 대소문자만 다르면 안 된다** — PowerShell 변수명은
+# 대소문자를 구분하지 않는다. `$editScenarios = $null` 라고 쓰면 그게
+# 바로 `$EditScenarios` 매개변수 자신이라 아래 `if ($EditScenarios)` 가
+# 항상 거짓이 된다(실측으로 겪은 결함 — `$expectedData`/`$Expected`,
+# `$layout`/`$LayoutManifest` 처럼 **다른 이름**을 쓴다).
+$scenariosData = $null
+if ($EditScenarios) {
+  Read-JsonFile '편집 시나리오' $EditScenarios
+  $scenariosData = $script:jsonResult
+  if ($null -eq $scenariosData) {
     Write-Output "=== 미검증 $($unverified.Count)건 ==="
     exit 2
   }
@@ -243,20 +309,8 @@ try {
 
   # --- 기대값 대조 ---
   if ($null -ne $expectedData) {
-    $checked = 0
-    foreach ($sheetName in $expectedData.PSObject.Properties.Name) {
-      $ws = $null
-      try { $ws = $wb.Worksheets.Item($sheetName) } catch { Fail "시트 없음: $sheetName"; continue }
-      foreach ($cellRef in $expectedData.$sheetName.PSObject.Properties.Name) {
-        $want = [string]$expectedData.$sheetName.$cellRef
-        $got = $ws.Range($cellRef).Value2
-        $gotText = if ($null -eq $got) { "" } elseif ($got -is [double]) { $got.ToString("R") } else { [string]$got }
-        $checked++
-        if ($gotText -ne $want) {
-          Fail "$sheetName!$cellRef  기대=$want  Excel=$gotText"
-        }
-      }
-    }
+    Compare-Expected $wb $expectedData ''
+    $checked = $script:compareChecked
     Write-Output "대조한 셀: $checked"
     if ($checked -eq 0) {
       # 기대값 파일을 줬는데 한 셀도 대조하지 않았다. 빈 JSON 이거나 구조가 틀렸다.
@@ -324,11 +378,15 @@ try {
   #
   # **내역 시트만 본다.** 갑지는 길이가 고정된 양식 문구뿐이고 원본 견적서도
   # 똑같이 AutoFit 기준을 넘는다 (실측: 원본 갑지 8행 24->26.5). 회사 양식의
-  # 설계이지 생성기의 결함이 아니다. 내역 시트는 반복 머리글로 식별한다.
-  foreach ($ws in $wb.Worksheets) {
+  # 설계이지 생성기의 결함이 아니다. **시트 색인(`$idxCover`)으로 가린다** —
+  # "반복 머리글이 없다"로 가리면, 다중 시스템이라 갑지에도 반복 머리글을
+  # 단 경우(9행) 이 제외가 풀려 템플릿 고유의 8행 잘림이 거짓 실패로 뜬다
+  # (실측, P2-1).
+  for ($wsIndex = 1; $wsIndex -le $wb.Worksheets.Count; $wsIndex++) {
+    $ws = $wb.Worksheets.Item($wsIndex)
     $area = $ws.PageSetup.PrintArea
     if (-not $area) { continue }
-    if (-not $ws.PageSetup.PrintTitleRows) {
+    if ($wsIndex -eq $idxCover) {
       Write-Output "  $($ws.Name): 행 잘림 검사 제외 (양식 고정 시트)"
       continue
     }
@@ -435,6 +493,14 @@ try {
         if ($afterText -notmatch "V\.A\.T") {
           Fail "한글 금액 문구에 VAT 별도 표기가 없다"
         }
+
+        # **되돌린다.** 이 검사가 수량을 건드려 놓고 안 되돌리면, 뒤이어
+        # 도는 다른 검사(`-EditScenarios` 등)가 "이 시스템은 그대로일
+        # 것"이라고 기대하는 값과 실제 상태가 어긋난다 — 실측으로 다중
+        # 시스템 갑지 합계·다른 시스템 합계가 둘 다 이 잔여 편집 때문에
+        # 틀리게 나왔다.
+        $detail.Range("$colQty$itemRow").Value2 = $beforeQty
+        $xl.CalculateFullRebuild()
       }
     }
   }
@@ -485,6 +551,67 @@ try {
       if ($afterLabor -eq $beforeLabor) {
         Fail "빈 직종의 품이 노무비 단가에 반영되지 않았다"
       }
+
+      # 되돌린다 — 바로 위 수량 편집 되돌리기와 같은 이유.
+      $detail.Range("$($empty.quantity)$row").Value2 = 0
+      $xl.CalculateFullRebuild()
+    }
+  }
+
+  # --- 편집 시나리오 (P2-1, 독립 기대값 대사) ---
+  #
+  # `-EditScenarios` 가 주는 각 항목은 "도메인 입력을 바꿔 계산 엔진을 다시
+  # 불러 얻은" 기대값이다(`tools/probe_edit_scenarios.ts`). 한 칸을 고치고
+  # 재계산한 뒤 전부 대조하고, 다음 시나리오가 이 편집과 안 섞이도록
+  # 원래 값으로 되돌린다(`revertValue` 가 빈 문자열이면 칸을 비운다).
+  if ($null -ne $scenariosData) {
+    $scenarioChecked = 0
+    foreach ($scenario in $scenariosData) {
+      # 시나리오 하나가 터져도 나머지는 계속 본다 — 한 시나리오의 예외가
+      # 전체 검증을 조용히 중단시키면 나머지 시나리오는 "통과"도 "실패"도
+      # 아닌 채로 묻힌다.
+      try {
+      $ws = $null
+      try { $ws = $wb.Worksheets.Item([string]$scenario.sheet) } catch {
+        Fail "편집 시나리오 '$($scenario.label)': 시트 없음 $($scenario.sheet)"
+        continue
+      }
+      $cellRef = [string]$scenario.cell
+      $range = $ws.Range($cellRef)
+
+      # **숫자로 보이면 숫자로 넣는다.** COM 의 `Value2` 세터에 문자열을
+      # 주면 VARIANT 변환이 셀의 현재 서식(예: 퍼센트)·상태에 따라
+      # 불안정하게 실패하는 사례가 실측됐다("지정한 캐스트가
+      # 잘못되었습니다" — 같은 모양의 대입이 바로 전 줄에서는 성공하고
+      # 되돌릴 때 실패했다). 텍스트로 둬야 할 이유가 없으니 파싱되면
+      # [double]을 쓴다.
+      $editValue = [string]$scenario.editValue
+      $parsedEdit = 0.0
+      if ([double]::TryParse($editValue, [ref]$parsedEdit)) { $range.Value2 = $parsedEdit }
+      else { $range.Value2 = $editValue }
+
+      $xl.CalculateFullRebuild()
+      Compare-Expected $wb $scenario.expected "[$($scenario.label)] "
+      $checked = $script:compareChecked
+      $scenarioChecked = $scenarioChecked + $checked
+      Write-Output ("편집 시나리오: {0}  ({1} 셀 대조)" -f $scenario.label, $checked)
+
+      $revert = [string]$scenario.revertValue
+      if ($revert -eq '') {
+        $range.ClearContents() | Out-Null
+      } else {
+        $parsedRevert = 0.0
+        if ([double]::TryParse($revert, [ref]$parsedRevert)) { $range.Value2 = $parsedRevert }
+        else { $range.Value2 = $revert }
+      }
+      $xl.CalculateFullRebuild()
+      Release $range
+      } catch {
+        Fail "편집 시나리오 '$($scenario.label)' 처리 중 예외: $($_.Exception.GetType().Name) — $($_.Exception.Message)"
+      }
+    }
+    if ($scenarioChecked -eq 0) {
+      Fail "편집 시나리오를 지정했는데 대조한 셀이 0개다"
     }
   }
 

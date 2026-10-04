@@ -298,6 +298,12 @@ export function buildMultiSystemGuideBase(
       path: 'xl/worksheets/sheet1.xml',
       relId: 'rId1',
       printArea: toDollarPrintArea(baseGuide.printArea.cover, coverResult.shift),
+      // 시스템이 많아 갑지가 2페이지 이상으로 넘어가면 9행(순위·품명·...
+      // 머리글)을 반복한다 — 실측(P2-1): 시스템 수가 늘어 갑지가 여러
+      // 페이지가 됐는데 반복 머리글이 없어서 뒤 페이지가 머리글 없이
+      // 나가는 결함을 발견했다. 시스템 1개(1페이지로 끝나는 보통 경우)는
+      // 반복 머리글이 있어도 해가 되지 않는다.
+      printTitles: '$9:$9',
     },
     ...details.map((detail, index) => ({
       name: detail.sheetName,
