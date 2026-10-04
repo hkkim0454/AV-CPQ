@@ -133,6 +133,7 @@ export function buildGuideBase(
     guide,
     itemRowIds: itemRows.map((r) => r.rowId),
     derivedRowIds: derivedRows.map((r) => r.rowId),
+    derivedRowKinds: derivedRows.map((r) => r.derived.kind),
   });
 
   const col = layout.column;
@@ -179,11 +180,26 @@ export function buildGuideBase(
   });
 
   // --- 파생 (배관 기타자재 → 잡자재비) ---
+  //
+  // **원가측도 같이 계산한다 (0단계, 결정 D19).** 독립 검토에서 빠진 것으로
+  // 지적됐다. 실측(네 가이드 13~15행 원문)으로 확인한 규칙:
+  //
+  // ```
+  //            일반(won)          DS(ds-won)
+  // 배관 기타자재  원가측 공란        원가측 = 직전 배관 원가금액 × 40%
+  // 잡자재비      원가측 = INT(SUM(원가금액 범위)×2%)   — 두 프로파일 동일
+  // 둘 다         원가금액 = 수량×원가단가 수식은 항상 있다 (단가가 공란이면 0)
+  // ```
+  //
+  // 일반 프로파일은 배관 기타자재의 원가를 추적하지 않는 것이 템플릿 자체의
+  // 설계다 — 우리가 §5.6 미등록 규칙으로 재해석하지 않는다. 템플릿이 이미
+  // 그렇게 만들어져 있다.
   derivedRows.forEach((row) => {
     const at = rowByRowId.get(row.rowId)!;
     const calc = calcByRowId.get(row.rowId);
     const percent = ratePercent(row.rate);
     let unitPrice: CellValue = blank;
+    let costUnitPrice: CellValue | undefined;
 
     if (row.derived.kind === 'single-row-material') {
       const sourceRow = rowByRowId.get(row.derived.sourceRowId);
@@ -197,6 +213,12 @@ export function buildGuideBase(
         unitPrice = formula(
           F.derivedFromRow(layout, sourceRow, 'material.amount', percent),
         );
+        // DS 프로파일만 원가측 배관 기타자재를 계산한다 (실측 ds-won G13).
+        if (guide.hasCost && guide.profile === 'ds') {
+          costUnitPrice = formula(
+            F.derivedFromRow(layout, sourceRow, 'cost.amount', percent),
+          );
+        }
       }
     } else {
       // 잡자재비 — 품목부터 **바로 윗 행까지**. 배관 기타자재를 포함한다.
@@ -208,9 +230,20 @@ export function buildGuideBase(
         percent,
       );
       unitPrice = typeof built === 'string' ? formula(built) : num('0');
+      // 잡자재비의 원가측은 **두 프로파일 모두** 계산한다 (실측 G14).
+      if (guide.hasCost) {
+        const costBuilt = F.derivedFromRange(
+          layout,
+          layout.firstBodyRow,
+          at - 1,
+          'cost.amount',
+          percent,
+        );
+        costUnitPrice = typeof costBuilt === 'string' ? formula(costBuilt) : num('0');
+      }
     }
 
-    put(at, {
+    const cells: Record<string, CellValue> = {
       [col('name')]: text(row.name),
       [col('spec')]: text(row.specification),
       [col('unit')]: text(row.unit),
@@ -219,7 +252,15 @@ export function buildGuideBase(
       [col('material.amount')]: formula(F.amount(layout, at, 'material.unit')),
       [col('total')]: formula(F.rowTotal(layout, at)),
       [col('remark')]: text(row.remark),
-    });
+    };
+    if (guide.hasCost) {
+      // 원가금액 = 수량×원가단가 수식은 **항상** 있다 — 단가가 비어 있으면
+      // Excel 이 빈 칸을 0 으로 계산해 그대로 0 이 된다 (실측 won H13).
+      if (costUnitPrice !== undefined) cells[col('cost.unit')] = costUnitPrice;
+      cells[col('cost.amount')] = formula(F.amount(layout, at, 'cost.unit'));
+      cells[col('profit')] = formula(F.profitRate(layout, at));
+    }
+    put(at, cells);
   });
 
   // --- 직접비계 ---
@@ -227,12 +268,18 @@ export function buildGuideBase(
     const built = F.directSubtotal(layout, role);
     return 'formula' in built ? formula(built.formula) : num('0');
   };
-  put(layout.directSubtotalRow, {
+  const directSubtotalCells: Record<string, CellValue> = {
     A: text('직접비계'),
     [col('material.amount')]: subtotalCell('material.amount'),
     [col('labor.amount')]: subtotalCell('labor.amount'),
     [col('total')]: subtotalCell('total'),
-  });
+  };
+  if (guide.hasCost) {
+    // 원가 직접비계(H15=SUM(H6:H14))도 재료비·노무비와 같은 자리에 묶는다.
+    // 0단계가 빼먹으면 세부내역의 원가 합계가 빈 칸으로 남는다.
+    directSubtotalCells[col('cost.amount')] = subtotalCell('cost.amount');
+  }
+  put(layout.directSubtotalRow, directSubtotalCells);
 
   // --- 간접비 ---
   put(layout.indirectHeaderRow, { A: text('Ⅱ'), [col('name')]: text('간접비') });

@@ -23,6 +23,7 @@
  * 검증 manifest 가 **같은 결과**를 쓴다 — 따로 계산하면 언젠가 갈린다.
  */
 import type { GuideTemplate } from './guideTemplate';
+import type { DerivedBasis } from '../../domain/quote/types';
 
 /** 한 행이 무엇인지. */
 export type GuideRowKind =
@@ -73,6 +74,17 @@ export interface GuideLayoutInput {
   itemRowIds: readonly string[];
   /** 파생 행의 문서 식별자. 보통 배관 기타자재·잡자재비 둘이다. */
   derivedRowIds: readonly string[];
+  /**
+   * 파생 행의 종류. **순서 검증에만 쓴다** — 자리 배정에는 여전히
+   * `derivedRowIds` 의 배열 순서를 쓴다.
+   *
+   * 템플릿의 두 자리는 **역할이 고정**돼 있다. 13행은 배관 기타자재
+   * (`single-row-material`), 14행은 잡자재비(`material-sum-to-here`)다.
+   * 잡자재비는 "품목부터 바로 윗 행까지" 를 합산하므로, 순서가 뒤집히면
+   * 배관 기타자재가 합산 범위 밖으로 빠진다 — 숫자는 나오지만 원본보다
+   * 작은, 조용히 틀린 값이다.
+   */
+  derivedRowKinds?: readonly DerivedBasis['kind'][];
 }
 
 export class GuideLayoutError extends Error {
@@ -104,6 +116,26 @@ export function planGuideSheet(input: GuideLayoutInput): GuideSheetLayout {
       `파생 행이 ${input.derivedRowIds.length}개인데 가이드에는 ` +
         `${templateDerivedCount}개 자리뿐이다.`,
     );
+  }
+
+  if (input.derivedRowKinds !== undefined) {
+    // 'material-sum-to-here' 는 "품목부터 바로 윗 행까지" 를 합산한다.
+    // 그 앞에 'single-row-material' 이 와야 **그 행까지 포함**된다.
+    // 뒤집히면 숫자는 나오지만 원본보다 작은, 조용히 틀린 값이 된다.
+    let seenSumToHere = false;
+    for (const kind of input.derivedRowKinds) {
+      if (kind === 'material-sum-to-here') {
+        seenSumToHere = true;
+        continue;
+      }
+      if (seenSumToHere) {
+        throw new GuideLayoutError(
+          "파생 행 순서가 틀렸다 — 'material-sum-to-here'(잡자재비) 뒤에 " +
+            "'single-row-material'(배관 기타자재류) 가 왔다. 잡자재비는 " +
+            '앞선 행까지만 합산하므로, 이 순서면 배관 기타자재가 합산 범위 밖으로 빠진다.',
+        );
+      }
+    }
   }
 
   const rows: PlannedRow[] = [];
