@@ -15,6 +15,7 @@ import { loadResources, type ResourcesResult } from './resources';
 import { useWorkspace, type LoadedDocument } from './workspace';
 import { DiagramInput } from '../features/entry/DiagramInput';
 import { ProductPicker } from '../features/entry/ProductPicker';
+import { ReferenceDocs } from '../features/entry/ReferenceDocs';
 import { CoverSheet } from '../features/worksheet/CoverSheet';
 import { QuoteSheet } from '../features/worksheet/QuoteSheet';
 import { IndirectPanel } from '../features/worksheet/IndirectPanel';
@@ -136,6 +137,8 @@ export function App() {
             견적 작업 공간
           </div>
         </header>
+
+        <ReferenceDocs />
 
         <div className="q-workspace">
           <div className="q-tools">

@@ -37,6 +37,14 @@ __pycache__/
 !templates/sanitized/guide-ds.xlsx
 !templates/sanitized/guide-ds-won.xlsx
 
+# 메인페이지 자료 보기·다운로드(계획 §8, 2026-10-05) — 사용자가 올린
+# 공표·품셈 원문 2건. "한 개만" 규정은 승인된 파일 각각의 좁은 예외라는
+# 뜻이다 — 업로드 폴더나 다른 PDF를 전부 허용하는 와일드카드가 아니다.
+# 새 PDF를 추가하려면 여기와 `tools/vite-reference-docs.ts`의 ALLOWED에
+# 둘 다 명시해야 한다.
+!reference-docs/2026년_하반기_적용_정보통신부문_시중노임단가_공표_안내_1부.pdf
+!reference-docs/2026년도-적용-정보통신공사-표준품셈.pdf
+
 # 로컬 전용 분석/출력 디렉터리. 커밋 대상 아님.
 .local/
 

@@ -3,11 +3,12 @@ import react from '@vitejs/plugin-react';
 import { fileURLToPath, URL } from 'node:url';
 import { approvedDataPlugin } from './tools/vite-approved-data';
 import { guideAssetsPlugin } from './tools/vite-guide-assets';
+import { referenceDocsPlugin } from './tools/vite-reference-docs';
 
 // 설계서 §8.4: 의존성·글꼴·아이콘은 자체 호스팅한다. 외부 CDN을 쓰지 않는다.
 // 설계서 §8.5: 배포 시 connect-src 'none' CSP와 호환되어야 한다.
 export default defineConfig({
-  plugins: [react(), approvedDataPlugin(), guideAssetsPlugin()],
+  plugins: [react(), approvedDataPlugin(), guideAssetsPlugin(), referenceDocsPlugin()],
   base: './',
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
