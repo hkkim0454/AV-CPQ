@@ -241,3 +241,16 @@ def force_full_calc(workbook_xml: bytes) -> bytes:
             workbook_xml,
         )
     return workbook_xml.replace(b"</workbook>", b'<calcPr fullCalcOnLoad="1"/></workbook>')
+
+
+def drop_custom_sheet_views(sheet_xml: bytes) -> bytes:
+    """`<customSheetViews>` 를 들어낸다.
+
+    사용자 지정 보기의 잔재다. 안에 **자기 몫의 인쇄 설정**을 또 담고 있어서
+    시트에 pageSetup 이 둘이 된다. 배율을 읽을 때 어느 쪽을 집었는지에 따라
+    82 가 나오기도 하고 70 이 나오기도 한다.
+
+    게다가 이 보기가 가리키던 `Z_…_.wvu.PrintArea` 정의된 이름은 정리 과정에서
+    이미 지웠다. 가리킬 곳이 없는 보기를 남겨 둘 이유가 없다.
+    """
+    return re.sub(rb"<customSheetViews>.*?</customSheetViews>", b"", sheet_xml, flags=re.S)

@@ -691,6 +691,9 @@ def sanitize(zf: zipfile.ZipFile, spec: dict) -> dict:
     parts[COVER_SHEET] = guide_xml.strip_cached_values(
         guide_xml.clear_cells(parts[COVER_SHEET], COVER_CLEAR)
     )
+    # 사용자 지정 보기 잔재를 들어낸다 — 인쇄 설정이 둘이 되어 배율을 잘못 읽는다.
+    for name in (COVER_SHEET, DETAIL_SHEET):
+        parts[name] = guide_xml.drop_custom_sheet_views(parts[name])
     parts["xl/workbook.xml"] = guide_xml.force_full_calc(parts["xl/workbook.xml"])
 
     parts = drop_dangling_relationships(parts)

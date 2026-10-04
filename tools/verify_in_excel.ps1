@@ -274,11 +274,25 @@ try {
     #
     # **열은 보지 않는다.** 품셈 블록과 BF 메모는 인쇄 영역 밖에 있는 것이
     # 의도다 (D18). 열까지 덮으라고 하면 그 설계가 결함으로 잡힌다.
+    #
+    # **서식만 있는 행도 세지 않는다.** UsedRange 는 테두리만 그어 둔 빈 행까지
+    # 포함한다. 가이드 갑지가 그래서 22행까지 '쓰인' 것으로 잡혔는데, 실제
+    # 내용은 19행에서 끝난다. 값이 있는 칸만 본다.
     $areaRange = $ws.Range($area)
     $lastAreaRow = $areaRange.Row + $areaRange.Rows.Count - 1
+    $lastAreaCol = $areaRange.Column + $areaRange.Columns.Count - 1
     $lastUsedRow = $ws.UsedRange.Row + $ws.UsedRange.Rows.Count - 1
-    if ($lastUsedRow -gt $lastAreaRow) {
-      Fail "$($ws.Name): 인쇄 영역이 $lastAreaRow 행까지인데 내용은 $lastUsedRow 행까지 있다 (행 잘림)"
+
+    $spill = 0
+    for ($r = $lastAreaRow + 1; $r -le $lastUsedRow; $r++) {
+      for ($c = $areaRange.Column; $c -le $lastAreaCol; $c++) {
+        $cellValue = $ws.Cells.Item($r, $c).Value2
+        if ($null -ne $cellValue -and "$cellValue" -ne '') { $spill = $r; break }
+      }
+      if ($spill -gt 0) { break }
+    }
+    if ($spill -gt 0) {
+      Fail "$($ws.Name): 인쇄 영역이 $lastAreaRow 행까지인데 $spill 행에 값이 있다 (행 잘림)"
     }
 
     $pages = $ws.PageSetup.Pages.Count
@@ -356,10 +370,16 @@ try {
     $detail = $wb.Worksheets.Item($idxDetail)
     $cover2 = $wb.Worksheets.Item($idxCover)
 
-    # 갑지에서 최종 합계 행을 찾는다 (B열에 '최'로 시작하는 행).
-    $finalRow = 0
-    for ($r = 10; $r -le 40; $r++) {
-      if ($cover2.Range("B$r").Text -like "*최*종*") { $finalRow = $r; break }
+    # 갑지의 합계 행을 찾는다.
+    #
+    # 양식마다 이름이 다르다. 평택 원본은 '최종 금액', 가이드는 '합     계' 다.
+    # 하나만 찾으면 다른 양식에서 "찾지 못했다"가 난다.
+    $finalRow = [int](LayoutValue 'coverTotalRow' '0')
+    if ($finalRow -eq 0) {
+      for ($r = 10; $r -le 40; $r++) {
+        $label = $cover2.Range("B$r").Text
+        if ($label -like "*최*종*" -or $label -like "*합*계*") { $finalRow = $r; break }
+      }
     }
     if ($finalRow -eq 0) { Fail "갑지에서 최종 합계 행을 찾지 못했다" }
     else {
