@@ -362,3 +362,46 @@ describe('다중 시스템 — 영업팀용(0단계), 원가가 들어가는 유
     expect(result.bytes.byteLength).toBeGreaterThan(0);
   });
 });
+
+describe('다중 시스템 — 구역(그룹)은 하나만 지원한다, 조용히 버리지 않는다', () => {
+  /**
+   * 갑지 템플릿 자체가 "구역 한 줄 + 소계 한 줄" 구조라 여러 구역을
+   * 각자 소계와 함께 담을 자리가 없다(실측). 이 사실을 몰랐을 때는
+   * `exported.groups[0]` 만 조용히 썼다 — 두 번째 구역에 속한 시스템도
+   * 첫 구역 이름 아래 나열됐다. 이제는 그런 입력을 명시적으로 거부한다.
+   */
+  it('구역이 둘이면 던진다 — 조용히 첫 구역만 쓰지 않는다', () => {
+    const { projection, guideBySystemId } = build(['general', 'general']);
+    const [sys1, sys2] = projection.systems;
+    const twoGroups = {
+      ...projection,
+      groups: [
+        { marker: 'Ⅰ', name: '구역1', systemIds: [sys1!.systemId] },
+        { marker: 'Ⅱ', name: '구역2', systemIds: [sys2!.systemId] },
+      ],
+    };
+    expect(() => buildMultiSystemGuideBase({ exported: twoGroups, guideBySystemId })).toThrow(
+      /구역\(그룹\) 하나만 지원한다/,
+    );
+  });
+
+  it('구역 하나가 시스템을 전부 담지 않으면 던진다 — 빠진 시스템을 조용히 누락하지 않는다', () => {
+    const { projection, guideBySystemId } = build(['general', 'general']);
+    const [sys1] = projection.systems;
+    const partialGroup = {
+      ...projection,
+      groups: [{ marker: 'Ⅰ', name: '구역1', systemIds: [sys1!.systemId] }],
+    };
+    expect(() =>
+      buildMultiSystemGuideBase({ exported: partialGroup, guideBySystemId }),
+    ).toThrow(/시스템을 전부 담지 않는다/);
+  });
+
+  it('구역 정보가 아예 없으면(0개) 기본값으로 받아들인다 — 이건 누락이 아니라 정보 없음이다', () => {
+    const { projection, guideBySystemId } = build(['general', 'general']);
+    const noGroups = { ...projection, groups: [] };
+    expect(() =>
+      buildMultiSystemGuideBase({ exported: noGroups, guideBySystemId }),
+    ).not.toThrow();
+  });
+});

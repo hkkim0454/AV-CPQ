@@ -39,9 +39,10 @@ import {
   buildSystemSheetContent,
   GuideWorkbookError,
   remapCrossSheetRefs,
+  singleCoverGroup,
 } from './guideWorkbook';
 import type { GuideSheetLayout } from '../ooxml/guideLayout';
-import { fillGuideSheet } from '../ooxml/guideSheet';
+import { fillGuideSheet, stripDetailDrawingRef } from '../ooxml/guideSheet';
 import {
   columnIndex,
   columnName,
@@ -88,11 +89,6 @@ function escapeXml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-/** 세부내역 시트 루트의 `<drawing r:id=".."/>` 를 뗀다 — 관계를 안 옮기므로 참조도 없앤다. */
-function stripDrawingRef(sheetXml: string): string {
-  return sheetXml.replace(/<drawing r:id="[^"]*"\/>/, '');
-}
-
 /** `A1:J21` → `$A$1:$J$21`, 끝 행 번호에 shift 를 더한다. */
 function toDollarPrintArea(areaA1: string, rowShift: number): string {
   const [start, end] = areaA1.split(':') as [string, string];
@@ -106,7 +102,7 @@ function toDollarPrintArea(areaA1: string, rowShift: number): string {
 
 /** 갑지의 머리정보(C2~C6)와 그룹 머리글(B10/C10)만 채운다 — 시스템 줄은 별도. */
 function fillCoverHeader(coverXml: string, exported: CustomerExport): string {
-  const group = exported.groups[0];
+  const group = singleCoverGroup(exported);
   const replacements = new Map<string, string>([
     ['C2', exported.header.quoteNumber],
     ['C3', exported.header.quoteDate],
@@ -115,6 +111,10 @@ function fillCoverHeader(coverXml: string, exported: CustomerExport): string {
     ['C6', exported.header.contact],
     ['B10', group?.marker ?? 'Ⅰ'],
     ['C10', group?.name ?? exported.header.projectName],
+    // 비고(19·20행) — 단일 시스템 경로(`fillCover`)와 같은 이유로
+    // `header.conditions`로 항상 정한다. 비면 빈 칸이다.
+    ['C19', exported.header.conditions[0] ?? ''],
+    ['C20', exported.header.conditions[1] ?? ''],
   ]);
   return coverXml.replace(/<c [^>]*\/>|<c [^>]*>[\s\S]*?<\/c>/g, (cellBlock) => {
     const ref = /\br="([A-Z]+\d+)"/.exec(cellBlock)?.[1];
@@ -245,9 +245,10 @@ export function buildMultiSystemGuideBase(
     if (guide.id !== baseGuide.id) {
       const remap = remapByGuideId.get(guide.id)!;
       sheetXml = remapWorksheetIndices(sheetXml, remap);
-      // 기준이 아닌 시트의 도형 참조는 옮기지 않는다 — 머리말 설명 참고.
-      sheetXml = stripDrawingRef(sheetXml);
     }
+    // DS 세부내역의 설명 도형은 기준·비기준 상관없이 뗀다 — 이제 순수
+    // 중복이다(머리말 설명, `guideSheet.ts`의 `stripDetailDrawingRef`).
+    sheetXml = stripDetailDrawingRef(sheetXml);
 
     const partPath = `xl/worksheets/sheet${index + 2}.xml`;
     const sheetName = index === 0 ? guide.sheets.detail : `${guide.sheets.detail}${index + 1}`;

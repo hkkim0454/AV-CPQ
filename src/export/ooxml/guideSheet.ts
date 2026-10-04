@@ -237,6 +237,24 @@ export function fillGuideSheet(input: FillSheetInput): string {
   return out;
 }
 
+/**
+ * 세부내역 시트 루트의 `<drawing r:id=".."/>` 를 뗀다(계획 2026-10-04 P2-2
+ * 후속). DS 두 가이드(`ds`·`ds-won`)의 세부내역 시트에는 간접비 블록 위에
+ * 걸치는 설명 도형이 원본에 박혀 있다 — 내용을 실측해 확인해 보니
+ * 요율 자체는 이미 칸에 평문으로 있고(유출 아님), 그 중 "기축건물/
+ * 신축건물 간접노무비 차등"·"계약금액 구간별 산업안전보건관리비 차등"
+ * 부분은 `templates/sanitized/guide-manifest.json`의 해당 간접비 항목
+ * `conditionText`(내부 비고 칸)로 옮겨 적었다(지금 계산 엔진은 그 차등을
+ * 지원하지 않는다는 사실까지 포함해서). 그러니 도형 자체는 이제 순수
+ * 중복이고, 인쇄 영역 경계에서 글자가 잘리는 결함만 남기므로(실측,
+ * `docs/template/verification.md`) 뗀다 — 기준 시스템이든 아니든 상관없이
+ * 모든 DS 세부내역 시트에서. `won`·`pumsem` 시트에는 애초에 도형 참조가
+ * 없어 이 치환은 안전한 빈 동작(no-op)이다.
+ */
+export function stripDetailDrawingRef(sheetXml: string): string {
+  return sheetXml.replace(/<drawing r:id="[^"]*"\/>/, '');
+}
+
 export function fillGuideSheetBytes(
   sheet: Uint8Array,
   layout: GuideSheetLayout,

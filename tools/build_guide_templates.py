@@ -339,6 +339,17 @@ def measure(zf: zipfile.ZipFile, guide_id: str) -> dict:
                 entry["conditionText"] = condition
             indirect.append(entry)
 
+    # 경고(2026-10-04, P2-2 후속): DS 두 프로파일의 "간접노무비"·"산업안전보건관리비"
+    # 항목에는 이 스크립트가 못 찾는 conditionText 를 수동으로 더 적어 뒀다
+    # (원본 시트 셀이 아니라 drawing2.xml 안의 플로팅 설명 상자에만 있던 내용 —
+    # 기축건물/신축건물 간접노무비 차등, 계약금액 구간별 산업안전보건관리비
+    # 차등. 지금 계산 엔진은 그 차등을 지원하지 않고 고정 요율만 쓰는데,
+    # 그 사실을 내부용 비고 칸에 남겨 두려고 수동으로 적었다). 이 스크립트를
+    # 다시 돌리면 이 둘을 또 찾아내지 못해 **조용히 지워진다** — 다시 돌린
+    # 뒤에는 guide-manifest.json 에서 저 두 conditionText 가 남아 있는지
+    # 확인하고, 없으면 docs/template/verification.md 의 P2-2 기록을 참고해
+    # 다시 적어 넣는다.
+
     # --- 인쇄 설정 ---
     cover = Sheet(zf.read(COVER_SHEET), shared)
     workbook = ET.fromstring(zf.read("xl/workbook.xml"))

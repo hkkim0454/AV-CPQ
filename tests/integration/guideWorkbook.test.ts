@@ -285,6 +285,21 @@ describe('고객용 가이드 통합문서 — 경계', () => {
     });
   });
 
+  /**
+   * 갑지 템플릿은 구역(그룹) 한 줄·소계 한 줄 구조다. 구역이 실제 시스템과
+   * 안 맞는 입력(엉뚱한 구역에 속하거나 구역이 둘인 입력)을 조용히
+   * 첫 구역만 써서 넘어가면 안 된다 — 명시적으로 던져야 한다.
+   */
+  it('구역(그룹)이 이 시스템을 담지 않으면 던진다', () => {
+    const { prepared } = build('general', 9);
+    const mismatched = {
+      ...buildCustomerProjection(prepared.document, prepared.priced.calculation),
+      groups: [{ marker: 'Ⅰ', name: '엉뚱한 구역', systemIds: ['없는-시스템-id'] }],
+    };
+    const guide = selectGuide(allGuides(), 'general', false);
+    expect(() => buildCustomerGuideWorkbook(mismatched, guide)).toThrow(/전부 담지 않는다/);
+  });
+
   it('시스템이 둘이면 아직 막는다 — 조용히 하나만 내보내지 않는다', () => {
     const catalog = buildCatalog(j('products.json'), j('prices.json'));
     const matrix = catalog.products.find((p) => p.quoteSpec === 'XDM-12')!;

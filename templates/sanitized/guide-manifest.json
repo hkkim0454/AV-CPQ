@@ -550,7 +550,8 @@
           "name": "간접노무비",
           "basisLabel": "노무비 대비",
           "rate": "0.0486",
-          "applied": true
+          "applied": true,
+          "conditionText": "기축건물 개보수 4.860%(현재 고정 적용) — 신축건물(건설분) 3.2%는 미지원"
         },
         {
           "name": "고용보험료",
@@ -589,7 +590,8 @@
           "name": "산업안전보건관리비",
           "basisLabel": "직접비 대비",
           "rate": "0.0311",
-          "applied": true
+          "applied": true,
+          "conditionText": "5억 미만 3.110%(현재 고정 적용) — 5~50억 2.28%+4,325천원·50~800억 2.370%는 미지원"
         },
         {
           "name": "퇴직공제부금비",
@@ -762,7 +764,8 @@
           "name": "간접노무비",
           "basisLabel": "노무비 대비",
           "rate": "0.0486",
-          "applied": true
+          "applied": true,
+          "conditionText": "기축건물 개보수 4.860%(현재 고정 적용) — 신축건물(건설분) 3.2%는 미지원"
         },
         {
           "name": "고용보험료",
@@ -801,7 +804,8 @@
           "name": "산업안전보건관리비",
           "basisLabel": "직접비 대비",
           "rate": "0.0311",
-          "applied": true
+          "applied": true,
+          "conditionText": "5억 미만 3.110%(현재 고정 적용) — 5~50억 2.28%+4,325천원·50~800억 2.370%는 미지원"
         },
         {
           "name": "퇴직공제부금비",

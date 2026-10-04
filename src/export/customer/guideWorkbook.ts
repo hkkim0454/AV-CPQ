@@ -15,7 +15,12 @@
  */
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 
-import type { CustomerDerivedRow, CustomerExport, CustomerItemRow } from './projection';
+import type {
+  CustomerDerivedRow,
+  CustomerExport,
+  CustomerGroup,
+  CustomerItemRow,
+} from './projection';
 import type { GuideTemplate } from '../ooxml/guideTemplate';
 import {
   planGuideSheet,
@@ -34,6 +39,7 @@ import {
   fillGuideSheet,
   formula,
   num,
+  stripDetailDrawingRef,
   text,
   updatePrintArea,
   type CellValue,
@@ -420,8 +426,14 @@ export function buildGuideBase(
   for (const [name, bytes] of Object.entries(files)) {
     patched[name] = bytes;
   }
+  // DS 세부내역의 설명 도형 참조는 뗀다 — 순수 중복이고 인쇄 경계에서
+  // 잘리는 결함만 남긴다(실측, P2-2). 의미 있는 부분은 간접비 항목의
+  // conditionText(manifest)로 옮겨 적었다. `won`/`pumsem`은 애초에 도형
+  // 참조가 없어 이 치환은 빈 동작이다.
   patched[DETAIL_PART] = strToU8(
-    fillGuideSheet({ sheetXml: strFromU8(detail), layout, contentByRow }),
+    stripDetailDrawingRef(
+      fillGuideSheet({ sheetXml: strFromU8(detail), layout, contentByRow }),
+    ),
   );
 
   // 갑지 — 금액 칸만 면제한다. 공사명 등 머리글 칸은 금액이 아니므로 뺀다.
@@ -456,6 +468,39 @@ export function buildGuideBase(
 }
 
 /**
+ * 갑지가 다룰 수 있는 구역(그룹)은 **하나뿐이다** — 조용히 첫 그룹만
+ * 쓰고 나머지를 버리지 않는다.
+ *
+ * 갑지 템플릿 자체가 "구역 머리글 한 줄(10행) + 시스템 + 소계 한 줄"
+ * 구조다 — 실측으로 그 뒤에 두 번째 구역 머리글·소계 자리가 없는 것을
+ * 확인했다. `RoundingPolicy.coverTotalDigits` 도 전체 하나뿐이라 그룹별
+ * 절사라는 개념 자체가 설계에 없다. 그래서 "구역을 전부 반영"하는 대신,
+ * 템플릿이 실제로 감당할 수 있는 입력(구역 0개 또는 1개, 그 1개가 모든
+ * 시스템을 담음)만 받고 나머지는 **명시적으로 거부**한다.
+ */
+export function singleCoverGroup(exported: CustomerExport): CustomerGroup | undefined {
+  if (exported.groups.length === 0) return undefined;
+  if (exported.groups.length > 1) {
+    throw new GuideWorkbookError(
+      `갑지는 구역(그룹) 하나만 지원한다 (받은 수: ${exported.groups.length}). ` +
+        '템플릿에 구역별 소계 자리가 없다 — 지원하지 않는 입력을 조용히 첫 구역만 쓰고 버리지 않는다.',
+    );
+  }
+  const group = exported.groups[0]!;
+  const systemIds = new Set(exported.systems.map((s) => s.systemId));
+  const groupIds = new Set(group.systemIds);
+  const missing = [...systemIds].filter((id) => !groupIds.has(id));
+  const extra = [...groupIds].filter((id) => !systemIds.has(id));
+  if (missing.length > 0 || extra.length > 0) {
+    throw new GuideWorkbookError(
+      `구역 '${group.name}' 이 시스템을 전부 담지 않는다 ` +
+        `(빠진 시스템: ${missing.join(',') || '없음'}, 구역에만 있는 시스템: ${extra.join(',') || '없음'}).`,
+    );
+  }
+  return group;
+}
+
+/**
  * 갑지의 견적 머리정보와 금액 참조를 채운다.
  *
  * 금액은 **수식**으로 둔다. 숫자로 박으면 Excel 에서 수량을 고쳐도
@@ -469,7 +514,7 @@ function fillCover(
 ): string {
   const reference = F.coverReference(guide.sheets.detail, layout);
   const system = exported.systems[0]!;
-  const group = exported.groups[0];
+  const group = singleCoverGroup(exported);
 
   const replacements = new Map<string, CellValue>([
     ['C2', text(exported.header.quoteNumber)],
@@ -487,6 +532,13 @@ function fillCover(
     ['F11', num(system.quantity)],
     // 갑지 금액 — 세부내역 합계를 가리킨다.
     ['G11', formula(reference)],
+    // 비고(19·20행) — `header.conditions`로 **항상** 정한다. 비워 두지 않는다.
+    // DS 템플릿의 19행 원본 글자는 "...등 의 비고내용 작성" 같은 마감 전
+    // 메모였다(실측, P2-2) — `conditions`가 비면 빈 문자열이 되어 아래
+    // 직렬화 분기(text 가 ''면 빈 칸)가 그 메모 대신 빈 칸을 낸다. 서식
+    // 번호(`s=`)는 그대로 둔다 — 새 서식을 만들지 않는다(D17).
+    ['C19', text(exported.header.conditions[0] ?? '')],
+    ['C20', text(exported.header.conditions[1] ?? '')],
   ]);
 
   return coverXml.replace(/<c [^>]*\/>|<c [^>]*>[\s\S]*?<\/c>/g, (cell) => {
