@@ -10,7 +10,7 @@
  * Focus 5번). `useWorkspace`는 자료가 아직 없을 때도 같은 순서로
  * 불려야 하므로(React 훅 규칙) `Resources | undefined`를 받는다.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { loadResources, type ResourcesResult } from './resources';
 import { useWorkspace, type LoadedDocument } from './workspace';
 import { DiagramInput } from '../features/entry/DiagramInput';
@@ -21,6 +21,8 @@ import { IndirectPanel } from '../features/worksheet/IndirectPanel';
 import { WarningList } from '../features/worksheet/WarningList';
 import { InstallationPanel } from '../features/installation/InstallationPanel';
 import { CableRoutePanel } from '../features/installation/CableRoutePanel';
+import { encodeWorkFile, decodeWorkFile } from '../services/files/workFile';
+import { downloadTextFile } from '../services/files/download';
 
 type LoadState = { kind: 'loading' } | ResourcesResult;
 
@@ -39,10 +41,35 @@ export function App() {
   const [entry, setEntry] = useState<EntryView>(null);
   const [outputGrade, setOutputGrade] = useState<OutputGrade>('2');
   const [pendingCableEdit, setPendingCableEdit] = useState(false);
+  const [workFileOpenError, setWorkFileOpenError] = useState<string | undefined>(undefined);
+  const workFileInputRef = useRef<HTMLInputElement>(null);
 
   const resources = state.kind === 'ready' ? state.resources : undefined;
   const workspace = useWorkspace(resources);
   const status = workspace.status;
+
+  function handleSaveWorkFile(): void {
+    if (status.kind !== 'editing') return;
+    const text = encodeWorkFile(status.document);
+    downloadTextFile(`견적-${status.document.header.quoteNumber || status.document.documentId}.avcpq.json`, text);
+  }
+
+  function handleOpenWorkFileSelected(file: File): void {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = typeof reader.result === 'string' ? reader.result : '';
+      const result = decodeWorkFile(text);
+      if (!result.ok) {
+        setWorkFileOpenError(`${file.name} — ${result.reason}`);
+        return;
+      }
+      setWorkFileOpenError(undefined);
+      workspace.openWorkFile(result.document);
+      setEntry(null);
+    };
+    reader.onerror = () => setWorkFileOpenError(`${file.name} — 파일을 읽지 못했습니다.`);
+    reader.readAsText(file);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -114,6 +141,34 @@ export function App() {
             <button type="button" className="q-button" onClick={workspace.redo} disabled={!workspace.canRedo}>
               다시 실행
             </button>
+            <button
+              type="button"
+              className="q-button"
+              onClick={handleSaveWorkFile}
+              disabled={status.kind !== 'editing' || pendingCableEdit}
+            >
+              작업 파일로 저장
+            </button>
+            <button
+              type="button"
+              className="q-button"
+              disabled={resources === undefined}
+              onClick={() => workFileInputRef.current?.click()}
+            >
+              작업 파일 열기
+            </button>
+            <input
+              ref={workFileInputRef}
+              type="file"
+              aria-label="작업 파일 선택"
+              accept=".json,application/json"
+              hidden
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = '';
+                if (file !== undefined) handleOpenWorkFileSelected(file);
+              }}
+            />
           </div>
           <div className="q-grade" role="radiogroup" aria-label="출력 등급">
             {OUTPUT_GRADES.map((grade) => (
@@ -161,6 +216,11 @@ export function App() {
                   '미등록'으로 표시합니다.
                 </p>
               )}
+              {workFileOpenError !== undefined && (
+                <p role="alert" className="q-notice q-notice-error">
+                  작업 파일을 열지 못했습니다 — {workFileOpenError}
+                </p>
+              )}
 
               {entry === 'diagram' && <DiagramInput catalog={resources.catalog} onLoaded={handleLoaded} />}
               {entry === 'picker' &&
@@ -179,6 +239,20 @@ export function App() {
 
               {entry === null && status.kind === 'empty' && (
                 <p className="q-muted">왼쪽 위 버튼으로 구성도를 열거나 품목을 직접 고르세요.</p>
+              )}
+
+              {status.kind === 'basis-conflict' && (
+                <div role="alert" className="q-notice q-notice-error">
+                  <h2>계산 기준이 바뀌었습니다</h2>
+                  <p>{status.reason}</p>
+                  <p className="q-muted">
+                    저장 당시와 다른 기준으로 조용히 다시 계산하지 않습니다. 계속하려면 아래에서
+                    명시적으로 지금 기준으로 다시 계산하세요.
+                  </p>
+                  <button type="button" className="q-button q-primary" onClick={workspace.recalculateWithCurrentBasis}>
+                    현재 기준으로 다시 계산
+                  </button>
+                </div>
               )}
 
               {status.kind === 'editing' && (

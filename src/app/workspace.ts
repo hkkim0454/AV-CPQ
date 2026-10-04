@@ -9,10 +9,11 @@
  * (계획 §1).
  */
 import { useCallback, useMemo, useState } from 'react';
-import { buildGuideBasis } from '../data/catalog/guideBasis';
+import { buildGuideBasis, GuideBasisError } from '../data/catalog/guideBasis';
 import { prepareQuote, type PreparedQuote } from '../export/variants/prepare';
 import { indirectCostsFor, type IndirectProfileId } from '../export/ooxml/guideTemplate';
-import { toRow } from '../domain/quote/buildDocument';
+import { toRow, CURRENT_TEMPLATE_VERSION } from '../domain/quote/buildDocument';
+import { computeDocumentBasisConflicts, describeBasisConflicts } from '../domain/quote/basisConflict';
 import { computeActiveWarnings } from '../domain/quote/activeWarnings';
 import { withResolvedProduct } from '../domain/quote/resolveProduct';
 import { synchronizeMiscMaterials, computeMiscMaterialWarnings } from '../domain/quote/miscMaterials';
@@ -43,6 +44,17 @@ export type WorkspaceStatus =
       kind: 'editing';
       document: QuoteDocument;
       prepared: PreparedQuote;
+    }
+  | {
+      /**
+       * 작업 파일을 저장할 때와 지금 환경의 계산 기준(카탈로그·가이드
+       * 템플릿·노임)이 다르다 — 조용히 새 기준으로 계산하지 않는다.
+       * `recalculateWithCurrentBasis`를 명시적으로 불러야 벗어난다
+       * (계획 Task 4, 설계서 §6.3).
+       */
+      kind: 'basis-conflict';
+      document: QuoteDocument;
+      reason: string;
     };
 
 export interface Workspace {
@@ -50,6 +62,15 @@ export interface Workspace {
   canUndo: boolean;
   canRedo: boolean;
   loadDocument(input: LoadedDocument): void;
+  /**
+   * 저장된 작업 파일을 연다 — `loadDocument`와 달리 새 견적 입구가
+   * 아니므로 `seedDefaultProfile`/`synchronizeMiscMaterials`를 부르지
+   * 않는다. 기준이 지금과 다르면 `status.kind`가 `'basis-conflict'`로
+   * 나타난다.
+   */
+  openWorkFile(document: QuoteDocument): void;
+  /** 기준 충돌을 사용자가 명시적으로 승인하고 지금 환경 기준으로 다시 계산한다. */
+  recalculateWithCurrentBasis(): void;
   setQuantity(rowId: string, quantity: string): void;
   setDescription(rowId: string, description: string): void;
   setRemark(rowId: string, remark: string): void;
@@ -174,40 +195,62 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
   // 다시 계산한다(`prepareNow`).
   const [allImportWarnings, setAllImportWarnings] = useState<readonly ImportWarning[]>([]);
 
+  type PrepareResult = { kind: 'ok'; prepared: PreparedQuote } | { kind: 'conflict'; reason: string };
+
   const prepareNow = useCallback(
-    (document: QuoteDocument): PreparedQuote | undefined => {
+    (document: QuoteDocument): PrepareResult | undefined => {
       if (basis === undefined || resources === undefined) return undefined;
-      return prepareQuote({
-        document,
-        laborReference: basis.reference,
-        basisVersions: basis.versions,
-        guides: resources.guides,
-        // 문서 자신이 들고 있는 프로파일에서 그대로 끌어낸다 — 별도
-        // state가 없으니 실행취소가 문서를 되돌리면 이 맵도 같이
-        // 저절로 되돌아간다.
-        profileBySystem: profileMapOf(document),
-        // 원본 경고(allImportWarnings)가 아니라 **지금 문서 상태로 다시
-        // 평가한** 부분집합을 넘긴다 — 그래야 해결한 경고가 여기서도
-        // 빠지고, `blocking`(출력 차단)도 실제로 풀린다. 화면
-        // (WarningList)도 이 함수가 돌려주는 `prepared.importWarnings`를
-        // 그대로 쓴다 — 표시와 차단 판정이 같은 집합을 보게 된다.
-        // 배관 경고(`computeInstallationWarnings`)는 별도 state 없이
-        // 이 문서에서 매번 새로 파생한다 — 그래야 실행취소로 배관 행이
-        // 사라지거나 종류가 바뀌어도 경고가 항상 그 시점 문서와 맞는다.
-        importWarnings: [
-          ...computeActiveWarnings(document, importWarningsFor(document, allImportWarnings)),
-          ...computeInstallationWarnings(document, resources.catalog),
-          ...computeMiscMaterialWarnings(document, resources.catalog),
-        ],
-        // 문서에 아직 기준이 안 적혀 있으면(새로 변환한 직후) 처음 적는다.
-        // 그 다음부터는 같은 기준인지만 대조한다 — 조용한 재계산이 아니다.
-        wageMode: document.versions.wage === 'unknown' ? 'initialize-new' : 'preserve',
+
+      // labor/wage보다 먼저 본다 — `assertSameBasis`가 다루지 않는 축이다
+      // (catalog/template). 여기서 걸리면 prepareQuote를 아예 부르지
+      // 않는다 — 어차피 명시적 재계산 전에는 의미 없는 계산이다.
+      const versionConflicts = computeDocumentBasisConflicts(document, {
+        catalogSha256: resources.catalog.sourceSha256,
       });
+      if (versionConflicts.length > 0) {
+        return { kind: 'conflict', reason: describeBasisConflicts(versionConflicts) };
+      }
+
+      try {
+        const prepared = prepareQuote({
+          document,
+          laborReference: basis.reference,
+          basisVersions: basis.versions,
+          guides: resources.guides,
+          // 문서 자신이 들고 있는 프로파일에서 그대로 끌어낸다 — 별도
+          // state가 없으니 실행취소가 문서를 되돌리면 이 맵도 같이
+          // 저절로 되돌아간다.
+          profileBySystem: profileMapOf(document),
+          // 원본 경고(allImportWarnings)가 아니라 **지금 문서 상태로 다시
+          // 평가한** 부분집합을 넘긴다 — 그래야 해결한 경고가 여기서도
+          // 빠지고, `blocking`(출력 차단)도 실제로 풀린다. 화면
+          // (WarningList)도 이 함수가 돌려주는 `prepared.importWarnings`를
+          // 그대로 쓴다 — 표시와 차단 판정이 같은 집합을 보게 된다.
+          // 배관 경고(`computeInstallationWarnings`)는 별도 state 없이
+          // 이 문서에서 매번 새로 파생한다 — 그래야 실행취소로 배관 행이
+          // 사라지거나 종류가 바뀌어도 경고가 항상 그 시점 문서와 맞는다.
+          importWarnings: [
+            ...computeActiveWarnings(document, importWarningsFor(document, allImportWarnings)),
+            ...computeInstallationWarnings(document, resources.catalog),
+            ...computeMiscMaterialWarnings(document, resources.catalog),
+          ],
+          // 문서에 아직 기준이 안 적혀 있으면(새로 변환한 직후) 처음 적는다.
+          // 그 다음부터는 같은 기준인지만 대조한다 — 조용한 재계산이 아니다.
+          wageMode: document.versions.wage === 'unknown' ? 'initialize-new' : 'preserve',
+        });
+        return { kind: 'ok', prepared };
+      } catch (err) {
+        // 저장된 작업 파일의 labor/wage 기준이 지금과 다르면
+        // `assertSameBasis`가 이 오류를 던진다 — 화면 깨짐이 아니라
+        // 기준 충돌 화면으로 보여준다.
+        if (err instanceof GuideBasisError) return { kind: 'conflict', reason: err.message };
+        throw err;
+      }
     },
     [basis, resources, allImportWarnings],
   );
 
-  const prepared = useMemo(
+  const prepareResult = useMemo(
     () => (history.present === undefined ? undefined : prepareNow(history.present)),
     [history.present, prepareNow],
   );
@@ -247,6 +290,45 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     },
     [basis, resources],
   );
+
+  const openWorkFile = useCallback((document: QuoteDocument) => {
+    // 저장 문서 전용 진입로다 — `seedDefaultProfile`/`synchronizeMiscMaterials`를
+    // 여기서 부르지 않는다(인계 지시). 기준이 지금과 다르면
+    // `prepareNow`가 걸러 `status.kind`를 `'basis-conflict'`로 보여준다.
+    // 사용자가 `recalculateWithCurrentBasis`를 명시적으로 골라야 그때
+    // 비로소 자동 보정 함수들이 돈다 — 조용한 재계산 금지.
+    setAllImportWarnings(document.cableWarnings ?? []);
+    setHistory({ past: [], present: document, future: [] });
+  }, []);
+
+  const recalculateWithCurrentBasis = useCallback(() => {
+    if (basis === undefined || resources === undefined) return;
+    setHistory((h) => {
+      if (h.present === undefined) return h;
+      const seeded = synchronizeMiscMaterials(seedDefaultProfile(h.present, resources.guides), resources.catalog);
+      // 사용자가 명시적으로 고른 시점에만 저장 당시의 낡은 카탈로그·템플릿
+      // 기준표를 지금 값으로 올려 적는다 — 그래야 재계산 뒤에도 같은
+      // 충돌이 계속 보이지 않는다.
+      const withCurrentVersions: QuoteDocument = {
+        ...seeded,
+        versions: { ...seeded.versions, catalog: resources.catalog.sourceSha256, template: CURRENT_TEMPLATE_VERSION },
+      };
+      const first = prepareQuote({
+        document: withCurrentVersions,
+        laborReference: basis.reference,
+        basisVersions: basis.versions,
+        guides: resources.guides,
+        profileBySystem: profileMapOf(withCurrentVersions),
+        importWarnings: [
+          ...computeActiveWarnings(withCurrentVersions, importWarningsFor(withCurrentVersions, allImportWarnings)),
+          ...computeInstallationWarnings(withCurrentVersions, resources.catalog),
+          ...computeMiscMaterialWarnings(withCurrentVersions, resources.catalog),
+        ],
+        wageMode: 'explicit-recalculate',
+      });
+      return { past: [], present: first.document, future: [] };
+    });
+  }, [basis, resources, allImportWarnings]);
 
   const commit = useCallback((mutate: (document: QuoteDocument) => QuoteDocument) => {
     setHistory((h) => {
@@ -508,15 +590,19 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
   }, []);
 
   const status: WorkspaceStatus =
-    history.present === undefined || prepared === undefined
+    history.present === undefined || prepareResult === undefined
       ? { kind: 'empty' }
-      : { kind: 'editing', document: history.present, prepared };
+      : prepareResult.kind === 'conflict'
+        ? { kind: 'basis-conflict', document: history.present, reason: prepareResult.reason }
+        : { kind: 'editing', document: history.present, prepared: prepareResult.prepared };
 
   return {
     status,
     canUndo: history.past.length > 0,
     canRedo: history.future.length > 0,
     loadDocument,
+    openWorkFile,
+    recalculateWithCurrentBasis,
     setQuantity,
     setDescription,
     setRemark,

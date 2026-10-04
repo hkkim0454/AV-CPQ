@@ -27,6 +27,13 @@ import type {
 } from './types';
 import { standardIndirectCosts } from './indirectCosts';
 
+/**
+ * 지금 빌드가 전제하는 가이드 템플릿 버전표. 문서를 새로 만들 때도, 저장한
+ * 작업 파일을 다시 열어 기준을 대조할 때도(`basisConflict.ts`) **이 상수
+ * 하나만** 본다 — 두 곳에 각자 적으면 한쪽만 고쳐져 조용히 갈린다.
+ */
+export const CURRENT_TEMPLATE_VERSION = 'sanitized-2026-10-03';
+
 /** 어느 입구에서 왔든 이 모양이면 견적 행이 된다. */
 export interface QuoteLineInput {
   ruleInstanceId?: string;
@@ -177,7 +184,7 @@ export function buildQuoteDocument(input: BuildQuoteDocumentInput): QuoteDocumen
       catalog: input.versions?.catalog ?? 'unknown',
       labor: input.versions?.labor ?? 'unknown',
       wage: input.versions?.wage ?? 'unknown',
-      template: input.versions?.template ?? 'sanitized-2026-10-03',
+      template: input.versions?.template ?? CURRENT_TEMPLATE_VERSION,
       rule: input.versions?.rule ?? 'manual',
     },
     equipment: [],

@@ -107,7 +107,7 @@ test('같은 연결선의 다른 BOM 케이블은 미해결 품목 선택으로 
     cableType: 'ready-made', productName: 'AOC-10M', length: '10', quantity: '1',
   });
   await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
-  await page.locator('input[type="file"]').setInputFiles({
+  await page.locator('.q-card input[type="file"]').setInputFiles({
     name: 'two-cables.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(diagram)),
   });
   const optical = page.locator('.q-quote-table tbody tr', { hasText: 'HDMI Optical Cable' });
@@ -130,7 +130,7 @@ test('HDMI 케이블 — 제조사별 종류(묶음)로 나뉜 목록에서 길�
   await page.goto('/');
 
   await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
-  await page.locator('input[type="file"]').setInputFiles({
+  await page.locator('.q-card input[type="file"]').setInputFiles({
     name: 'diagram.json',
     mimeType: 'application/json',
     buffer: Buffer.from(diagramWithUnresolvedHdmiCable()),
@@ -214,7 +214,7 @@ test('병합된 케이블 행 — 한 구간만 해소해도 합쳐진 다른 �
   });
 
   await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
-  await page.locator('input[type="file"]').setInputFiles({
+  await page.locator('.q-card input[type="file"]').setInputFiles({
     name: 'diagram.json',
     mimeType: 'application/json',
     buffer: Buffer.from(diagram),
@@ -266,7 +266,7 @@ test('BOM 없는 구간 — 품목만 골라서는 해소되지 않는다. 수�
   };
 
   await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
-  await page.locator('input[type="file"]').setInputFiles({
+  await page.locator('.q-card input[type="file"]').setInputFiles({
     name: 'no-bom.json',
     mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify(diagram)),
