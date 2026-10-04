@@ -76,22 +76,87 @@ export type WageChoice =
   /** 가이드 노임으로 바꾼다. **새 견적이나 명시적 재계산에서만.** */
   | { kind: 'guide'; guide: GuideTemplate };
 
-function wageVersion(table: WageTable, fingerprint: string): string {
-  return `${table.wageTableId}:${fingerprint}`;
+/**
+ * 노임표의 **내용** 지문.
+ *
+ * ## `sourceSha256` 을 쓰지 않는 이유
+ *
+ * `sourceSha256` 은 **원본 파일**에 대한 메타데이터지 노임 값의 해시가 아니다.
+ * 같은 SHA 를 그대로 둔 채 `wage-table.json` 안의 단가만 고치면, 값이 바뀌었는데
+ * **버전은 그대로**다. 기존 견적을 다시 열 때 "같은 기준"으로 통과하고
+ * 금액만 조용히 달라진다. 앞으로 사용자가 관리 화면에서 노임을 직접 고치면
+ * 바로 그 상황이 된다.
+ *
+ * 그래서 기간·직종·단위·금액을 정렬해 이어 붙인 것에서 지문을 만든다.
+ * 값이 한 자리라도 바뀌면 지문이 바뀐다.
+ *
+ * ## 암호학적 해시가 아니다
+ *
+ * 브라우저의 SHA-256(`crypto.subtle`)은 비동기라 동기 경로에서 못 쓴다.
+ * 여기 쓰는 FNV-1a 는 **드리프트 탐지용**이지 위변조 방지용이 아니다.
+ * 누가 일부러 같은 지문을 만드는 상황은 이 경계의 관심사가 아니다 —
+ * 원가와 달리 노임표는 공개 자료다.
+ */
+export function wageContentFingerprint(table: WageTable): string {
+  const canonical = [
+    table.periodLabel,
+    ...Object.keys(table.wages)
+      .sort()
+      .map((trade) => {
+        const wage = table.wages[trade]!;
+        return `${trade}|${wage.unit}|${wage.amount}`;
+      }),
+  ].join(String.fromCharCode(10));
+
+  // FNV-1a 64비트. 결정적이고 플랫폼에 의존하지 않는다.
+  let hash = 0xcbf29ce484222325n;
+  const prime = 0x100000001b3n;
+  const mask = 0xffffffffffffffffn;
+  for (let i = 0; i < canonical.length; i += 1) {
+    hash = ((hash ^ BigInt(canonical.charCodeAt(i))) * prime) & mask;
+  }
+  return hash.toString(16).padStart(16, '0');
+}
+
+function wageVersion(table: WageTable): string {
+  return `${table.wageTableId}:${wageContentFingerprint(table)}`;
 }
 
 /**
- * 배포본 노임의 내용 해시.
+ * 품셈 항목·매핑의 출처.
  *
- * 가이드 쪽은 생성기가 미리 계산해 manifest 에 넣어 둔다. 배포본은 그게
- * 없으므로 `sourceSha256` 을 그대로 쓴다 — 어차피 한 파일에서 나온 값이다.
+ * 이쪽은 **파일 출처**가 맞는 기준이다. 품(공수)은 `buildLaborReference` 가
+ * 세 파일의 SHA 일치로 이미 묶어 놨고, 그 묶음을 가리키는 이름이 필요할 뿐이다.
+ * 사용자가 공수를 직접 고치게 되면 그때는 여기도 내용 지문으로 바꿔야 한다.
  */
-function approvedFingerprint(raw: unknown): string {
+function laborSourceId(raw: unknown): string {
   const sha = (raw as { sourceSha256?: unknown } | null)?.sourceSha256;
   if (typeof sha !== 'string' || sha === '') {
     throw new GuideBasisError('노임표 파일에 sourceSha256 이 없다.');
   }
   return sha;
+}
+
+/**
+ * 네 가이드의 노임이 **같은 표**인지 확인한다.
+ *
+ * 넷은 같은 날 같은 반기 자료에서 나왔다. 하나만 다른 반기로 교체되면
+ * 0단계와 2단계가 서로 다른 노임으로 계산되고, 두 파일을 나란히 놓기 전에는
+ * 아무도 모른다.
+ */
+export function assertGuidesAgree(guides: Iterable<GuideTemplate>): void {
+  const seen = new Map<string, string[]>();
+  for (const guide of guides) {
+    const print = wageContentFingerprint(guide.wages);
+    const ids = seen.get(print) ?? [];
+    ids.push(guide.id);
+    seen.set(print, ids);
+  }
+  if (seen.size <= 1) return;
+  const groups = [...seen.values()].map((ids) => ids.join('+')).join(' / ');
+  throw new GuideBasisError(
+    `가이드들의 노임이 서로 다르다: ${groups}. 같은 반기 자료로 맞춰야 한다.`,
+  );
 }
 
 export interface BuildGuideBasisInput {
@@ -115,7 +180,7 @@ export function buildGuideBasis(input: BuildGuideBasisInput): GuideBasis {
     input.wageTableRaw,
     input.laborMappingsRaw,
   );
-  const laborVersion = approvedFingerprint(input.wageTableRaw);
+  const laborVersion = laborSourceId(input.wageTableRaw);
 
   if (input.choice.kind === 'approved') {
     return {
@@ -123,7 +188,7 @@ export function buildGuideBasis(input: BuildGuideBasisInput): GuideBasis {
       wageReplaced: false,
       versions: {
         labor: laborVersion,
-        wage: wageVersion(approved.wages, laborVersion),
+        wage: wageVersion(approved.wages),
       },
       unsupported: findUnsupported(approved, approved.wages),
     };
@@ -137,7 +202,7 @@ export function buildGuideBasis(input: BuildGuideBasisInput): GuideBasis {
     wageReplaced: true,
     versions: {
       labor: laborVersion,
-      wage: wageVersion(guide.wages, guide.wageFingerprint),
+      wage: wageVersion(guide.wages),
     },
     unsupported: findUnsupported(approved, guide.wages),
   };

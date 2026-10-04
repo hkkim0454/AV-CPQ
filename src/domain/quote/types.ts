@@ -214,6 +214,13 @@ export interface IndirectCostRule {
 
 export interface QuoteSystem {
   systemId: string;
+  /**
+   * 어느 간접비 프로파일로 심었는지 (`ds` / `general`).
+   *
+   * 같은 프로파일로 다시 계산할 때 규칙을 **다시 심지 않기** 위해 들고 다닌다.
+   * 다시 심으면 사용자가 손본 적용 여부·요율이 초기화된다.
+   */
+  indirectProfileId?: string;
   /** 갑지 C열이자 Excel 시트 이름의 원본. */
   name: string;
   /** 갑지 D열 — 시스템 요약 규격. */

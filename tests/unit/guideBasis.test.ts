@@ -76,7 +76,7 @@ describe('buildGuideBasis — 노임만 가이드 것으로', () => {
       ...raws(),
       choice: { kind: 'guide', guide: guide('ds') },
     });
-    expect(basis.versions.wage).toMatch(/^WAGE-26년 하반기:[0-9a-f]{64}$/);
+    expect(basis.versions.wage).toMatch(/^WAGE-26년 하반기:[0-9a-f]{16}$/);
   });
 
   it('네 가이드 중 어느 것을 골라도 노임 버전이 같다', () => {

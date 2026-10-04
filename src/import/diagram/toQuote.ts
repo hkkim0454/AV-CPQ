@@ -149,10 +149,12 @@ export function diagramToQuote(
       : {}),
     documentId: `diagram-${options.header.quoteNumber}`,
     rowIdPrefix: 'dg',
+    // 품셈·노임 기준은 **여기서 알 수 없다.** 카탈로그 해시는 제품·단가의
+    // 출처지 노임표의 출처가 아니다. 그걸 적어 두면 문서가 쓰지도 않은 기준을
+    // 주장하게 되고, 다시 열 때 "같은 기준"으로 통과한다.
+    // `prepareQuote` 가 실제로 쓴 기준을 적는다.
     versions: {
       catalog: catalog.sourceSha256,
-      labor: catalog.sourceSha256,
-      wage: catalog.sourceSha256,
       rule: 'diagram-2026-10-04',
     },
   });
