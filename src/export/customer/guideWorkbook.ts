@@ -60,24 +60,15 @@ export class GuideWorkbookError extends Error {
 const DETAIL_PART = 'xl/worksheets/sheet2.xml';
 const COVER_PART = 'xl/worksheets/sheet1.xml';
 
-/** 갑지에서 생성기가 채우는 칸. */
-const COVER_CELLS = [
-  'C2',
-  'C3',
-  'C4',
-  'C5',
-  'C6',
-  'B10',
-  'C10',
-  'C11',
-  'D11',
-  'E11',
-  'F11',
-  'G11',
-  // 템플릿이 계산하는 칸 — 합계와 절사.
-  'H11',
-  'H12',
-] as const;
+/**
+ * 갑지에서 생성기가 채우는 칸 — **판매측 숫자 역할**만.
+ *
+ * 견적번호·날짜·고객명 같은 머리글 칸(C2~F11)은 텍스트거나 수량일 뿐
+ * 금액이 아니다. 유출 검사의 면제 대상은 금액(합계) 칸으로 좁힌다.
+ * G11 은 세부내역 합계를 가리키는 수식, H11·H12 는 템플릿이 계산하는
+ * 합계·절사 칸이다.
+ */
+const COVER_SELL_CELLS = ['G11', 'H11', 'H12'] as const;
 
 /** `0.0486` → `4.86`. 원본이 퍼센트 표기를 쓴다. */
 function ratePercent(rate: string): string {
@@ -126,6 +117,34 @@ export function buildGuideBase(
     throw new GuideWorkbookError(`시스템 ${system.systemId} 의 계산 결과가 없다.`);
   }
 
+  // **행 순서를 보존한다 — 재배치가 아니라 가름이다.**
+  //
+  // 바로 아래에서 품목과 파생을 각각 따로 묶어 "품목 전부 → 파생 전부"
+  // 순서로 다시 쓴다. 입력이 이미 그 순서라면 아무 일도 안 생기지만,
+  // **파생 행 뒤에 품목 행이 있는 입력**이면 그 품목이 조용히 앞으로
+  // 당겨진다 — 그러면 잡자재비(`material-sum-to-here`)가 "품목부터
+  // 바로 앞 행까지"로 잡는 합산 범위에 **원래는 빠졌어야 할 품목**이
+  // 들어간다. 독립 검토 지적: 가르는 게 아니라 뒤섞는 것이고, 원본의
+  // 행 배치가 가진 의미(이 품목은 이 파생 다음 것이다)가 사라진다.
+  //
+  // 가이드 템플릿 자체가 "품목 블록 → 파생 2줄 고정 블록" 구조라 둘을
+  // 진짜로 섞어 배치할 자리가 없다 — 지어낼 수 없다(D17). 그래서 재배열
+  // 대신 **거부**한다.
+  const firstDerivedIndex = system.rows.findIndex((r) => r.type === 'derived');
+  if (firstDerivedIndex !== -1) {
+    const itemAfterDerived = system.rows
+      .slice(firstDerivedIndex + 1)
+      .some((r) => r.type === 'item');
+    if (itemAfterDerived) {
+      throw new GuideWorkbookError(
+        '파생 행 뒤에 품목 행이 있다 — 가이드 템플릿은 품목을 모두 앞에 두고 ' +
+          '파생 행을 모두 뒤에 두는 구조만 지원한다. 이 순서를 그대로 받아들여 ' +
+          "품목을 앞으로 당기면 잡자재비('material-sum-to-here')의 합산 범위가 " +
+          '원본의 행 배치와 달라진다.',
+      );
+    }
+  }
+
   const itemRows = system.rows.filter((r) => r.type === 'item');
   const derivedRows = system.rows.filter((r) => r.type === 'derived');
 
@@ -145,9 +164,23 @@ export function buildGuideBase(
 
   const contentByRow = new Map<number, RowContent>();
   const written = new Set<string>();
-  const put = (row: number, cells: Record<string, CellValue>): void => {
+  /**
+   * `cells`는 그 행에 쓰는 **모든** 칸(품명·규격·비고 포함)이고,
+   * `sellCells`는 그중 **판매측 숫자 역할**(단가·금액·합계 등)만 가리키는
+   * 열 글자 목록이다. 유출 검사의 `allowedCells`는 `sellCells`로만 채운다.
+   *
+   * 독립 검토 재지적: 예전에는 `cells`의 모든 키를 면제했다. 그러면 비고
+   * 칸처럼 원래 숫자가 올 자리가 아닌 칸에 원가 숫자가 잘못 들어가도
+   * 이미 "생성기가 쓴 칸"이라는 이유로 면제돼 있어 검사가 못 잡는다.
+   * "생성기가 쓴 칸 전부"와 "판매 금액이 정당하게 있는 칸"은 다르다.
+   */
+  const put = (
+    row: number,
+    cells: Record<string, CellValue>,
+    sellCells: readonly string[] = [],
+  ): void => {
     contentByRow.set(row, new Map(Object.entries(cells)));
-    for (const column of Object.keys(cells)) {
+    for (const column of sellCells) {
       written.add(`${DETAIL_PART}!${column}${row}`);
     }
   };
@@ -165,18 +198,28 @@ export function buildGuideBase(
       [col('remark')]: text(row.remark),
     };
     // 미등록 단가는 **빈 칸**이다. `0` 으로 채우면 공짜 제품이 된다 (§5.6).
+    //
+    // 행 번호(A)와 수량은 금액이 아니다 — 원가가 "수량 5"로 둔갑할 일이
+    // 없으므로 면제해도 유출 위험이 없다. 둘 다 면제하지 않으면, 테마·서식
+    // 파트의 우연한 숫자가 선행 0을 뗀 뒤 작은 행 번호·수량과 같아지는
+    // 식의 거짓 경보가 난다(실측: 테마 파트의 4자리 수가 "0005" 로 끝나
+    // 정준화하면 "5"가 되어 다섯 번째 품목의 번호·수량과 같아졌다).
+    const sellCells: string[] = ['A', col('quantity')];
     if (calc?.materialUnitPrice !== undefined) {
       cells[col('material.unit')] = num(calc.materialUnitPrice.toFixed());
       cells[col('material.amount')] = formula(F.amount(layout, at, 'material.unit'));
+      sellCells.push(col('material.unit'), col('material.amount'));
     }
     if (calc?.laborUnitPrice !== undefined) {
       cells[col('labor.unit')] = num(calc.laborUnitPrice.toFixed());
       cells[col('labor.amount')] = formula(F.amount(layout, at, 'labor.unit'));
+      sellCells.push(col('labor.unit'), col('labor.amount'));
     }
     if (calc?.materialUnitPrice !== undefined || calc?.laborUnitPrice !== undefined) {
       cells[col('total')] = formula(F.rowTotal(layout, at));
+      sellCells.push(col('total'));
     }
-    put(at, cells);
+    put(at, cells, sellCells);
   });
 
   // --- 파생 (배관 기타자재 → 잡자재비) ---
@@ -260,7 +303,15 @@ export function buildGuideBase(
       cells[col('cost.amount')] = formula(F.amount(layout, at, 'cost.unit'));
       cells[col('profit')] = formula(F.profitRate(layout, at));
     }
-    put(at, cells);
+    // 원가측(cost.*, profit)은 **판매 칸이 아니다** — 면제 목록에 넣지 않는다.
+    // 거기 원가가 있는 건 당연하고, 유출 검사가 보호해야 할 대상은 오히려
+    // 그 반대(고객용에는 애초에 이 칸들이 없다 — guide.hasCost=false)다.
+    put(at, cells, [
+      col('quantity'),
+      col('material.unit'),
+      col('material.amount'),
+      col('total'),
+    ]);
   });
 
   // --- 직접비계 ---
@@ -279,7 +330,11 @@ export function buildGuideBase(
     // 0단계가 빼먹으면 세부내역의 원가 합계가 빈 칸으로 남는다.
     directSubtotalCells[col('cost.amount')] = subtotalCell('cost.amount');
   }
-  put(layout.directSubtotalRow, directSubtotalCells);
+  put(layout.directSubtotalRow, directSubtotalCells, [
+    col('material.amount'),
+    col('labor.amount'),
+    col('total'),
+  ]);
 
   // --- 간접비 ---
   put(layout.indirectHeaderRow, { A: text('Ⅱ'), [col('name')]: text('간접비') });
@@ -305,19 +360,28 @@ export function buildGuideBase(
     if (rule.conditionText !== undefined) {
       cells[col('supplier')] = text(rule.conditionText);
     }
-    put(at, cells);
+    // 'A'(번호)·요율 칸도 금액이 아니다 — 품목 행과 같은 이유로 면제한다.
+    put(at, cells, ['A', col('quantity'), col('total')]);
   });
 
   const indirectSum = F.indirectSubtotal(layout);
-  put(layout.indirectSubtotalRow, {
-    A: text('간접비계'),
-    [col('total')]: typeof indirectSum === 'string' ? formula(indirectSum) : num('0'),
-  });
+  put(
+    layout.indirectSubtotalRow,
+    {
+      A: text('간접비계'),
+      [col('total')]: typeof indirectSum === 'string' ? formula(indirectSum) : num('0'),
+    },
+    [col('total')],
+  );
 
-  put(layout.grandTotalRow, {
-    A: text('합      계'),
-    [col('total')]: formula(F.grandTotal(layout)),
-  });
+  put(
+    layout.grandTotalRow,
+    {
+      A: text('합      계'),
+      [col('total')]: formula(F.grandTotal(layout)),
+    },
+    [col('total')],
+  );
 
   // --- 시트에 쓴다 ---
   const files = unzipSync(guide.bytes);
@@ -334,8 +398,8 @@ export function buildGuideBase(
     fillGuideSheet({ sheetXml: strFromU8(detail), layout, contentByRow }),
   );
 
-  // 갑지 — 공사명과 세부내역 합계 참조.
-  for (const ref of COVER_CELLS) written.add(`${COVER_PART}!${ref}`);
+  // 갑지 — 금액 칸만 면제한다. 공사명 등 머리글 칸은 금액이 아니므로 뺀다.
+  for (const ref of COVER_SELL_CELLS) written.add(`${COVER_PART}!${ref}`);
   const cover = files[COVER_PART];
   if (cover !== undefined) {
     patched[COVER_PART] = strToU8(

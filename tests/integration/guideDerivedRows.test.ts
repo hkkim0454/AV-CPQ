@@ -10,6 +10,7 @@ import { buildCustomerProjection } from '@/export/customer/projection';
 import {
   buildCustomerGuideWorkbook,
   buildGuideBase,
+  GuideWorkbookError,
 } from '@/export/customer/guideWorkbook';
 import { buildSalesGuideWorkbook } from '@/export/internal/guideWorkbook';
 import { GuideLayoutError } from '@/export/ooxml/guideLayout';
@@ -309,5 +310,40 @@ describe('파생 행 — 순서 (P1-5)', () => {
     const guide = selectGuide(allGuides(), 'general', false);
     expect(() => buildGuideBase(projection, guide)).toThrow(GuideLayoutError);
     expect(() => buildGuideBase(projection, guide)).toThrow(/순서/);
+  });
+
+  /**
+   * 독립 검토 재지적: 파생 **종류** 순서 가드(위 시험)만으로는 부족하다.
+   * `buildGuideBase`가 `system.rows`를 품목/파생으로 각각 걸러 모은 뒤
+   * "품목 전부 → 파생 전부" 순서로 다시 쓰는데, **파생 행 뒤에 품목 행이
+   * 있는 입력**이 오면 그 품목이 조용히 앞으로 당겨진다. 그러면
+   * 잡자재비(`material-sum-to-here`)의 합산 범위가 원본 행 배치와
+   * 달라진다 — 숫자는 나오지만 원본이 의도한 범위보다 넓은, 조용히
+   * 틀린 값이다.
+   */
+  it('파생 행 뒤에 품목 행이 있으면 조용히 재배치하지 않고 던진다', () => {
+    const document = documentWithDerivedRows('general');
+    const calculation = calculateQuote(document);
+    const projection = buildCustomerProjection(document, calculation);
+    const system = projection.systems[0]!;
+    const itemRows = system.rows.filter((r) => r.type === 'item');
+    const derivedRows = system.rows.filter((r) => r.type === 'derived');
+    const lastItem = itemRows[itemRows.length - 1]!;
+
+    // "이 품목은 파생 뒤에 둔다" = 잡자재비 합산에서 빠져야 한다는 뜻으로
+    // 읽힐 수 있는 입력이다. buildGuideBase 가 품목·파생을 각각 다시
+    // 묶어 버리면 이 의미가 사라진다.
+    const reordered = {
+      ...projection,
+      systems: [
+        {
+          ...system,
+          rows: [...itemRows.slice(0, -1), ...derivedRows, lastItem],
+        },
+      ],
+    };
+    const guide = selectGuide(allGuides(), 'general', false);
+    expect(() => buildGuideBase(reordered, guide)).toThrow(GuideWorkbookError);
+    expect(() => buildGuideBase(reordered, guide)).toThrow(/파생 행 뒤에 품목/);
   });
 });

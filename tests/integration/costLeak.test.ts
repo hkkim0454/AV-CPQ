@@ -20,7 +20,7 @@ import {
   type GuideWorkbookResult,
 } from '@/export/customer/guideWorkbook';
 import { pickedItemsToQuote } from '@/import/picker/toQuote';
-import { strFromU8, unzipSync } from 'fflate';
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { scanCostLeak } from '../../tools/costLeakScan';
 
 /**
@@ -128,6 +128,37 @@ function sellingCells(result: GuideWorkbookResult): ReadonlySet<string> {
   return result.writtenCells;
 }
 
+/**
+ * 시험용으로 **생성기가 쓰지 않은 칸**에 숫자를 강제로 심는다.
+ *
+ * 독립 검토 재지적: `allowedCells`가 "생성기가 쓴 칸 전부"가 아니라
+ * "판매 금액이 정당하게 있는 칸"으로 좁혀졌는지 확인하려면, 면제되지
+ * 않은 칸(비고, 다른 시트의 같은 주소)에 원가 숫자를 직접 넣어보고
+ * 검사가 그걸 잡는지 봐야 한다. 생성기 출력만 보면 비고 칸은 항상
+ * 텍스트라 이 경로를 시험하지 못한다.
+ */
+function injectNumericCell(
+  bytes: Uint8Array,
+  part: string,
+  ref: string,
+  value: string,
+): Uint8Array {
+  const files = unzipSync(bytes);
+  const target = files[part];
+  if (target === undefined) throw new Error(`시험 전제가 깨졌다 — ${part} 가 없다.`);
+  const xml = strFromU8(target);
+  const cellRe = new RegExp(`<c r="${ref}"[^>]*/>|<c r="${ref}"[^>]*>[\\s\\S]*?</c>`);
+  if (!cellRe.test(xml)) {
+    throw new Error(`시험 전제가 깨졌다 — ${part}!${ref} 셀을 못 찾았다.`);
+  }
+  const patched = xml.replace(cellRe, `<c r="${ref}"><v>${value}</v></c>`);
+  const out: Record<string, Uint8Array> = {};
+  for (const [name, b] of Object.entries(files)) {
+    out[name] = name === part ? strToU8(patched) : b;
+  }
+  return zipSync(out);
+}
+
 /** theme·styles 안의 숫자. 처음 판에서 오경보 30종이 나온 자리다. */
 function noiseValues(result: GuideWorkbookResult): string[] {
   const out = new Set<string>();
@@ -184,6 +215,49 @@ describe('실물 고객용 산출물 — 칸 출처로 가린다', () => {
     });
     expect(found.length).toBeGreaterThan(0);
     expect(found[0]!.kind).toBe('cost-value');
+  });
+
+  it(
+    '비고 칸에 원가 숫자가 잘못 들어가면 잡는다 — ' +
+      '면제 목록이 "쓴 칸 전부"가 아니라 "판매 숫자 역할"로 좁혀져 있다',
+    () => {
+      const { result, sellingValues } = build('general');
+      const remarkRef = `${result.layout.column('remark')}${result.layout.itemRows[0]!.row}`;
+      const mutated = injectNumericCell(
+        result.bytes,
+        'xl/worksheets/sheet2.xml',
+        remarkRef,
+        sellingValues[0]!,
+      );
+      const found = scanCostLeak(mutated, {
+        costValues: sellingValues,
+        allowedCells: sellingCells(result),
+      });
+      expect(
+        found.some((f) => f.kind === 'cost-value' && f.ref === remarkRef),
+      ).toBe(true);
+    },
+  );
+
+  it('다른 시트의 같은 주소에 원가 숫자가 있어도 잡는다', () => {
+    const { result, sellingValues } = build('general');
+    // D11 은 갑지의 시스템 규격 칸(텍스트)이다. 면제 목록에 없다.
+    const ref = 'D11';
+    const mutated = injectNumericCell(
+      result.bytes,
+      'xl/worksheets/sheet1.xml',
+      ref,
+      sellingValues[0]!,
+    );
+    const found = scanCostLeak(mutated, {
+      costValues: sellingValues,
+      allowedCells: sellingCells(result),
+    });
+    expect(
+      found.some(
+        (f) => f.kind === 'cost-value' && f.part === 'xl/worksheets/sheet1.xml' && f.ref === ref,
+      ),
+    ).toBe(true);
   });
 
   it('고객용에 있으면 안 되는 파트가 없다', () => {
