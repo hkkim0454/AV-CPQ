@@ -43,6 +43,7 @@ export function App() {
   const [pendingCableEdit, setPendingCableEdit] = useState(false);
   const [workFileOpenError, setWorkFileOpenError] = useState<string | undefined>(undefined);
   const [workFileSaveError, setWorkFileSaveError] = useState<string | undefined>(undefined);
+  const [cableResetRowIds, setCableResetRowIds] = useState<string[]>([]);
   const workFileInputRef = useRef<HTMLInputElement>(null);
   // 파일을 고를 때마다 늘어난다 — 먼저 고른 파일의 비동기 읽기가 나중에
   // 고른 파일보다 늦게 끝나도 그 늦은 결과로 최신 선택을 덮지 않는다
@@ -274,38 +275,92 @@ export function App() {
                     바뀔 내용을 확인한 뒤 적용하세요.
                   </p>
                   {workspace.recalcPreview === undefined ? (
-                    <button type="button" className="q-button q-primary" onClick={workspace.previewRecalculateWithCurrentBasis}>
+                    <button
+                      type="button"
+                      className="q-button q-primary"
+                      onClick={() => workspace.previewRecalculateWithCurrentBasis()}
+                    >
                       현재 기준으로 다시 계산 — 미리보기
                     </button>
                   ) : (
                     <div className="q-notice">
                       <h3>다시 계산하면 바뀌는 내용</h3>
-                      {workspace.recalcPreview.priceChanges.length === 0 ? (
-                        <p>단가가 바뀌는 행은 없습니다.</p>
+                      {workspace.recalcPreview.laborOrWageChanged && <p>노임/품셈 기준이 바뀝니다.</p>}
+                      {workspace.recalcPreview.roundingChanged && <p>갑지 절사 자릿수가 바뀝니다.</p>}
+                      {workspace.recalcPreview.rowChanges.length === 0 ? (
+                        <p>바뀌는 행은 없습니다.</p>
                       ) : (
                         <ul>
-                          {workspace.recalcPreview.priceChanges.map((change) => (
+                          {workspace.recalcPreview.rowChanges.map((change) => (
                             <li key={change.rowId}>
-                              {change.name}: {change.before ?? '미등록'} → {change.after ?? '미등록'}
+                              {change.kind === 'added' && `${change.name}: 새로 추가됨 (수량 ${change.after?.quantity})`}
+                              {change.kind === 'removed' && `${change.name}: 삭제됨`}
+                              {change.kind === 'changed' &&
+                                `${change.name}: 수량 ${change.before?.quantity} → ${change.after?.quantity}, ` +
+                                  `단가 ${change.before?.sellingUnitPrice ?? '미등록'} → ${change.after?.sellingUnitPrice ?? '미등록'}`}
                             </li>
                           ))}
                         </ul>
                       )}
+                      <p>
+                        합계: {workspace.recalcPreview.beforeTotal ?? '이전 기준을 재현할 수 없습니다'} →{' '}
+                        {workspace.recalcPreview.afterTotal}
+                      </p>
                       {workspace.recalcPreview.cableConflict && (
-                        <p role="alert">
-                          케이블 재산출이 수동 수정과 충돌해 적용할 수 없습니다. 케이블 구간 거리
-                          패널에서 먼저 충돌을 해소한 뒤 다시 시도하세요.
-                        </p>
+                        <div role="alert">
+                          <p>
+                            케이블 재산출이 수동 수정과 충돌해 적용할 수 없습니다. 아래에서 자동
+                            산출값을 쓸 행을 고르고 다시 미리보세요.
+                          </p>
+                          <ul>
+                            {workspace.recalcPreview.cableConflictDetails.map((detail, index) => (
+                              <li key={index}>
+                                {detail.message}
+                                <label>
+                                  <input
+                                    type="checkbox"
+                                    checked={detail.rowIds.every((id) => cableResetRowIds.includes(id))}
+                                    onChange={(event) =>
+                                      setCableResetRowIds((current) =>
+                                        event.target.checked
+                                          ? [...new Set([...current, ...detail.rowIds])]
+                                          : current.filter((id) => !detail.rowIds.includes(id)),
+                                      )
+                                    }
+                                  />
+                                  이 항목의 수동 수정을 버리고 자동 산출값을 사용합니다
+                                </label>
+                              </li>
+                            ))}
+                          </ul>
+                          <button
+                            type="button"
+                            className="q-button"
+                            onClick={() => workspace.previewRecalculateWithCurrentBasis(cableResetRowIds)}
+                          >
+                            선택한 항목으로 다시 미리보기
+                          </button>
+                        </div>
                       )}
                       <button
                         type="button"
                         className="q-button q-primary"
                         disabled={workspace.recalcPreview.cableConflict}
-                        onClick={workspace.applyRecalculatedBasis}
+                        onClick={() => {
+                          workspace.applyRecalculatedBasis();
+                          setCableResetRowIds([]);
+                        }}
                       >
                         적용
                       </button>
-                      <button type="button" className="q-button" onClick={workspace.cancelRecalculateWithCurrentBasis}>
+                      <button
+                        type="button"
+                        className="q-button"
+                        onClick={() => {
+                          workspace.cancelRecalculateWithCurrentBasis();
+                          setCableResetRowIds([]);
+                        }}
+                      >
                         취소
                       </button>
                     </div>

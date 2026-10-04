@@ -2,6 +2,21 @@ import { readFileSync } from 'node:fs';
 import { test, expect, type Page } from '@playwright/test';
 import { mockResources } from './fixtures';
 
+test('다른 작업 파일을 열면 이전 문서의 재계산 미리보기를 폐기한다', async ({ page }) => {
+  const first = await saveQuote(page);
+  first.versions.rule = 'old-rule';
+  await reopen(page, first);
+  await page.getByRole('button', { name: '현재 기준으로 다시 계산 — 미리보기' }).click();
+  await expect(page.getByRole('button', { name: '적용', exact: true })).toBeVisible();
+  const second = structuredClone(first);
+  second.header.projectName = '별도 견적 B';
+  await page.getByLabel('작업 파일 선택').setInputFiles({
+    name: 'second.avcpq.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(second)),
+  });
+  await expect(page.getByRole('button', { name: '현재 기준으로 다시 계산 — 미리보기' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '적용', exact: true })).toHaveCount(0);
+});
+
 async function saveQuote(page: Page) {
   await mockResources(page);
   await page.goto('/');

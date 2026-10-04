@@ -77,7 +77,7 @@ test('카탈로그가 바뀐 뒤 작업 파일을 열면 조용히 다시 계산
   await expect(conflict).toContainText('카탈로그');
 
   await conflict.getByRole('button', { name: '현재 기준으로 다시 계산 — 미리보기' }).click();
-  await expect(conflict.getByText('단가가 바뀌는 행은 없습니다.')).toBeVisible();
+  await expect(conflict.getByText('바뀌는 행은 없습니다.')).toBeVisible();
   await conflict.getByRole('button', { name: '적용', exact: true }).click();
   await expect(conflict).toHaveCount(0);
   await expect(page.locator('.q-quote-table tbody tr', { hasText: '합성 테스트 품목' })).toBeVisible();
@@ -277,6 +277,101 @@ test('재계산은 배관 행도 그룹 재검증을 거쳐 지금 단가로 갱
   await expect(page.locator('.q-quote-table tbody tr', { hasText: '후렉시블' }).locator('td').nth(6)).toHaveText('150000');
 });
 
+test('케이블 가격만 바뀌고 수동 수정이 없으면 재계산이 가짜 충돌을 내지 않는다(독립 검토 지적)', async ({ page }) => {
+  const sha1 = 'c'.repeat(64);
+  const product = () => [{
+    productId: 'C3', sku: 'C3', brand: '', model: 'CABLE-3M', quoteName: '합성 HDMI', quoteSpec: '3M',
+    unit: 'EA', options: { group: 'HDMI' }, currency: 'KRW', evidence: 'verified',
+  }];
+  await mockResources(page, {
+    '/data/approved/products.json': { schemaVersion: 1, generatedOn: '2026-01-01', sourceSha256: sha1, products: product() },
+    '/data/approved/prices.json': { schemaVersion: 1, generatedOn: '2026-01-01', sourceSha256: sha1, currency: 'KRW',
+      prices: { C3: { sellingUnitPrice: '100', currency: 'KRW' } } },
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
+  await page.locator('.q-card input[type="file"]').setInputFiles({
+    name: 'routes.json', mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify({
+      version: '1',
+      nodes: [{ id: 'n1', data: { name: '시작', model: '' } }, { id: 'n2', data: { name: '끝', model: '' } }],
+      edges: [{ id: 'e1', source: 'n1', target: 'n2', data: { lineTypeId: 'hdmi',
+        bomRows: [{ cableType: 'ready-made', productName: 'CABLE-3M', length: '3', quantity: '1' }] } }],
+      lineTypes: [{ id: 'hdmi', name: 'HDMI' }],
+    })),
+  });
+
+  // 수동 수정은 전혀 하지 않는다 — 수량·품목 전부 자동 산출 그대로 둔다.
+  await expect(page.locator('.q-quote-table tbody tr', { hasText: '합성 HDMI' }).locator('td').nth(6)).toHaveText('100');
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: '작업 파일로 저장' }).click(),
+  ]);
+  const savedText = readFileSync((await download.path())!, 'utf8');
+
+  const sha2 = 'f'.repeat(64);
+  await mockResources(page, {
+    '/data/approved/products.json': { schemaVersion: 1, generatedOn: '2026-01-01', sourceSha256: sha2, products: product() },
+    '/data/approved/prices.json': { schemaVersion: 1, generatedOn: '2026-01-01', sourceSha256: sha2, currency: 'KRW',
+      prices: { C3: { sellingUnitPrice: '200', currency: 'KRW' } } },
+  });
+  await page.goto('/');
+  await page.getByLabel('작업 파일 선택').setInputFiles({
+    name: 'saved.avcpq.json', mimeType: 'application/json', buffer: Buffer.from(savedText),
+  });
+
+  const conflict = page.getByRole('alert').filter({ hasText: '계산 기준이 바뀌었습니다' });
+  await conflict.getByRole('button', { name: '현재 기준으로 다시 계산 — 미리보기' }).click();
+  // 수동 수정이 없었으니 가격만 바뀌어도 충돌로 보면 안 된다.
+  await expect(conflict.getByText('케이블 재산출이 수동 수정과 충돌해 적용할 수 없습니다')).toHaveCount(0);
+  await expect(conflict.getByRole('button', { name: '적용', exact: true })).toBeEnabled();
+  await conflict.getByRole('button', { name: '적용', exact: true }).click();
+
+  await expect(page.locator('.q-quote-table tbody tr', { hasText: '합성 HDMI' }).locator('td').nth(6)).toHaveText('200');
+});
+
+test('재계산은 입력이 부족한 케이블 구간을 현재 규칙으로도 무조건 승인하지 않는다(독립 검토 지적)', async ({ page }) => {
+  await mockResources(page);
+  await page.goto('/');
+  const diagram = {
+    version: '1',
+    nodes: [
+      { id: 'n1', data: { model: '', name: '소스', systemName: '시스템1' } },
+      { id: 'n2', data: { model: '', name: '싱크', systemName: '시스템1' } },
+    ],
+    // BOM이 아예 없다 — 경로/수량을 아무도 확인한 적이 없다.
+    edges: [{ id: 'e1', source: 'n1', target: 'n2', data: { lineTypeId: 'video', bomRows: [] } }],
+    lineTypes: [{ id: 'video', name: 'HDMI', color: '#ef4444' }],
+  };
+  await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
+  await page.locator('.q-card input[type="file"]').setInputFiles({
+    name: 'diagram.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(diagram)),
+  });
+  const warningBefore = page.getByRole('alert').filter({ hasText: '확인이 필요합니다' });
+  await expect(warningBefore).toContainText('품목을 고른 뒤에도');
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: '작업 파일로 저장' }).click(),
+  ]);
+  const savedText = readFileSync((await download.path())!, 'utf8');
+  const saved = JSON.parse(savedText) as { versions: { rule: string } };
+  saved.versions.rule = 'old-rule-before-this-feature';
+
+  await page.goto('/');
+  await page.getByLabel('작업 파일 선택').setInputFiles({
+    name: 'saved.avcpq.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(saved)),
+  });
+  const conflict = page.getByRole('alert').filter({ hasText: '계산 기준이 바뀌었습니다' });
+  await conflict.getByRole('button', { name: '현재 기준으로 다시 계산 — 미리보기' }).click();
+  await conflict.getByRole('button', { name: '적용', exact: true }).click();
+
+  // 입력 부족은 재계산으로도 안 풀린다 — 여전히 확인이 필요하다.
+  const warningAfter = page.getByRole('alert').filter({ hasText: '확인이 필요합니다' });
+  await expect(warningAfter).toContainText('품목을 고른 뒤에도');
+});
+
 test('재계산 중 케이블 재산출이 수동 수정과 충돌하면 적용 전체를 막는다(독립 검토 지적)', async ({ page }) => {
   const cableProducts = () => [3, 5].map((m) => ({
     productId: `C${m}`, sku: `C${m}`, brand: '', model: `CABLE-${m}M`, quoteName: '합성 HDMI',
@@ -336,6 +431,13 @@ test('재계산 중 케이블 재산출이 수동 수정과 충돌하면 적용 
   await conflict.getByRole('button', { name: '현재 기준으로 다시 계산 — 미리보기' }).click();
   await expect(conflict.getByText('케이블 재산출이 수동 수정과 충돌해 적용할 수 없습니다')).toBeVisible();
   await expect(conflict.getByRole('button', { name: '적용', exact: true })).toBeDisabled();
+
+  // 'editing' 상태로 가지 않고도(케이블 패널에 못 들어가도) 이 화면
+  // 안에서 충돌을 풀 수 있어야 한다(독립 검토 지적).
+  await conflict.getByRole('checkbox', { name: '이 항목의 수동 수정을 버리고 자동 산출값을 사용합니다' }).check();
+  await conflict.getByRole('button', { name: '선택한 항목으로 다시 미리보기' }).click();
+  await expect(conflict.getByText('케이블 재산출이 수동 수정과 충돌해 적용할 수 없습니다')).toHaveCount(0);
+  await expect(conflict.getByRole('button', { name: '적용', exact: true })).toBeEnabled();
 });
 
 test('저장 당시 미해결이던 장비 경고도 재열기 후 해소 UI가 그대로 복원된다(독립 검토 지적)', async ({ page }) => {

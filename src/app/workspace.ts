@@ -11,6 +11,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { buildGuideBasis, GuideBasisError } from '../data/catalog/guideBasis';
 import { prepareQuote, type PreparedQuote } from '../export/variants/prepare';
+import { priceQuote } from '../domain/quote/priceQuote';
 import { indirectCostsFor, type IndirectProfileId } from '../export/ooxml/guideTemplate';
 import { toRow, CURRENT_RULE_VERSION } from '../domain/quote/buildDocument';
 import { computeDocumentBasisConflicts, describeBasisConflicts } from '../domain/quote/basisConflict';
@@ -74,9 +75,11 @@ export interface Workspace {
   /**
    * 기준 충돌 상태(`basis-conflict`)에서 지금 쓸 후보 문서를 미리
    * 만든다 — 아직 적용하지 않는다(계획 §「복사본→전후차이→적용」).
-   * 결과는 `recalcPreview`로 나온다.
+   * 결과는 `recalcPreview`로 나온다. `resetRowIds`를 주면 그 케이블
+   * 행들의 수동 수정을 버리고 자동 산출값을 쓴 것으로 다시 미리본다
+   * (`recalcPreview.cableConflictDetails`에서 어느 행이 걸렸는지 안다).
    */
-  previewRecalculateWithCurrentBasis(): void;
+  previewRecalculateWithCurrentBasis(resetRowIds?: readonly string[]): void;
   /** 미리 만든 후보를 실제로 적용한다 — 실행취소로 이전 상태로 돌아갈 수 있다. */
   applyRecalculatedBasis(): void;
   /** 미리보기를 버린다 — 문서는 그대로다. */
@@ -237,15 +240,24 @@ function refreshResolvedRows(
 function regenerateCablesUnderCurrentRule(
   document: QuoteDocument,
   catalog: Resources['catalog'],
-): { document: QuoteDocument; conflict: boolean } {
-  if (document.cableSource === undefined) return { document, conflict: false };
+  resetRowIds: readonly string[] = [],
+): { document: QuoteDocument; conflict: boolean; conflictDetails: readonly { rowIds: readonly string[]; message: string }[] } {
+  if (document.cableSource === undefined) return { document, conflict: false, conflictDetails: [] };
   const generated = regenerateCables(document, catalog, document.cableRoutes ?? []);
-  // resetRowIds를 비워 둔다 — 수동 수정을 함부로 버리지 않는다. 충돌이
+  // `resetRowIds`가 비어 있으면 수동 수정을 함부로 버리지 않는다. 충돌이
   // 있으면(canApply===false) 이 재계산 전체를 적용하지 않는다(독립
-  // 검토 지적: "입력 부족/충돌 시 차단" — 케이블 패널에서 먼저 해소해야
-  // 한다).
-  const result = rebuildCableRows(document, document.cableBaseline ?? [], generated.rows, { resetRowIds: [] });
-  if (!result.canApply) return { document, conflict: true };
+  // 검토 지적: "입력 부족/충돌 시 차단"). `resetRowIds`를 주면 그
+  // 행들만 사용자가 명시적으로 "자동 산출값 사용"을 고른 것으로
+  // 본다 — 케이블 패널의 재산출 적용과 같은 선택지를
+  // basis-conflict 화면에서도 쓸 수 있게 한다(독립 검토 지적).
+  const result = rebuildCableRows(document, document.cableBaseline ?? [], generated.rows, { resetRowIds });
+  if (!result.canApply) {
+    return {
+      document,
+      conflict: true,
+      conflictDetails: result.conflicts.map((c) => ({ rowIds: c.rowIds, message: c.message })),
+    };
+  }
   return {
     document: {
       ...document,
@@ -254,6 +266,7 @@ function regenerateCablesUnderCurrentRule(
       cableWarnings: generated.warnings,
     },
     conflict: false,
+    conflictDetails: [],
   };
 }
 
@@ -262,16 +275,85 @@ function regenerateConduitUnderCurrentRule(document: QuoteDocument, catalog: Res
   return document.systems.reduce((doc, system) => applyInstallationPatch(doc, system.systemId, {}, catalog), document);
 }
 
+type ItemSheetRow = Extract<QuoteDocument['rows'][number], { type: 'item' }>;
+
+function rowSnapshot(row: ItemSheetRow): { quantity: string; sku: string | undefined; sellingUnitPrice: string | undefined } {
+  return { quantity: row.quantity, sku: row.sku, sellingUnitPrice: row.sellingUnitPrice };
+}
+
+/**
+ * 재계산 미리보기용 행 단위 차이 — 단가뿐 아니라 수량·품목(sku)이
+ * 바뀌거나 행이 늘거나 줄어든 것까지 전부 본다(독립 검토 지적: 전에는
+ * `priceChanges`만 있어서 수량·행 추가/삭제 변화가 화면에 전혀 안
+ * 보였다).
+ */
+function computeRecalculationRowChanges(
+  before: QuoteDocument,
+  after: QuoteDocument,
+): readonly RecalculationRowChange[] {
+  const beforeById = new Map(before.rows.filter((r): r is ItemSheetRow => r.type === 'item').map((r) => [r.rowId, r]));
+  const afterById = new Map(after.rows.filter((r): r is ItemSheetRow => r.type === 'item').map((r) => [r.rowId, r]));
+  const ids = new Set([...beforeById.keys(), ...afterById.keys()]);
+  const changes: RecalculationRowChange[] = [];
+  for (const rowId of ids) {
+    const b = beforeById.get(rowId);
+    const a = afterById.get(rowId);
+    if (b === undefined && a !== undefined) {
+      changes.push({ rowId, kind: 'added', name: a.name, after: rowSnapshot(a) });
+    } else if (b !== undefined && a === undefined) {
+      changes.push({ rowId, kind: 'removed', name: b.name, before: rowSnapshot(b) });
+    } else if (b !== undefined && a !== undefined) {
+      const before_ = rowSnapshot(b);
+      const after_ = rowSnapshot(a);
+      const differs =
+        before_.quantity !== after_.quantity || before_.sku !== after_.sku || before_.sellingUnitPrice !== after_.sellingUnitPrice;
+      if (differs) changes.push({ rowId, kind: 'changed', name: a.name, before: before_, after: after_ });
+    }
+  }
+  return changes;
+}
+
+export interface RecalculationRowChange {
+  rowId: string;
+  kind: 'added' | 'removed' | 'changed';
+  name: string;
+  before?: { quantity: string; sku: string | undefined; sellingUnitPrice: string | undefined };
+  after?: { quantity: string; sku: string | undefined; sellingUnitPrice: string | undefined };
+}
+
 export interface RecalculationPreview {
+  /**
+   * 이 후보를 만든 원본 문서(참조 동일성 비교용) — 그 사이 다른 문서를
+   * 열거나 undo/redo로 `history.present`가 바뀌면 이 미리보기는
+   * 더는 유효하지 않다(독립 검토 지적: A 문서 미리보기를 띄운 채 B
+   * 문서를 열어도 미리보기가 안 사라져서, 적용하면 A 후보가 B를
+   * 덮어쓸 뻔했다). `applyRecalculatedBasis`와 노출되는 `recalcPreview`
+   * 둘 다 이 값을 `history.present`와 대조해서만 유효하다고 본다.
+   */
+  sourceDocument: QuoteDocument;
   /** 적용하면 될 문서. 아직 history에 들어가지 않았다. */
   candidate: QuoteDocument;
-  priceChanges: readonly { rowId: string; name: string; before: string | undefined; after: string | undefined }[];
+  /** 행 단위 변경 — 수량·품목(sku)·단가가 바뀌거나, 행이 늘거나 줄었다(독립 검토 지적). */
+  rowChanges: readonly RecalculationRowChange[];
+  /** 간접비 절사 자릿수가 바뀌는가(가이드 템플릿 변경 등). */
+  roundingChanged: boolean;
+  /** 노임/품셈 기준이 바뀌는가. */
+  laborOrWageChanged: boolean;
+  /** 저장 당시 기준으로 다시 계산한 합계. 재현할 수 없으면 undefined. */
+  beforeTotal: string | undefined;
+  afterTotal: string;
   /**
    * 케이블 재산출이 수동 수정과 충돌해 적용하지 못했다 — true면 이
    * 재계산 전체를 적용할 수 없다(`applyRecalculatedBasis`가 거부한다).
-   * 케이블 구간 거리 패널에서 먼저 충돌을 해소해야 한다.
+   * `cableConflictDetails`에 걸린 행과 사유가 있다 —
+   * `previewRecalculateWithCurrentBasis(resetRowIds)`로 그 행들의
+   * 수동 수정을 버리고 자동 산출값을 쓰도록 다시 미리볼 수 있다
+   * (독립 검토 지적: 전에는 이 충돌을 풀 수 있는 화면이 basis-conflict
+   * 상태에서는 아예 보이지 않았다 — 케이블 패널은 'editing' 상태에서만
+   * 뜬다).
    */
   cableConflict: boolean;
+  cableConflictDetails: readonly { rowIds: readonly string[]; message: string }[];
 }
 
 /**
@@ -455,21 +537,25 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
    * 계획이 요구하는 "복사본→전후차이→적용" 중 앞 두 단계). 실제로
    * 반영하려면 `applyRecalculatedBasis`를 따로 불러야 한다.
    */
-  const previewRecalculateWithCurrentBasis = useCallback(() => {
+  const previewRecalculateWithCurrentBasis = useCallback((resetRowIds: readonly string[] = []) => {
     if (basis === undefined || resources === undefined || history.present === undefined) return;
     const present = history.present;
 
-    // 1) 이미 해소된 행을 지금 카탈로그로 다시 찾는다(배관은 전용 검증,
-    //    사라진 sku는 미해결로 되돌리고 경고를 단다).
-    const { document: refreshed, removedWarnings } = refreshResolvedRows(present, resources.catalog);
-    // 2) 케이블/배관을 **지금 코드(=지금 rule)**로 다시 돌린다 —
-    //    rule 버전만 올리고 수량은 예전 그대로 두지 않는다(독립 검토
-    //    지적). 케이블은 수동 수정과 충돌하면 이 재계산 전체를 막는다.
-    const { document: cableRegenerated, conflict: cableConflict } = regenerateCablesUnderCurrentRule(
-      refreshed,
-      resources.catalog,
-    );
-    const conduitRegenerated = regenerateConduitUnderCurrentRule(cableRegenerated, resources.catalog);
+    // 1) 케이블을 **원본(아직 가격 갱신 전) 문서**로 먼저 재산출한다 —
+    //    `rebuildCableRows`의 수동 수정 판정은 "기준 행 대비 지금
+    //    문서가 바뀌었나"를 본다. 가격을 먼저 갱신해 버리면 사람이
+    //    손대지 않은 단가 변경까지 수동 수정으로 오인해 가짜 충돌을
+    //    낸다(독립 검토 지적). 케이블은 수동 수정과 충돌하면 이
+    //    재계산 전체를 막는다 — `resetRowIds`를 주면 그 행들만
+    //    명시적으로 "자동 산출값 사용"을 고른 것으로 풀어 준다.
+    const { document: cableRegenerated, conflict: cableConflict, conflictDetails: cableConflictDetails } =
+      regenerateCablesUnderCurrentRule(present, resources.catalog, resetRowIds);
+    // 2) 이제(수동 수정 판정이 끝난 뒤) 남은 행을 지금 카탈로그로 다시
+    //    찾는다(배관은 전용 검증, 사라진 sku는 미해결로 되돌리고
+    //    경고를 단다). 케이블 행은 위 재산출이 이미 지금 카탈로그로
+    //    새로 지었으므로 여기서는 그대로 재확인만 된다.
+    const { document: refreshed, removedWarnings } = refreshResolvedRows(cableRegenerated, resources.catalog);
+    const conduitRegenerated = regenerateConduitUnderCurrentRule(refreshed, resources.catalog);
     const seeded = synchronizeMiscMaterials(seedDefaultProfile(conduitRegenerated, resources.guides), resources.catalog);
     // 사용자가 명시적으로 고른 시점에만 저장 당시의 낡은 카탈로그
     // 기준표를 지금 값으로 올려 적는다. `template`은 `prepareQuote`
@@ -499,23 +585,56 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
       wageMode: 'explicit-recalculate',
     });
 
-    const priceChanges = present.rows.flatMap((before) => {
-      if (before.type !== 'item') return [];
-      const after = prepared.document.rows.find((r) => r.rowId === before.rowId);
-      if (after === undefined || after.type !== 'item' || after.sellingUnitPrice === before.sellingUnitPrice) return [];
-      return [{ rowId: before.rowId, name: before.name, before: before.sellingUnitPrice, after: after.sellingUnitPrice }];
-    });
+    const rowChanges = computeRecalculationRowChanges(present, prepared.document);
+    const roundingChanged = present.rounding.coverTotalDigits !== prepared.document.rounding.coverTotalDigits;
+    const laborOrWageChanged =
+      present.versions.labor !== prepared.document.versions.labor ||
+      present.versions.wage !== prepared.document.versions.wage;
 
-    setRecalcPreview({ candidate: prepared.document, priceChanges, cableConflict });
+    // 저장 당시 기준(labor/wage)으로는 더는 계산할 수 없을 수 있다 —
+    // `priceQuote`는 버전 대조 없이 그냥 넘겨받은 참조로 계산만 하므로,
+    // 저장된 문서 그대로 지금의 `laborReference`로 돌려 "참고용 이전
+    // 합계"를 얻는다. laborMappingId가 지금 참조에 전혀 없는 등으로
+    // 계산 자체가 의미를 잃으면(예외) 재현 불가로 표시한다(독립 검토
+    // 지적 — 과거 기준이 없으면 과거 합계를 재현할 수 없다고 밝힌다).
+    let beforeTotal: string | undefined;
+    try {
+      beforeTotal = priceQuote(present, basis.reference).calculation.cover.finalTotal.toString();
+    } catch {
+      beforeTotal = undefined;
+    }
+    const afterTotal = prepared.priced.calculation.cover.finalTotal.toString();
+
+    setRecalcPreview({
+      sourceDocument: present,
+      candidate: prepared.document,
+      rowChanges,
+      roundingChanged,
+      laborOrWageChanged,
+      beforeTotal,
+      afterTotal,
+      cableConflict,
+      cableConflictDetails,
+    });
   }, [basis, resources, history.present, allImportWarnings]);
 
   const applyRecalculatedBasis = useCallback(() => {
-    if (recalcPreview === undefined || recalcPreview.cableConflict) return;
+    // `sourceDocument`가 지금의 `history.present`와 다르면(그 사이 다른
+    // 문서를 열었거나 undo/redo로 바뀌었다) 이 후보는 더는 유효하지
+    // 않다 — 적용을 거부하고 미리보기를 버린다(독립 검토 지적).
+    if (
+      recalcPreview === undefined ||
+      recalcPreview.cableConflict ||
+      recalcPreview.sourceDocument !== history.present
+    ) {
+      setRecalcPreview(undefined);
+      return;
+    }
     const candidate = recalcPreview.candidate;
     setHistory((h) => (h.present === undefined ? h : { past: [...h.past, h.present], present: candidate, future: [] }));
     setAllImportWarnings(candidate.importWarnings ?? []);
     setRecalcPreview(undefined);
-  }, [recalcPreview]);
+  }, [recalcPreview, history.present]);
 
   const cancelRecalculateWithCurrentBasis = useCallback(() => {
     setRecalcPreview(undefined);
@@ -801,6 +920,14 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
         ? { kind: 'basis-conflict', document: history.present, reason: prepareResult.reason }
         : { kind: 'editing', document: history.present, prepared: prepareResult.prepared };
 
+  // 미리보기가 만들어진 뒤 다른 문서를 열었거나(loadDocument/openWorkFile)
+  // undo/redo로 문서가 바뀌었으면 이 미리보기는 더는 지금 문서의 것이
+  // 아니다 — 노출 시점에 항상 다시 확인한다(독립 검토 지적). 상태를
+  // 일일이 각 액션에서 지우는 대신 여기서 한 번만 비교하면, 문서를
+  // 바꾸는 새 경로가 생겨도 빠뜨릴 일이 없다.
+  const effectiveRecalcPreview =
+    recalcPreview !== undefined && recalcPreview.sourceDocument === history.present ? recalcPreview : undefined;
+
   return {
     status,
     canUndo: history.past.length > 0,
@@ -810,7 +937,7 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     previewRecalculateWithCurrentBasis,
     applyRecalculatedBasis,
     cancelRecalculateWithCurrentBasis,
-    recalcPreview,
+    recalcPreview: effectiveRecalcPreview,
     resolveRow,
     setQuantity,
     setDescription,
