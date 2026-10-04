@@ -1,6 +1,6 @@
-# 견적 작업 화면 Implementation Plan — 교차 검토 초안
+# 견적 작업 화면 Implementation Plan — 실행 개정본
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. 현재는 설계·계약 검토 초안이다. 출력 수정의 독립 검증과 이 문서의 검토를 마친 뒤 실행한다.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. 출력 수정은 합의한 검증 범위에서 종결됐고 Task6의 실제 API 및 D22 반영분 교차 검토를 마쳤다. Task1부터 실행한다. O25은 해당 자동 산정만 보류하며 미결정 값을 추측하지 않는다.
 
 **Goal:** 사용자가 구성도 또는 품목 선택으로 견적을 만들고, 수량·설명·시공 입력·간접비를 확인/수정한 뒤 로컬 작업 파일과 출력 3종을 직접 저장한다.
 
@@ -18,7 +18,8 @@
 - O8 사례 선택은 요구사항으로 유지하되 변환기 완성 전 사용 가능한 것처럼 표시하지 않는다. 실제 39선택안/36상세시트 대응은 D21 기준이다. 가짜 사례를 기본 자료로 넣지 않는다.
 - 전사 공수·노임 기준 편집, 공수 적용률의 견적별 덮어쓰기/내용 버전은 별도 계산 기준 관리 계획이다. 본 화면에서 원자료를 직접 변이하지 않는다. 관리 기능이 완료됐다는 표시는 하지 않는다.
 - 큰 편집기(여러 셀 붙여넣기, 전체 키보드 탐색, 복잡한 행 이동)의 설계서 요구는 후속 편집 단계에 남긴다. 본 계획은 품목 추가/삭제, 수량/설명/비고 수정, 실행취소/다시실행을 제공한다. 원가 세션은 실행취소 이력에 포함하지 않는다.
-- 착수 시 다중 시스템 출력 API가 수정될 수 있다. 구현 전에 실제 최종 시그니처를 이 문서와 대조하고 계약표에 확정한다. 현재 단일 시스템 builder를 반복 호출해 여러 파일로 내보내는 임의 대체는 하지 않는다.
+- 출력 API는 Task6에 0f8df51 기준으로 확정했다. 착수 시 변경 여부만 대조한다. 단일 시스템 builder를 반복 호출해 여러 파일로 내보내는 임의 대체는 하지 않는다.
+- D22의 분류·기본 비율·자재 범위를 Task3에서 구현한다. O25(트레이 기타자재 행 적용 여부·비율)만 미결정이다. 트레이에 후렉시블20%를 적용하지 않는다. 관련 자동 산정은 확인 필요로 표시하고, 그 산정에 의존하는 출력만 차단한다. O26은 확정됐다: 견적 단위10M 품목은 필요한 길이를10M 단위로 올림하고 구매 묶음30M/50M에 맞춰 강제 올림하지 않는다. 해당 품목을 사용하지 않는 견적과 다른 화면 작업은 진행할 수 있다. 기존 질문을 반복하지 않는다.
 
 ## 2. Global Constraints
 
@@ -37,7 +38,7 @@
 1. 초기 자료 로딩 상태/실패 사유를 표시한다. 구성도 JSON 열기를 주 입구, 품목 직접 선택을 보조 입구로 둔다.
 2. 현장·고객·작성일·견적번호를 입력하고 시스템별 내역/갑지/품셈 근거를 확인한다.
 3. 미매칭 모델·케이블 품목·길이·옵션 등 확인 항목을 해당 행/구간으로 연결한다. 실제 값을 해결해야 경고가 해소되며 경고 일괄 지우기는 없다.
-4. 공간별 천장고·배관 길이, 구간별 확인된 거리/입상·입하를 입력한다. 산출 근거와 적용된 수량을 보여준다.
+4. 공간별 천장고·장비실에서 가장 먼 장비까지의 거리·배관 줄 수(기본 3), 구간별 확인된 거리/입상·입하를 입력한다. 배관은 `10m × 3줄 = 30m`처럼 산출 근거와 적용된 수량을 보여준다.
 5. 일반/DS 프로파일과 항목별 적용·요율을 선택한다. 조건 문구와 기준 금액을 함께 보여준다.
 6. 필요할 때 ‘내 PC의 원가 파일 불러오기’를 사용한다. B품명/C규격=모델/G매입단가로 후보를 확인하고 연결한다. H총액은 사용하지 않는다.
 7. 출력 등급을 선택해 검증된 Excel을 내려받거나, 원가 없는 작업 파일을 저장한다.
@@ -73,7 +74,9 @@ import type { ImportWarning } from '../../../src/import/diagram/devices';
 export interface SpaceInput {
   systemId: string;
   ceilingHeightM?: string;
-  conduitMeters: string;
+  farthestDeviceMeters?: string;
+  conduitRuns: string; // 새 공간의 기본값 '3'
+  conduitType: 'flexible' | 'cd'; // 기본 flexible; 품목은 승인 카탈로그에서 별도 연결
   conduitMaterialRate: string;
 }
 export interface RouteInput {
@@ -155,7 +158,14 @@ test('실제 입구와 기본 고객 출력', async ({ page }) => {
 - [ ] 현재 cables.ts에는 ×1.3 보정이 없다. Task3에서 누락된 보정을 추가한다. measured-route는 `(horizontal + rise + drop) × 1.3`, confirmed-total은 사용자가 확인한 최종 산출거리 그대로 적용한다. 천장고만으로 rise/drop을 확정하지 않고 장비 설치높이/확인된 입상·입하를 입력받는다.
 - [ ] cableType별 소비 경로를 분리한다. ready-made의 BOM.length는 제품 규격이므로 원본 값을 바꾸거나 ×1.3 하지 않는다. RouteInput의 산출거리를 snapToStep에 전달해 필요한 제품 길이를 선택하고, 그 길이에 맞는 SKU·규격·가격을 함께 확인한다. 일치하는 제품을 찾지 못하면 확인 필요 상태로 두며 기존 SKU에 새 길이만 붙이지 않는다. manufactured는 보정 전 구간 거리 대신 RouteInput의 산출거리를 합산에 사용하고 합산 후 10M 단위로 올림한다. 원본 BOM은 보존한다. 경로 입력이 없으면 제품 길이로 경로를 추정하지 않는다.
 - [ ] ready-made 3m 제품의 BOM.length가 재산출 후에도 3인 테스트와, 별도 경로가 3m여서 보정 후 3.9m가 필요하면 5m 제품 후보를 선택하는 테스트를 분리한다. manufactured의 구간별 보정·합산·올림도 검증한다.
-- [ ] 공간별 배관 기본50m, 기타자재40%를 문서 입력으로 둔다. 0과빈칸을 구분한다. 판매단위10M 품목은 상향 묶음 변환을 명시하고 임의로 SKU를 변경하지 않는다.
+- [ ] D8 최신 결정에 따라 배관은 공간별 `farthestDeviceMeters × conduitRuns`로 계산한다. 거리와 줄 수를 저장하고 결과 conduitMeters는 계산해서 표시한다. 새 공간의 줄 수 기본값은 '3'이며 사용자가 변경할 수 있다. 왕복이라는 표현으로 ×2를 추가하지 않고 케이블 여유분 ×1.3도 배관에 적용하지 않는다. 공간당 50m 기본값은 폐기한다.
+- [ ] 거리가 없으면 '입력 필요'로 유지하고 0m나 50m로 대체하지 않는다. 배관 산정에 필요한 값이 없으면 해당 산정과 그에 의존한 정식 출력을 차단한다. 명시적 0과 빈칸을 구분하고 음수·잘못된 숫자·소수 줄 수를 거부한다. 최종 길이 직접 입력 모드는 이번 범위에 추가하지 않는다.
+- [ ] D22를 적용한다. 배관 여부는 승인 카탈로그의 options.group 원문 묶음(배관자재·케이블 트레이)으로 판정하고 품명 문자열을 검색하지 않는다. 케이블 트레이도 배관 분류에 포함하되 후렉시블/CD관과 같은 제품으로 취급하지 않는다. 묶음 출처가 없거나 불명확하면 확인 필요로 남긴다.
+- [ ] 배관 종류는 후렉시블(기본)/CD관 선택으로 제공한다. 기타자재 비율의 기본값은 후렉시블20%, CD관40%이며 사용자 수정값을 별도로 보존한다. 종류 변경 시 적용될 비율을 표시하고 기존 사용자 수정값을 조용히 덮어쓰지 않는다. 트레이를 후렉시블로 간주해20%를 자동 적용하지 않는다.
+- [ ] 승인된 원가삭제 표준품셈 목록의 자재만 선택할 수 있다. 카탈로그에 미등록된105건을 자동 보충하지 않는다. 현재 CD관을 고르면 '품셈에 CD관 품목이 없습니다'를 표시하고 해당 품목 생성·출력을 차단한다. 0원이나 후렉시블로 대체하지 않는다. 이후 승인된 카탈로그에 유효한 CD관 행이 반영되면 동일 경로로 선택 가능하게 한다. 원본 Excel 수정만으로 기존 견적이 자동 갱신되지는 않는다.
+- [ ] O21/O24/O11의 업무 결정은 D22로 확정됐으며 구현 완료와 구분한다. 해당 분류·선택을 바탕으로 파생 행을 생성하고 기존 D19 일반/DS 원가측 차이를 유지한다. O26 확정에 따라 견적 단위10M 품목의 수량은 `ceil(산출거리 / 10)`이다. 필요한 길이와 견적 반영 길이를 함께 표시한다. 구매 묶음50M/30M 표시는 구매 담당 참고 정보이며 견적 수량에 영향을 주지 않는다. 구매 묶음 미기재만으로 산정을 차단하지 않는다. EA·3M 기준 트레이에는10M 규칙을 적용하지 않는다.
+- [ ] 트레이의 배관 분류, 후렉시블 기본20%, 사용자 비율 수정 보존, CD관 미등록 차단을 검증한다. 10M 단위 품목의20m→수량2,21m→수량3을 검증하고 구매 묶음이30M/50M/미기재인 경우에도 결과가 같음을 확인한다.
+- [ ] 배관 10m×3줄=30m, 줄 수 변경 10m×2줄=20m, 거리 미입력, 명시적0, 음수·소수 줄 수 거부를 검증한다. 저장·재열기 후 거리와 줄 수가 각각 유지되고 30m가 재현되는지 확인한다. 기존 50m 결과만 있는 파일에서 거리·줄 수를 역산하지 않으며 이전 상태를 보존하고 명시적 기준 변경과 입력을 요구한다.
 - [ ] 재산출은 해당 sourceEdgeId/시스템에서 생성된 행을 교체하며 행을 누적 추가하지 않는다. 수동 수정 행은 표시하고 덮어쓰기 대상을 미리 보여준다. 실행취소와 저장/재열기에 입력/근거가 함께 보존돼야 한다.
 - [ ] 도메인/E2E/verify 후 커밋한다. 구성도 원본 계약을 바꾸지 않은 것을 확인한다.
 
@@ -176,7 +186,7 @@ expect(calcRouteMeters({ edgeId:'e1', systemId:'s1', source:'confirmed-total',
 - [ ] 원가/supplier/costEntryId/원가파일명 sentinel을 runtime 객체와 unknown 필드에 넣고 저장 결과에서 제외되는 테스트, 손상JSON·미지원 schemaVersion 거부 테스트를 먼저 작성한다.
 - [ ] row type별 allowlist schema를 작성한다. 문서의 unknown JSON을 spread해서 저장하지 않는다. 형식 오류는 현재 열려 있는 작업을 잃지 않게 처리한다.
 - [ ] 열기에는 preserve를 사용한다. DocumentVersions의 catalog/labor/wage/template/rule 다섯 축을 저장 당시와 현재 선택한 기준 사이에서 비교한다. 하나라도 다르거나 누락되면 차이와 영향을 보여주고 다운로드를 막는다. 기존 basis 검사가 다루지 않는 축은 파일 coordinator에서 검증한다.
-- [ ] 가이드의 절사 규칙 변경은 template 버전으로 감지한다. 문서의 coverTotalDigits/roundingDigits는 사용자 설정으로 그대로 저장·복원하며 현재 기본값으로 덮어쓰지 않는다. rule은 케이블 계단·커넥터·배관 기본값 등 계산 규칙의 버전이다. 사용자가 바꾼 배관 길이·기타자재 비율은 문서 입력으로 보존하며, 기본값 변경과 사용자 입력 변경을 구분한다. rule만 변경된 재열기 차단 테스트를 포함한다.
+- [ ] 가이드의 절사 규칙 변경은 template 버전으로 감지한다. 문서의 coverTotalDigits/roundingDigits는 사용자 설정으로 그대로 저장·복원하며 현재 기본값으로 덮어쓰지 않는다. rule은 케이블 계단·커넥터·배관 산정식과 기본 줄 수 등 계산 규칙의 버전이다. 배관의 거리·줄 수·기타자재 비율은 문서 입력으로 보존하며, 기본값 변경과 사용자 입력 변경을 구분한다. rule만 변경된 재열기 차단 테스트를 포함한다.
 - [ ] ‘새 기준으로 재계산’을 선택하기 전 판매가/합계를 바꾸지 않는다. 재계산 후보를 복사본으로 만들고 전후 차이를 보여준 뒤 적용한다. 원래 기준 데이터가 없으면 이전 자료 열람과 기준 파일 불러오기를 제공하며 과거 계산을 재현했다고 주장하지 않는다.
 - [ ] 원가 지우기/페이지종료/새문서/다른작업 열기는 private session과 연결을 폐기한다. 작업파일 재열기에서 원가 연결을 복원하지 않는다.
 - [ ] unit/E2E/verify 후 커밋한다.
@@ -197,7 +207,18 @@ expect(calcRouteMeters({ edgeId:'e1', systemId:'s1', source:'confirmed-total',
 ## Task 6 — 출력 3종과 미해결 상태
 
 **Files:** export panels, workspace export adapter, download, `tests/e2e/download.spec.ts`.
-**Interfaces:** 독립 검증 완료된 최종 prepared→각 등급 builder 계약을 실행 전 여기 확정한다. adapter는 1·2 입력에 원가 controller를 전달하지 않는다. SalesExportAction만 원가 세션에 접근한다.
+**Interfaces:** 아래에 확인한 prepared→각 등급 builder 계약을 사용한다. adapter는 1·2 입력에 원가 controller를 전달하지 않는다. SalesExportAction만 원가 세션에 접근한다.
+
+### 확인된 출력 API (0f8df51 기준)
+
+- 준비: `prepareQuote(PrepareInput): PreparedQuote`. blocking이면 builder 호출 전 차단한다. `wageMode`, `profileBySystem`, `importWarnings`를 명시한다.
+- 고객용: `buildCustomerProjection(prepared.document, prepared.priced.calculation)` → `buildMultiSystemCustomerGuideWorkbook({ exported, guideBySystemId })` (`src/export/customer/guideMultiSystem.ts`).
+- 공유용: `buildSharedProjection(prepared, notes)` → `buildMultiSystemSharedGuideWorkbook({ shared, guideBySystemId })` (`src/export/shared/workbookMulti.ts`).
+- 영업팀용: `buildMultiSystemSalesGuideWorkbook({ shared, extras, guideBySystemId, baseGuideBySystemId })` (`src/export/internal/guideWorkbookMulti.ts`). extras는 전용 원가 경계에서만 구성한다. guideBySystemId는 원가본, baseGuideBySystemId는 같은 프로파일의 품셈본이다.
+- 모든 결과는 `MultiSystemGuideWorkbookResult`의 bytes로 다운로드하고 systems의 시트별 layout을 검증에 사용한다. 단일 시스템도 지원되는 입력으로 다루며 기반 함수 `buildMultiSystemGuideBase`를 공유용 완성 파일로 사용하지 않는다.
+- 시스템 여러 개와 그룹 여러 개를 구분한다. 현재 여러 그룹 또는 그룹에 일부 시스템만 들어간 입력은 지원하지 않으므로 이유를 표시하고 차단한다. 첫 그룹만 출력하지 않는다.
+
+출력 API 선행 조건과 D22 교차 검토를 충족했다. O25의 미결정 값을 확정하지 않는 조건으로 실행한다. 미결정 사항이 다른 화면 작업의 착수를 막지는 않는다.
 
 - [ ] 새 문서 기본2,0선택 추가확인,취소시 미저장,구성도/품셈/계산 blocking 출력차단,빈문서 차단,템플릿 누락 사유,DS/일반 혼합 출력을 E2E로 먼저 작성한다.
 - [ ] 다운로드 클릭 시 현재 문서 revision의 prepared 결과를 사용한다. 계산/파일읽기 중 수정된 옛 결과로 다운로드하지 않는다. Blob URL은 사용 후 해제한다.
@@ -221,10 +242,10 @@ expect(calcRouteMeters({ edgeId:'e1', systemId:'s1', source:'confirmed-total',
 
 외부참조·지원하지 않는 함수·오래된 캐시·연결 정보 없는 케이블은 ‘미검증/정보 필요’다. ‘문제 없음’과 구분한다.39선택안/36시트는 별도 식별자를 유지하고 과거 금액은 기준을 맞춘 뒤에만 대조한다.
 
-## 7. 교차 검토 요청
+## 7. 구현 중 재확인할 경계
 
 - Task3의 거리 입력과 기존 BOM.length 의미를 계약서와 대조할 것. 의미 확인 없이 기존 입력에1.3을 중복 적용하지 않는다.
 - Task4의 기준 스냅샷/카탈로그 변경과 preserve 경계가 기존 타입으로 표현 가능한지 확인할 것.
 - Task5에서 기존 원가 parser를 완화하지 않고 단위/통화 사용자 확인을 연결하는지 확인할 것.
 - 공수·노임·적용률 관리와39사례선택이 후속 필수로 남아 있는지 확인할 것.
-- 출력 수정 최종 API로 Task6 계약을 확정하고 코드 단계별 구체 테스트를 보충한 다음 실행 가능한 개정본으로 전환한다. 이 초안 작성 자체는 화면 구현 완료가 아니다.
+- Task6의 확정 API를 사용하고 각 Task의 검증을 실행한다. 문서의 실행 가능 상태는 화면 구현 완료를 뜻하지 않는다. 미결정 O25과 후속 필수 기능을 완료로 표시하지 않는다.
