@@ -107,20 +107,28 @@ function profileMapOf(document: QuoteDocument): Map<string, IndirectProfileId> {
   return new Map(
     document.systems.map((s) => [
       s.systemId,
-      (s.indirectProfileId as IndirectProfileId | undefined) ?? 'general',
+      (s.indirectProfileId as IndirectProfileId | undefined) ?? 'ds',
     ]),
   );
 }
 
-/** 새 문서는 프로파일을 아직 고르지 않았다 — 기본 '일반'을 문서에 바로 심는다. */
+/**
+ * 새 문서(아직 프로파일을 고른 적 없는 시스템)에만 기본값을 심는다
+ * (결정 D12 — 새 견적 기본 간접비는 DS다).
+ *
+ * **이미 프로파일이 있는 시스템은 건드리지 않는다.** 저장된 작업
+ * 파일을 다시 열 때도 이 함수를 거치는데, 무조건 심으면 사용자가
+ * 이미 고른 프로파일과 손본 요율(`indirectCosts`)을 조용히 DS
+ * 기본값으로 덮어쓰게 된다 — 독립 검토 지적.
+ */
 function seedDefaultProfile(document: QuoteDocument, guides: Resources['guides']): QuoteDocument {
   return {
     ...document,
-    systems: document.systems.map((s) => ({
-      ...s,
-      indirectProfileId: 'general',
-      indirectCosts: indirectCostsFor('general', guides),
-    })),
+    systems: document.systems.map((s) =>
+      s.indirectProfileId !== undefined
+        ? s
+        : { ...s, indirectProfileId: 'ds', indirectCosts: indirectCostsFor('ds', guides) },
+    ),
   };
 }
 

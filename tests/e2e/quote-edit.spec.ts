@@ -305,16 +305,20 @@ test('간접비율 수정 → 프로파일 변경 → undo/redo가 선택값·�
   await page.getByRole('button', { name: '추가' }).click();
   await page.getByRole('button', { name: '견적 만들기' }).click();
 
-  const rateInput = page.getByLabel('g1 요율');
   const profileSelect = page.getByLabel('시스템1 간접비 프로파일');
   const totalRow = page.locator('.q-quote-table tfoot tr', { hasText: '합계' }).last();
 
-  // --- 1) 일반 프로파일에서 요율을 사람이 고친다 ---
+  // 결정 D12로 새 견적 기본 프로파일이 DS로 바뀌었다 — 이 시험은
+  // 일반 프로파일의 항목(g1)을 보므로 명시로 고른다.
+  await profileSelect.selectOption('general');
+  const rateInput = page.getByLabel('g1 요율(%)');
+
+  // --- 1) 일반 프로파일에서 요율을 사람이 고친다(결정 D12 — 요율은 %·소수3자리로 보여준다) ---
   await expect(profileSelect).toHaveValue('general');
-  await expect(rateInput).toHaveValue('0.06');
-  await rateInput.fill('0.08');
+  await expect(rateInput).toHaveValue('6.000'); // 원본 분수 0.06
+  await rateInput.fill('8');
   await rateInput.blur();
-  await expect(rateInput).toHaveValue('0.08');
+  await expect(rateInput).toHaveValue('8.000'); // 저장은 분수 0.08로 들어간다
   const afterRateEditTotal = await totalRow.textContent();
 
   // --- 2) DS로 전환 — 전혀 다른 규칙·요율이 심긴다 ---
@@ -323,16 +327,78 @@ test('간접비율 수정 → 프로파일 변경 → undo/redo가 선택값·�
   const dsTotal = await totalRow.textContent();
   expect(dsTotal).not.toBe(afterRateEditTotal);
 
-  // --- 3) 실행취소 — 일반으로 돌아가되, 사람이 고친 요율(0.08)은 그대로다 ---
+  // --- 3) 실행취소 — 일반으로 돌아가되, 사람이 고친 요율(8%=0.08)은 그대로다 ---
   await page.getByRole('button', { name: '실행 취소' }).click();
   await expect(profileSelect).toHaveValue('general');
-  await expect(rateInput).toHaveValue('0.08');
+  await expect(rateInput).toHaveValue('8.000');
   await expect(totalRow).toHaveText(afterRateEditTotal ?? '');
 
   // --- 4) 다시실행 — DS로 다시 전환된 선택값·합계가 그대로 복원된다 ---
   await page.getByRole('button', { name: '다시 실행' }).click();
   await expect(profileSelect).toHaveValue('ds');
   await expect(totalRow).toHaveText(dsTotal ?? '');
+});
+
+test('새 견적은 기본 DS 프로파일로 시작하고, 일반으로 바꿀 수 있다(결정 D12)', async ({ page }) => {
+  await setupCustomCatalog(page);
+  await page.goto('/');
+
+  // --- 품목 직접 선택 입구 ---
+  await page.getByRole('button', { name: '품목 직접 선택' }).click();
+  await page.getByLabel('품목 검색').fill('E2E 테스트 품목');
+  await page.getByRole('button', { name: '추가' }).click();
+  await page.getByRole('button', { name: '견적 만들기' }).click();
+  await expect(page.getByLabel('시스템1 간접비 프로파일')).toHaveValue('ds');
+
+  // 일반으로 바꿀 수 있다 — 기본값이 DS라고 선택지가 줄지 않는다.
+  await page.getByLabel('시스템1 간접비 프로파일').selectOption('general');
+  await expect(page.getByLabel('시스템1 간접비 프로파일')).toHaveValue('general');
+
+  // --- 구성도 열기 입구도 기본 DS다 ---
+  await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'diagram.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(diagramWithTwoDevices()),
+  });
+  await expect(page.getByLabel('시스템1 간접비 프로파일')).toHaveValue('ds');
+});
+
+test('요율 입력칸 — 명시로 고친 값은 undo로 되돌아가고, 반올림된 표시값만으로는 손대지 않은 것으로 본다', async ({
+  page,
+}) => {
+  await setupCustomCatalog(page);
+  await page.goto('/');
+
+  await page.getByRole('button', { name: '품목 직접 선택' }).click();
+  await page.getByLabel('품목 검색').fill('E2E 테스트 품목');
+  await page.getByRole('button', { name: '추가' }).click();
+  await page.getByRole('button', { name: '견적 만들기' }).click();
+  await page.getByLabel('시스템1 간접비 프로파일').selectOption('general');
+
+  const rateInput = page.getByLabel('g1 요율(%)');
+  const profileSelect = page.getByLabel('시스템1 간접비 프로파일');
+  await expect(rateInput).toHaveValue('6.000');
+
+  // 포커스만 주고 아무것도 고치지 않은 채 blur — 표시값(반올림됐을
+  // 수도 있는 값)이 원본을 덮어쓰면 안 된다. 그대로 6.000이어야 하고,
+  // 이 blur가 이력에 한 단계도 남기지 않아야 한다(아래에서 확인).
+  await rateInput.focus();
+  await rateInput.blur();
+  await expect(rateInput).toHaveValue('6.000');
+
+  await rateInput.fill('4.86');
+  await rateInput.blur();
+  await expect(rateInput).toHaveValue('4.860');
+
+  // 실행취소를 **한 번**만 눌러도 요율 편집이 되돌아간다 — 손대지
+  // 않은 blur가 중간에 빈 이력 한 단계를 끼워 넣었다면 두 번 눌러야
+  // 할 것이다.
+  await page.getByRole('button', { name: '실행 취소' }).click();
+  await expect(rateInput).toHaveValue('6.000');
+  // 프로파일 선택(이전 단계에서 'general'로 바꾼 것)은 그대로 남아
+  // 있다 — 방금 undo가 요율 편집 한 단계만 되돌렸다는 뜻이다.
+  await expect(profileSelect).toHaveValue('general');
 });
 
 test('견적 정보(머리글) 편집과 취소', async ({ page }) => {
@@ -378,6 +444,10 @@ test('건강보험 미적용 상태에서 장기요양을 켜면 0원 사유를 
   await page.getByLabel('품목 검색').fill('E2E 테스트 품목');
   await page.getByRole('button', { name: '추가' }).click();
   await page.getByRole('button', { name: '견적 만들기' }).click();
+
+  // 결정 D12로 새 견적 기본 프로파일이 DS로 바뀌었다 — 이 시험은
+  // 일반 프로파일의 항목(국민건강보험료)을 보므로 명시로 고른다.
+  await page.getByLabel('시스템1 간접비 프로파일').selectOption('general');
 
   const healthApplied = page.getByLabel('국민건강보험료 적용');
   const longTermApplied = page.getByLabel('노인장기요양보험료 적용');
