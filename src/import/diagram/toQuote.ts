@@ -21,6 +21,7 @@ import { buildDeviceLines, type DeviceLine, type ImportWarning } from './devices
 import { buildCableLines, type CableLine } from './cables';
 import { buildDerivedLines } from './derived';
 import type { DiagramFile, DiagramNode } from './types';
+import { captureCableSource } from '../../domain/quote/cableSource';
 
 export interface ImportOptions {
   header: QuoteHeader;
@@ -58,7 +59,7 @@ function remarkForCable(line: CableLine): string {
   return `구성도 — ${line.segmentCount}구간`;
 }
 
-function deviceToLine(line: DeviceLine): QuoteLineInput {
+export function deviceToLine(line: DeviceLine): QuoteLineInput {
   return {
     ...(line.sku !== undefined ? { sku: line.sku } : {}),
     name: line.name,
@@ -79,8 +80,9 @@ function deviceToLine(line: DeviceLine): QuoteLineInput {
   };
 }
 
-function cableToLine(line: CableLine): QuoteLineInput {
+export function cableToLine(line: CableLine): QuoteLineInput {
   return {
+    ruleInstanceId: 'diagram-cables-v1',
     ...(line.sku !== undefined ? { sku: line.sku } : {}),
     name: line.name,
     specification: line.specification,
@@ -93,6 +95,7 @@ function cableToLine(line: CableLine): QuoteLineInput {
     remark: remarkForCable(line),
     sourceEdgeIds: line.sourceEdgeIds,
     ...(line.sourceCableKey !== undefined ? { sourceCableKey: line.sourceCableKey } : {}),
+    ...(line.sourceCableMembers !== undefined ? { sourceCableMembers: line.sourceCableMembers } : {}),
   };
 }
 
@@ -122,10 +125,10 @@ export function diagramToQuote(
   // 케이블은 연결선 전체에서 한 번만 만든다. 선이 시스템을 가로지를 수 있어
   // 노드처럼 나누면 같은 케이블이 두 번 계산된다.
   const cableResult = buildCableLines(diagram, catalog);
-  warnings.push(...cableResult.warnings);
+  warnings.push(...cableResult.warnings.map(warning => ({ ...warning, owner: 'cable-generation' as const })));
 
   const derivedResult = buildDerivedLines(cableResult.lines, catalog);
-  warnings.push(...derivedResult.warnings);
+  warnings.push(...derivedResult.warnings.map(warning => ({ ...warning, owner: 'cable-generation' as const })));
 
   const systems: QuoteSystemInput[] = systemOrder.map((systemName, index) => {
     const deviceResult = buildDeviceLines(
@@ -140,7 +143,7 @@ export function diagramToQuote(
     // 구성도에 정보가 없다 (열린 항목 O18 — av-builder가 선에도 systemName을 붙이면 해결).
     if (index === 0) {
       lines.push(...cableResult.lines.map(cableToLine));
-      lines.push(...derivedResult.lines.map(deviceToLine));
+      lines.push(...derivedResult.lines.map(line => ({ ...deviceToLine(line), ruleInstanceId: 'diagram-connectors-v1' })));
     }
 
     return { name: systemName, lines };
@@ -165,7 +168,11 @@ export function diagramToQuote(
   });
 
   return {
-    document,
+    document: { ...document, cableSource: captureCableSource(diagram), cableRoutes: [],
+      cableBaseline: document.rows.filter(row => row.type === 'item' &&
+        (row.ruleInstanceId === 'diagram-cables-v1' || row.ruleInstanceId === 'diagram-connectors-v1')),
+      cableWarnings: warnings.filter(warning => warning.owner === 'cable-generation'),
+    },
     warnings,
     blocking: warnings.some((w) => w.blocking),
   };

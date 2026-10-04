@@ -29,6 +29,7 @@ import { standardIndirectCosts } from './indirectCosts';
 
 /** 어느 입구에서 왔든 이 모양이면 견적 행이 된다. */
 export interface QuoteLineInput {
+  ruleInstanceId?: string;
   sku?: string;
   name: string;
   specification: string;
@@ -61,6 +62,7 @@ export interface QuoteLineInput {
   /** 케이블 행에만 있다. 미해결 케이블 경고를 행과 다시 연결하는 데 쓴다. */
   sourceEdgeIds?: readonly string[];
   sourceCableKey?: string;
+  sourceCableMembers?: readonly string[];
 }
 
 export interface QuoteSystemInput {
@@ -114,11 +116,13 @@ export function toRow(
     ...(line.optionId !== undefined ? { optionId: line.optionId } : {}),
     ...(line.sourceEdgeIds !== undefined ? { sourceEdgeIds: line.sourceEdgeIds } : {}),
     ...(line.sourceCableKey !== undefined ? { sourceCableKey: line.sourceCableKey } : {}),
+    ...(line.sourceCableMembers !== undefined ? { sourceCableMembers: line.sourceCableMembers } : {}),
     ...(line.laborMappingId !== undefined
       ? { laborMode: 'mapped' as const, laborMappingId: line.laborMappingId }
       : { laborMode: 'unresolved' as const }),
     remark: line.remark ?? '',
     origin: 'rule',
+    ...(line.ruleInstanceId !== undefined ? { ruleInstanceId: line.ruleInstanceId } : {}),
   };
   return { type: 'item', ...row };
 }

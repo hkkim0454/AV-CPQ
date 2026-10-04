@@ -93,6 +93,29 @@
   font-weight: var(--q-fw-medium);
 }
 
+.q-route-panel fieldset {
+  min-width: 0;
+  margin: 12px 0;
+}
+
+.q-route-panel .q-grade-option,
+.q-installation-panel .q-grade-option {
+  flex-wrap: wrap;
+}
+
+.q-route-panel .q-grade-option input,
+.q-installation-panel .q-grade-option input:not([type="checkbox"]):not([type="radio"]),
+.q-route-panel select {
+  width: 132px;
+  max-width: 100%;
+  height: var(--q-h-input);
+  border: 1px solid var(--q-line);
+  background: var(--q-field-fill);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: inherit;
+}
+
 .q-muted {
   color: var(--q-muted);
   font-size: 13px;

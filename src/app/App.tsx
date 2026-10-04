@@ -20,6 +20,7 @@ import { QuoteSheet } from '../features/worksheet/QuoteSheet';
 import { IndirectPanel } from '../features/worksheet/IndirectPanel';
 import { WarningList } from '../features/worksheet/WarningList';
 import { InstallationPanel } from '../features/installation/InstallationPanel';
+import { CableRoutePanel } from '../features/installation/CableRoutePanel';
 
 type LoadState = { kind: 'loading' } | ResourcesResult;
 
@@ -37,6 +38,7 @@ export function App() {
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
   const [entry, setEntry] = useState<EntryView>(null);
   const [outputGrade, setOutputGrade] = useState<OutputGrade>('2');
+  const [pendingCableEdit, setPendingCableEdit] = useState(false);
 
   const resources = state.kind === 'ready' ? state.resources : undefined;
   const workspace = useWorkspace(resources);
@@ -198,6 +200,9 @@ export function App() {
                     onRemarkChange={workspace.setRemark}
                     onRemoveRow={workspace.removeRow}
                   />
+                  <CableRoutePanel document={status.document} catalog={resources.catalog}
+                    onApply={workspace.applyCableRoutes} onPending={setPendingCableEdit} />
+                  {pendingCableEdit && <p role="status" className="q-notice">케이블 거리 수정이 아직 견적에 반영되지 않았습니다. 미리보기 후 적용하거나 취소하세요.</p>}
                   {status.document.systems.map((system) => (
                     <InstallationPanel
                       key={system.systemId}

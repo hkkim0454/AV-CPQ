@@ -210,6 +210,8 @@ export function WarningList({
                     groupByFamily
                     onSelect={(sku) => onResolveCable(warning.edgeId!, sku, warning.sourceCableKey)}
                   />
+                ) : warning.requiredCableMeters !== undefined ? (
+                  <p>필요 거리 {warning.requiredCableMeters}m를 충족하는 승인 품목이 없습니다. 거리 또는 구성도 케이블 종류를 확인하세요.</p>
                 ) : (
                   <SearchResolve
                     label={`${warning.edgeId} 연결할 품목 검색`}

@@ -16,6 +16,11 @@ import { toRow } from '../domain/quote/buildDocument';
 import { computeActiveWarnings } from '../domain/quote/activeWarnings';
 import { withResolvedProduct } from '../domain/quote/resolveProduct';
 import { synchronizeMiscMaterials, computeMiscMaterialWarnings } from '../domain/quote/miscMaterials';
+import { regenerateCables } from '../import/diagram/regenerateCables';
+import { lengthOf } from '../import/diagram/cables';
+import { rebuildCableRows } from '../domain/quote/cableRebuild';
+import type { RouteInput } from '../domain/quote/installation';
+import { calcRouteMeters } from '../domain/quote/installation';
 import {
   applyInstallationPatch,
   computeInstallationWarnings,
@@ -64,6 +69,7 @@ export interface Workspace {
   resolveOption(optionId: string, sku: string): void;
   /** 미해결 케이블 경고를 해소한다 — sourceEdgeIds로 그 구간 행만 찾는다. */
   resolveCable(edgeId: string, sku: string, sourceCableKey?: string): void;
+  applyCableRoutes(expected: QuoteDocument, routes: readonly RouteInput[], resetRowIds: readonly string[]): void;
   /**
    * 배관 입력(거리·줄 수·종류·기타자재 비율)을 바꾸고, 유효하면 배관
    * 행과 `배관 기타자재` 파생행을 재산출한다(`installation.ts`).
@@ -96,6 +102,12 @@ interface History {
 }
 
 const EMPTY_HISTORY: History = { past: [], present: undefined, future: [] };
+
+function importWarningsFor(document: QuoteDocument, original: readonly ImportWarning[]): readonly ImportWarning[] {
+  return document.cableWarnings === undefined ? original : [
+    ...original.filter(warning => warning.owner !== 'cable-generation'), ...document.cableWarnings,
+  ];
+}
 
 /**
  * 프로파일은 **문서 안에만** 둔다(`QuoteSystem.indirectProfileId`) —
@@ -183,7 +195,7 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
         // 이 문서에서 매번 새로 파생한다 — 그래야 실행취소로 배관 행이
         // 사라지거나 종류가 바뀌어도 경고가 항상 그 시점 문서와 맞는다.
         importWarnings: [
-          ...computeActiveWarnings(document, allImportWarnings),
+          ...computeActiveWarnings(document, importWarningsFor(document, allImportWarnings)),
           ...computeInstallationWarnings(document, resources.catalog),
           ...computeMiscMaterialWarnings(document, resources.catalog),
         ],
@@ -224,7 +236,7 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
         guides: resources.guides,
         profileBySystem: profileMapOf(seeded),
         importWarnings: [
-          ...computeActiveWarnings(seeded, input.importWarnings),
+          ...computeActiveWarnings(seeded, importWarningsFor(seeded, input.importWarnings)),
           ...computeInstallationWarnings(seeded, resources.catalog),
           ...computeMiscMaterialWarnings(seeded, resources.catalog),
         ],
@@ -240,6 +252,7 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     setHistory((h) => {
       if (h.present === undefined) return h;
       const changed = mutate(h.present);
+      if (changed === h.present) return h;
       const present = resources === undefined ? changed : synchronizeMiscMaterials(changed, resources.catalog);
       return { past: [...h.past, h.present], present, future: [] };
     });
@@ -254,6 +267,19 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     },
     [commit],
   );
+
+  const applyCableRoutes = useCallback((expected: QuoteDocument, routes: readonly RouteInput[], resetRowIds: readonly string[]) => {
+    if (resources === undefined) return;
+    commit(document => {
+      // 다른 편집 뒤에 이전 미리보기를 적용하지 않는다.
+      if (document !== expected || document.cableSource === undefined) return document;
+      const generated = regenerateCables(document, resources.catalog, routes);
+      const result = rebuildCableRows(document, document.cableBaseline ?? [], generated.rows, { resetRowIds });
+      if (!result.canApply) return document;
+      return { ...document, rows: result.rows, cableBaseline: result.nextBaselineRows,
+        cableRoutes: routes.map(route => ({ ...route })), cableWarnings: generated.warnings };
+    });
+  }, [resources, commit]);
 
   const setQuantity = useCallback(
     (rowId: string, quantity: string) => {
@@ -412,6 +438,12 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
         // 예전 자료에 집계 키가 없으면 대상이 하나일 때만 연결한다.
         // 같은 edge의 다른 BOM 품목을 추측으로 함께 바꾸지 않는다.
         if (targets.length !== 1) return document;
+        const target = targets[0]!;
+        if (target.type === 'item' && target.unit === 'EA') {
+          const required = (document.cableRoutes ?? []).filter(route => target.sourceEdgeIds?.includes(route.edgeId))
+            .map(calcRouteMeters).filter((meters): meters is string => meters !== undefined);
+          if (required.some(meters => (lengthOf(product) ?? -1) < Number(meters))) return document;
+        }
         return {
           ...document,
           rows: document.rows.map((r) => r.type === 'item' && r.rowId === targets[0]!.rowId
@@ -489,6 +521,7 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     resolveDevice,
     resolveOption,
     resolveCable,
+    applyCableRoutes,
     setInstallationInput,
     resolveConduit,
     undo,

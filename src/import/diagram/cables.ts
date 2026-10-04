@@ -83,6 +83,8 @@ export interface CableLine {
   /** 합쳐진 연결선 전부. */
   sourceEdgeIds: string[];
   sourceCableKey?: string;
+  /** 원본 edge ID와 BOM 순번. 길이가 바뀌어도 변하지 않는다. */
+  sourceCableMembers?: readonly string[];
   /** 벌크일 때 합산 전 실제 길이(m). 사람이 검토할 근거. */
   totalMeters?: DecimalText;
 }
@@ -113,7 +115,7 @@ function toNumber(value: string | undefined, fallback: number): number {
 /** `quoteSpec`/`quoteName`에서 `…1M`/`…1m` 꼴의 길이 토큰을 읽는다. */
 const LENGTH_TOKEN = /(\d+(?:\.\d+)?)\s*[Mm]\b/;
 
-function lengthOf(product: CatalogProduct): number | undefined {
+export function lengthOf(product: CatalogProduct): number | undefined {
   const found = LENGTH_TOKEN.exec(product.quoteSpec) ?? LENGTH_TOKEN.exec(product.quoteName);
   return found !== null ? Number(found[1]) : undefined;
 }
@@ -168,11 +170,12 @@ function matchFor(product: CatalogProduct | undefined, catalog: Catalog): MatchR
  * 있게 하는 것이 목적이다 — 좁게 맞춘 한두 개만 주는 `candidates`
  * (모호 매칭용)와 다르다.
  */
-export function cableCandidates(catalog: Catalog, lineTypeLabel: string): readonly string[] {
+export function cableCandidates(catalog: Catalog, lineTypeLabel: string, minimumMeters?: number): readonly string[] {
   const keyword = lineTypeLabel.trim().toLowerCase();
   if (keyword === '') return [];
   return catalog.products
     .filter((p) => p.unit !== `${BULK_UNIT_METERS}M`)
+    .filter((p) => minimumMeters === undefined || (lengthOf(p) ?? -1) >= minimumMeters)
     .filter((p) => {
       const group = (p.options['group'] ?? '').toLowerCase();
       return group.includes(keyword) || p.quoteName.toLowerCase().includes(keyword);
@@ -212,6 +215,9 @@ export function buildCableLines(
     existing.amount = existing.amount.plus(dec(String(amount)));
     existing.edges.add(edgeId);
     existing.line.sourceEdgeIds = [...existing.edges];
+    existing.line.sourceCableMembers = [...new Set([
+      ...(existing.line.sourceCableMembers ?? []), ...(line.sourceCableMembers ?? []),
+    ])];
   };
 
   for (const edge of diagram.edges) {
@@ -246,6 +252,7 @@ export function buildCableLines(
           lineTypeId,
           sourceEdgeIds: [edge.id],
           sourceCableKey: key,
+          sourceCableMembers: [JSON.stringify([edge.id, -1])],
         };
         byKey.set(key, { line, amount: new Decimal(0), edges: new Set([edge.id]) });
         lines.push(line);
@@ -253,6 +260,9 @@ export function buildCableLines(
         existing.edges.add(edge.id);
         existing.line.sourceEdgeIds = [...existing.edges];
         existing.line.segmentCount = existing.edges.size;
+        existing.line.sourceCableMembers = [...new Set([
+          ...(existing.line.sourceCableMembers ?? []), JSON.stringify([edge.id, -1]),
+        ])];
       }
       warnings.push({
         code: 'cable-item-unresolved',
@@ -283,7 +293,8 @@ export function buildCableLines(
     const routeMeters = routeStarted ? calcRouteMeters(route) : undefined;
     const routeIncomplete = routeStarted && routeMeters === undefined;
 
-    for (const row of rows) {
+    for (const [bomIndex, row] of rows.entries()) {
+      const sourceCableMembers = [JSON.stringify([edge.id, bomIndex])];
       const productName = row.productName?.trim() ?? '';
       if (productName === '') continue;
 
@@ -311,6 +322,7 @@ export function buildCableLines(
         const line: CableLine = {
           name: productName,
           specification: '경로 입력 필요',
+          sourceCableMembers,
           unit: bulk ? `${BULK_UNIT_METERS}M` : 'EA',
           segmentCount: 1,
           lineTypeId,
@@ -345,8 +357,9 @@ export function buildCableLines(
               : `'${productName}' 구간의 실측 거리(${routeMeters}m → ${snapToStep(meters)}m 계단)에 맞는 ` +
                 '제품을 같은 묶음에서 찾지 못했다. 품목을 다시 확인해야 한다.',
           edgeId: edge.id,
-          candidates: ambiguous ?? cableCandidates(catalog, label),
+          candidates: ambiguous !== undefined && meters <= snapToStep(meters) ? ambiguous : cableCandidates(catalog, label, meters),
           sourceCableKey: key,
+          requiredCableMeters: routeMeters!,
         });
       } else if (!rerouted && match.product === undefined) {
         // 지금까지는 이 경우(이름은 있지만 카탈로그에 안 걸림)에 아무
@@ -367,6 +380,7 @@ export function buildCableLines(
       // 3m 구간과 15m 구간이 한 행으로 합쳐지고, 먼저 온 쪽 길이가 남아
       // 15m 자리에 3m 케이블이 나간다. 현장에서 모자라고 경고도 없다.
       const line: CableLine = {
+        sourceCableMembers,
         ...(match.product !== undefined ? { sku: match.product.sku } : {}),
         name: match.product?.quoteName ?? productName,
         specification: match.product?.quoteSpec ?? (bulk ? '' : `${snapToStep(meters)}m`),

@@ -10,6 +10,9 @@
 
 /** 10진수를 문자열로 표현한 값. `"1234567"`, `"0.0486"`, `"-80000"`. */
 export type DecimalText = string;
+import type { DiagramFile } from '../../import/diagram/types';
+import type { ImportWarning } from '../../import/diagram/devices';
+import type { RouteInput } from './installation';
 
 /** 근거 상태 — 자동 확정 가능 여부를 가른다 (설계서 §5.3, §7.5). */
 export type EvidenceState = 'verified' | 'review-required' | 'conflicted';
@@ -155,6 +158,7 @@ export interface QuoteRow {
    */
   sourceEdgeIds?: readonly string[];
   sourceCableKey?: string;
+  sourceCableMembers?: readonly string[];
 
   origin: RowOrigin;
   ruleInstanceId?: string;
@@ -346,6 +350,11 @@ export interface DocumentVersions {
  * 이 타입에 해당 필드가 없는 것이 그 보증이다.
  */
 export interface QuoteDocument {
+  /** 재산출에 필요한 허용 필드만 복사한 구성도. 전체 원본 파일이 아니다. */
+  cableSource?: DiagramFile;
+  cableBaseline?: readonly SheetRow[];
+  cableRoutes?: readonly RouteInput[];
+  cableWarnings?: readonly ImportWarning[];
   schemaVersion: 1;
   documentId: string;
   mode: QuoteMode;
