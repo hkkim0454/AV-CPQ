@@ -96,7 +96,15 @@ test('두 입구(구성도/품목 선택) — 같은 품목·수량이면 직접
   await page.getByLabel(`E2E 테스트 품목 담은 수량`).fill('2');
   await page.getByRole('button', { name: '견적 만들기' }).click();
 
-  const pickerTotal = await page.locator('.q-quote-table tfoot tr', { hasText: '합계' }).last().textContent();
+  const row = page.locator('.q-quote-table tbody tr', { hasText: 'E2E 테스트 품목' });
+  const remarkInput = row.locator('td').nth(5).locator('input');
+  const totalRow = page.locator('.q-quote-table tfoot tr', { hasText: '합계' }).last();
+
+  // 품목 직접 선택 경로가 실제로 반영됐다는 출처 표식을 먼저 기다린다
+  // (`remarkFor`가 적는 '직접 선택'). 합계를 곧바로 읽으면 우연히
+  // 이전 상태를 읽고도 통과할 수 있다.
+  await expect(remarkInput).toHaveValue('직접 선택');
+  const pickerTotal = await totalRow.textContent();
 
   // --- 구성도 열기: 같은 모델 노드 2개 ---
   await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
@@ -107,7 +115,13 @@ test('두 입구(구성도/품목 선택) — 같은 품목·수량이면 직접
     buffer: Buffer.from(diagramWithTwoDevices()),
   });
 
-  const diagramTotal = await page.locator('.q-quote-table tfoot tr', { hasText: '합계' }).last().textContent();
+  // 구성도 경로로 **새 문서**가 실제로 반영됐는지 출처 표식이 '구성도'로
+  // 바뀌는 것부터 확인한다(비동기 파일 읽기·변환이 끝나길 기다리는
+  // 신호이자, 행이 실제로 구성도 출처인지 확인하는 신호다). 이 확인
+  // 없이 곧바로 합계를 읽으면 전환 전 값을 우연히 비교해 통과할 위험이
+  // 있다.
+  await expect(remarkInput).toHaveValue('구성도');
+  const diagramTotal = await totalRow.textContent();
 
   expect(pickerTotal).not.toBeNull();
   expect(diagramTotal).toBe(pickerTotal);
