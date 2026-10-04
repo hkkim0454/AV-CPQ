@@ -16,7 +16,8 @@
     "test:e2e": "playwright test",
     "audit:exports": "node tools/audit-exports.mjs",
     "build:approved": "vite-node tools/build-approved.ts",
-    "verify": "npm run typecheck && npm run test && npm run audit:exports"
+    "verify": "npm run typecheck && npm run test && npm run audit:exports",
+    "build:guides": "python tools/build_guide_templates.py"
   },
   "dependencies": {
     "decimal.js": "10.6.0",

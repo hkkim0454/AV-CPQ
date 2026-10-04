@@ -26,6 +26,15 @@ __pycache__/
 #   python tools/build_template.py templates/sanitized/quote-template.xlsx
 #   python tools/audit_xlsx.py   templates/sanitized/quote-template.xlsx
 !templates/sanitized/quote-template.xlsx
+#
+# 가이드 템플릿 4종도 생성물이지만 **저장소에 있어야 한다** (계획 2026-10-04 Task 2).
+# 원본은 사용자 PC에만 있으므로, 이게 빠지면 클론한 저장소에서 출력 테스트가
+# 전부 실패한다. 한 번 겪었다 — 1617cdd.
+#   python tools/build_guide_templates.py
+!templates/sanitized/guide-won.xlsx
+!templates/sanitized/guide-pumsem.xlsx
+!templates/sanitized/guide-ds.xlsx
+!templates/sanitized/guide-ds-won.xlsx
 
 # 로컬 전용 분석/출력 디렉터리. 커밋 대상 아님.
 .local/

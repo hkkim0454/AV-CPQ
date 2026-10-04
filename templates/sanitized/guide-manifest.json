@@ -1,0 +1,812 @@
+{
+  "schemaVersion": 1,
+  "note": "원본에서 측정한 구조와 계산 기준. 민감 값은 담지 않는다.",
+  "guides": {
+    "won": {
+      "profile": "general",
+      "hasCost": true,
+      "sheets": {
+        "cover": "갑지",
+        "detail": "세부내역"
+      },
+      "printArea": {
+        "cover": "A1:J21",
+        "detail": "A1:O25"
+      },
+      "detailScale": 58,
+      "freezePane": "G4",
+      "printTitles": "1:3",
+      "columns": {
+        "no": "A",
+        "name": "B",
+        "spec": "C",
+        "description": "D",
+        "unit": "E",
+        "quantity": "F",
+        "cost.unit": "G",
+        "cost.amount": "H",
+        "material.unit": "I",
+        "material.amount": "J",
+        "labor.unit": "K",
+        "labor.amount": "L",
+        "total": "M",
+        "profit": "N",
+        "remark": "O",
+        "supplier": "P",
+        "salesRemark": "Q",
+        "laborNote": "R",
+        "itemRate": "T",
+        "surcharge": "U",
+        "standardUnitPrice": "V",
+        "tradeFirst": "W",
+        "tradeLast": "BD"
+      },
+      "rows": {
+        "firstItem": 6,
+        "lastItem": 12,
+        "derived": [
+          13,
+          14
+        ],
+        "directSubtotal": 15,
+        "indirectFirst": 17,
+        "indirectLast": 23,
+        "indirectSubtotal": 24,
+        "grandTotal": 25
+      },
+      "trades": [
+        "통신관련기사",
+        "통신관련산업기사",
+        "통신설비공",
+        "보통인부",
+        "통신내선공",
+        "무선안테나공",
+        "저압케이블공",
+        "통신케이블공",
+        "내선전공",
+        "플랜트기계설치공",
+        "내장공",
+        "광케이블설치사",
+        "H/W시험사",
+        "S/W시험사",
+        "특별인부",
+        "통신관련 기능사",
+        "건축목공"
+      ],
+      "wage": {
+        "periodLabel": "26년 하반기",
+        "unit": "M/D",
+        "wages": {
+          "통신관련기사": {
+            "amount": "324979",
+            "unit": "M/D"
+          },
+          "통신관련산업기사": {
+            "amount": "304662",
+            "unit": "M/D"
+          },
+          "통신설비공": {
+            "amount": "316875",
+            "unit": "M/D"
+          },
+          "보통인부": {
+            "amount": "172698",
+            "unit": "M/D"
+          },
+          "통신내선공": {
+            "amount": "286219",
+            "unit": "M/D"
+          },
+          "무선안테나공": {
+            "amount": "360084",
+            "unit": "M/D"
+          },
+          "저압케이블공": {
+            "amount": "306274",
+            "unit": "M/D"
+          },
+          "통신케이블공": {
+            "amount": "438070",
+            "unit": "M/D"
+          },
+          "내선전공": {
+            "amount": "276108",
+            "unit": "M/D"
+          },
+          "플랜트기계설치공": {
+            "amount": "234041",
+            "unit": "M/D"
+          },
+          "내장공": {
+            "amount": "258904",
+            "unit": "M/D"
+          },
+          "광케이블설치사": {
+            "amount": "471931",
+            "unit": "M/D"
+          },
+          "H/W시험사": {
+            "amount": "398279",
+            "unit": "M/D"
+          },
+          "S/W시험사": {
+            "amount": "446560",
+            "unit": "M/D"
+          },
+          "특별인부": {
+            "amount": "228717",
+            "unit": "M/D"
+          },
+          "통신관련 기능사": {
+            "amount": "250000",
+            "unit": "M/D"
+          },
+          "건축목공": {
+            "amount": "282990",
+            "unit": "M/D"
+          }
+        },
+        "contentHash": "57be635afc2211ff454ab51daf9646577b0dd970a562b82947ca5bc6f9117b39"
+      },
+      "indirect": [
+        {
+          "name": "일반관리비",
+          "basisLabel": "직접비 대비",
+          "rate": "0.06",
+          "applied": true
+        },
+        {
+          "name": "산업안전보건관리비",
+          "basisLabel": "직접비 대비",
+          "rate": "0.0207",
+          "applied": true
+        },
+        {
+          "name": "산재 및 고용보험료",
+          "basisLabel": "노무비 대비",
+          "rate": "0.0457",
+          "applied": true
+        },
+        {
+          "name": "퇴직공제부금",
+          "basisLabel": "노무비 대비",
+          "rate": "0.023",
+          "applied": false,
+          "conditionText": "1억원 이상 공사 限"
+        },
+        {
+          "name": "국민연금보험료",
+          "basisLabel": "노무비 대비",
+          "rate": "0.045",
+          "applied": false,
+          "conditionText": "1개월 이상 공사 限"
+        },
+        {
+          "name": "국민건강보험료",
+          "basisLabel": "노무비 대비",
+          "rate": "0.03545",
+          "applied": false,
+          "conditionText": "1개월 이상 공사 限"
+        },
+        {
+          "name": "노인장기요양보험료",
+          "basisLabel": "건강보험료 대비",
+          "rate": "0.1295",
+          "applied": false,
+          "conditionText": "1개월 이상 공사 限"
+        }
+      ],
+      "sourceSha256": "74797c867c9c3ad623794d4c4bf96b9d5eebdce429b8432267ffa2a6c709a5b0",
+      "templateSha256": "f8184a9b06e1891ed9c6d7faf88b8e7fef4563aec477a1f7c49ca186045fd1f7"
+    },
+    "pumsem": {
+      "profile": "general",
+      "hasCost": false,
+      "sheets": {
+        "cover": "갑지",
+        "detail": "세부내역"
+      },
+      "printArea": {
+        "cover": "A1:J21",
+        "detail": "A1:L25"
+      },
+      "detailScale": 70,
+      "freezePane": "G4",
+      "printTitles": "1:3",
+      "columns": {
+        "no": "A",
+        "name": "B",
+        "spec": "C",
+        "description": "D",
+        "unit": "E",
+        "quantity": "F",
+        "material.unit": "G",
+        "material.amount": "H",
+        "labor.unit": "I",
+        "labor.amount": "J",
+        "total": "K",
+        "remark": "L",
+        "supplier": "M",
+        "salesRemark": "N",
+        "laborNote": "O",
+        "itemRate": "Q",
+        "surcharge": "R",
+        "standardUnitPrice": "S",
+        "tradeFirst": "T",
+        "tradeLast": "BA"
+      },
+      "rows": {
+        "firstItem": 6,
+        "lastItem": 12,
+        "derived": [
+          13,
+          14
+        ],
+        "directSubtotal": 15,
+        "indirectFirst": 17,
+        "indirectLast": 23,
+        "indirectSubtotal": 24,
+        "grandTotal": 25
+      },
+      "trades": [
+        "통신관련기사",
+        "통신관련산업기사",
+        "통신설비공",
+        "보통인부",
+        "통신내선공",
+        "무선안테나공",
+        "저압케이블공",
+        "통신케이블공",
+        "내선전공",
+        "플랜트기계설치공",
+        "내장공",
+        "광케이블설치사",
+        "H/W시험사",
+        "S/W시험사",
+        "특별인부",
+        "통신관련 기능사",
+        "건축목공"
+      ],
+      "wage": {
+        "periodLabel": "26년 하반기",
+        "unit": "M/D",
+        "wages": {
+          "통신관련기사": {
+            "amount": "324979",
+            "unit": "M/D"
+          },
+          "통신관련산업기사": {
+            "amount": "304662",
+            "unit": "M/D"
+          },
+          "통신설비공": {
+            "amount": "316875",
+            "unit": "M/D"
+          },
+          "보통인부": {
+            "amount": "172698",
+            "unit": "M/D"
+          },
+          "통신내선공": {
+            "amount": "286219",
+            "unit": "M/D"
+          },
+          "무선안테나공": {
+            "amount": "360084",
+            "unit": "M/D"
+          },
+          "저압케이블공": {
+            "amount": "306274",
+            "unit": "M/D"
+          },
+          "통신케이블공": {
+            "amount": "438070",
+            "unit": "M/D"
+          },
+          "내선전공": {
+            "amount": "276108",
+            "unit": "M/D"
+          },
+          "플랜트기계설치공": {
+            "amount": "234041",
+            "unit": "M/D"
+          },
+          "내장공": {
+            "amount": "258904",
+            "unit": "M/D"
+          },
+          "광케이블설치사": {
+            "amount": "471931",
+            "unit": "M/D"
+          },
+          "H/W시험사": {
+            "amount": "398279",
+            "unit": "M/D"
+          },
+          "S/W시험사": {
+            "amount": "446560",
+            "unit": "M/D"
+          },
+          "특별인부": {
+            "amount": "228717",
+            "unit": "M/D"
+          },
+          "통신관련 기능사": {
+            "amount": "250000",
+            "unit": "M/D"
+          },
+          "건축목공": {
+            "amount": "282990",
+            "unit": "M/D"
+          }
+        },
+        "contentHash": "57be635afc2211ff454ab51daf9646577b0dd970a562b82947ca5bc6f9117b39"
+      },
+      "indirect": [
+        {
+          "name": "일반관리비",
+          "basisLabel": "직접비 대비",
+          "rate": "0.06",
+          "applied": true
+        },
+        {
+          "name": "산업안전보건관리비",
+          "basisLabel": "직접비 대비",
+          "rate": "0.0207",
+          "applied": true
+        },
+        {
+          "name": "산재 및 고용보험료",
+          "basisLabel": "노무비 대비",
+          "rate": "0.0457",
+          "applied": true
+        },
+        {
+          "name": "퇴직공제부금",
+          "basisLabel": "노무비 대비",
+          "rate": "0.023",
+          "applied": false,
+          "conditionText": "1억원 이상 공사 限"
+        },
+        {
+          "name": "국민연금보험료",
+          "basisLabel": "노무비 대비",
+          "rate": "0.045",
+          "applied": false,
+          "conditionText": "1개월 이상 공사 限"
+        },
+        {
+          "name": "국민건강보험료",
+          "basisLabel": "노무비 대비",
+          "rate": "0.03545",
+          "applied": false,
+          "conditionText": "1개월 이상 공사 限"
+        },
+        {
+          "name": "노인장기요양보험료",
+          "basisLabel": "건강보험료 대비",
+          "rate": "0.1295",
+          "applied": false,
+          "conditionText": "1개월 이상 공사 限"
+        }
+      ],
+      "sourceSha256": "8d7950603e1e39e788d214d928f31a6603fe011fbd78ebd8808b76a05a410020",
+      "templateSha256": "a9c42e97744dae8288673b8e3369fc0f66d7c53f69b9f5c09d935d84c8e2e32a"
+    },
+    "ds": {
+      "profile": "ds",
+      "hasCost": false,
+      "sheets": {
+        "cover": "갑지",
+        "detail": "세부내역"
+      },
+      "printArea": {
+        "cover": "A1:J21",
+        "detail": "A1:L27"
+      },
+      "detailScale": 70,
+      "freezePane": "G4",
+      "printTitles": "1:3",
+      "columns": {
+        "no": "A",
+        "name": "B",
+        "spec": "C",
+        "description": "D",
+        "unit": "E",
+        "quantity": "F",
+        "material.unit": "G",
+        "material.amount": "H",
+        "labor.unit": "I",
+        "labor.amount": "J",
+        "total": "K",
+        "remark": "L",
+        "supplier": "M",
+        "salesRemark": "N",
+        "laborNote": "O",
+        "itemRate": "Q",
+        "surcharge": "R",
+        "standardUnitPrice": "S",
+        "tradeFirst": "T",
+        "tradeLast": "BA"
+      },
+      "rows": {
+        "firstItem": 6,
+        "lastItem": 12,
+        "derived": [
+          13,
+          14
+        ],
+        "directSubtotal": 15,
+        "indirectFirst": 17,
+        "indirectLast": 25,
+        "indirectSubtotal": 26,
+        "grandTotal": 27
+      },
+      "trades": [
+        "통신관련기사",
+        "통신관련산업기사",
+        "통신설비공",
+        "보통인부",
+        "통신내선공",
+        "무선안테나공",
+        "저압케이블공",
+        "통신케이블공",
+        "내선전공",
+        "플랜트기계설치공",
+        "내장공",
+        "광케이블설치사",
+        "H/W시험사",
+        "S/W시험사",
+        "특별인부",
+        "통신관련 기능사",
+        "건축목공"
+      ],
+      "wage": {
+        "periodLabel": "26년 하반기",
+        "unit": "M/D",
+        "wages": {
+          "통신관련기사": {
+            "amount": "324979",
+            "unit": "M/D"
+          },
+          "통신관련산업기사": {
+            "amount": "304662",
+            "unit": "M/D"
+          },
+          "통신설비공": {
+            "amount": "316875",
+            "unit": "M/D"
+          },
+          "보통인부": {
+            "amount": "172698",
+            "unit": "M/D"
+          },
+          "통신내선공": {
+            "amount": "286219",
+            "unit": "M/D"
+          },
+          "무선안테나공": {
+            "amount": "360084",
+            "unit": "M/D"
+          },
+          "저압케이블공": {
+            "amount": "306274",
+            "unit": "M/D"
+          },
+          "통신케이블공": {
+            "amount": "438070",
+            "unit": "M/D"
+          },
+          "내선전공": {
+            "amount": "276108",
+            "unit": "M/D"
+          },
+          "플랜트기계설치공": {
+            "amount": "234041",
+            "unit": "M/D"
+          },
+          "내장공": {
+            "amount": "258904",
+            "unit": "M/D"
+          },
+          "광케이블설치사": {
+            "amount": "471931",
+            "unit": "M/D"
+          },
+          "H/W시험사": {
+            "amount": "398279",
+            "unit": "M/D"
+          },
+          "S/W시험사": {
+            "amount": "446560",
+            "unit": "M/D"
+          },
+          "특별인부": {
+            "amount": "228717",
+            "unit": "M/D"
+          },
+          "통신관련 기능사": {
+            "amount": "250000",
+            "unit": "M/D"
+          },
+          "건축목공": {
+            "amount": "282990",
+            "unit": "M/D"
+          }
+        },
+        "contentHash": "57be635afc2211ff454ab51daf9646577b0dd970a562b82947ca5bc6f9117b39"
+      },
+      "indirect": [
+        {
+          "name": "간접노무비",
+          "basisLabel": "노무비 대비",
+          "rate": "0.0486",
+          "applied": true
+        },
+        {
+          "name": "고용보험료",
+          "basisLabel": "노무비 대비",
+          "rate": "0.00424",
+          "applied": true
+        },
+        {
+          "name": "산재보험료",
+          "basisLabel": "노무비 대비",
+          "rate": "0.00961",
+          "applied": true
+        },
+        {
+          "name": "연금보험료",
+          "basisLabel": "노무비 대비",
+          "rate": "0.01283",
+          "applied": false,
+          "conditionText": "1개월 이상 공사 限"
+        },
+        {
+          "name": "건강보험료",
+          "basisLabel": "노무비 대비",
+          "rate": "0.00971",
+          "applied": false,
+          "conditionText": "1개월 이상 공사 限"
+        },
+        {
+          "name": "노인장기요양보험료",
+          "basisLabel": "노무비 대비",
+          "rate": "0.00128",
+          "applied": false,
+          "conditionText": "1개월 이상 공사 限"
+        },
+        {
+          "name": "산업안전보건관리비",
+          "basisLabel": "직접비 대비",
+          "rate": "0.0311",
+          "applied": true
+        },
+        {
+          "name": "퇴직공제부금비",
+          "basisLabel": "노무비 대비",
+          "rate": "0.00621",
+          "applied": false,
+          "conditionText": "1억원 이상 공사 限"
+        },
+        {
+          "name": "공과잡비",
+          "basisLabel": "직접비+간접노무비+산업안전관리비",
+          "rate": "0.1",
+          "applied": true
+        }
+      ],
+      "sourceSha256": "9d0d614d847f75966d9adea0aedf5c812147a86ae5b0ce1303c4a1a18960963a",
+      "templateSha256": "03c6ecac83c5ea5189bd015ba5f9d3b7582abc5a08c57a0ed98c81e7871ade00"
+    },
+    "ds-won": {
+      "profile": "ds",
+      "hasCost": true,
+      "sheets": {
+        "cover": "갑지",
+        "detail": "세부내역"
+      },
+      "printArea": {
+        "cover": "A1:J21",
+        "detail": "A1:O27"
+      },
+      "detailScale": 58,
+      "freezePane": "G4",
+      "printTitles": "1:3",
+      "columns": {
+        "no": "A",
+        "name": "B",
+        "spec": "C",
+        "description": "D",
+        "unit": "E",
+        "quantity": "F",
+        "cost.unit": "G",
+        "cost.amount": "H",
+        "material.unit": "I",
+        "material.amount": "J",
+        "labor.unit": "K",
+        "labor.amount": "L",
+        "total": "M",
+        "profit": "N",
+        "remark": "O",
+        "supplier": "P",
+        "salesRemark": "Q",
+        "laborNote": "R",
+        "itemRate": "T",
+        "surcharge": "U",
+        "standardUnitPrice": "V",
+        "tradeFirst": "W",
+        "tradeLast": "BD"
+      },
+      "rows": {
+        "firstItem": 6,
+        "lastItem": 12,
+        "derived": [
+          13,
+          14
+        ],
+        "directSubtotal": 15,
+        "indirectFirst": 17,
+        "indirectLast": 25,
+        "indirectSubtotal": 26,
+        "grandTotal": 27
+      },
+      "trades": [
+        "통신관련기사",
+        "통신관련산업기사",
+        "통신설비공",
+        "보통인부",
+        "통신내선공",
+        "무선안테나공",
+        "저압케이블공",
+        "통신케이블공",
+        "내선전공",
+        "플랜트기계설치공",
+        "내장공",
+        "광케이블설치사",
+        "H/W시험사",
+        "S/W시험사",
+        "특별인부",
+        "통신관련 기능사",
+        "건축목공"
+      ],
+      "wage": {
+        "periodLabel": "26년 하반기",
+        "unit": "M/D",
+        "wages": {
+          "통신관련기사": {
+            "amount": "324979",
+            "unit": "M/D"
+          },
+          "통신관련산업기사": {
+            "amount": "304662",
+            "unit": "M/D"
+          },
+          "통신설비공": {
+            "amount": "316875",
+            "unit": "M/D"
+          },
+          "보통인부": {
+            "amount": "172698",
+            "unit": "M/D"
+          },
+          "통신내선공": {
+            "amount": "286219",
+            "unit": "M/D"
+          },
+          "무선안테나공": {
+            "amount": "360084",
+            "unit": "M/D"
+          },
+          "저압케이블공": {
+            "amount": "306274",
+            "unit": "M/D"
+          },
+          "통신케이블공": {
+            "amount": "438070",
+            "unit": "M/D"
+          },
+          "내선전공": {
+            "amount": "276108",
+            "unit": "M/D"
+          },
+          "플랜트기계설치공": {
+            "amount": "234041",
+            "unit": "M/D"
+          },
+          "내장공": {
+            "amount": "258904",
+            "unit": "M/D"
+          },
+          "광케이블설치사": {
+            "amount": "471931",
+            "unit": "M/D"
+          },
+          "H/W시험사": {
+            "amount": "398279",
+            "unit": "M/D"
+          },
+          "S/W시험사": {
+            "amount": "446560",
+            "unit": "M/D"
+          },
+          "특별인부": {
+            "amount": "228717",
+            "unit": "M/D"
+          },
+          "통신관련 기능사": {
+            "amount": "250000",
+            "unit": "M/D"
+          },
+          "건축목공": {
+            "amount": "282990",
+            "unit": "M/D"
+          }
+        },
+        "contentHash": "57be635afc2211ff454ab51daf9646577b0dd970a562b82947ca5bc6f9117b39"
+      },
+      "indirect": [
+        {
+          "name": "간접노무비",
+          "basisLabel": "노무비 대비",
+          "rate": "0.0486",
+          "applied": true
+        },
+        {
+          "name": "고용보험료",
+          "basisLabel": "노무비 대비",
+          "rate": "0.00424",
+          "applied": true
+        },
+        {
+          "name": "산재보험료",
+          "basisLabel": "노무비 대비",
+          "rate": "0.00961",
+          "applied": true
+        },
+        {
+          "name": "연금보험료",
+          "basisLabel": "노무비 대비",
+          "rate": "0.01283",
+          "applied": false,
+          "conditionText": "1개월 이상 공사 限"
+        },
+        {
+          "name": "건강보험료",
+          "basisLabel": "노무비 대비",
+          "rate": "0.00971",
+          "applied": false,
+          "conditionText": "1개월 이상 공사 限"
+        },
+        {
+          "name": "노인장기요양보험료",
+          "basisLabel": "노무비 대비",
+          "rate": "0.00128",
+          "applied": false,
+          "conditionText": "1개월 이상 공사 限"
+        },
+        {
+          "name": "산업안전보건관리비",
+          "basisLabel": "직접비 대비",
+          "rate": "0.0311",
+          "applied": true
+        },
+        {
+          "name": "퇴직공제부금비",
+          "basisLabel": "노무비 대비",
+          "rate": "0.00621",
+          "applied": false,
+          "conditionText": "1억원 이상 공사 限"
+        },
+        {
+          "name": "공과잡비",
+          "basisLabel": "직접비+간접노무비+산업안전관리비",
+          "rate": "0.1",
+          "applied": true
+        }
+      ],
+      "sourceSha256": "cda71cab703fb3c412a51abf6ce9019e1ceb82bb0c38a14575599c6f72bb35da",
+      "templateSha256": "e5ea3965f54adcc6ae206e47d4f303d734bf36b621872d6a6ee4227246729634"
+    }
+  }
+}
