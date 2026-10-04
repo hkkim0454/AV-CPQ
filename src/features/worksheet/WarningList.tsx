@@ -40,7 +40,7 @@ interface WarningListProps {
   onResolveDevice(nodeId: string, sku: string): void;
   onResolveOption(optionId: string, sku: string): void;
   onResolveConduit(systemId: string, sku: string): void;
-  onResolveCable(edgeId: string, sku: string): void;
+  onResolveCable(edgeId: string, sku: string, sourceCableKey?: string): void;
 }
 
 function CandidateList({
@@ -208,13 +208,13 @@ export function WarningList({
                     candidates={warning.candidates}
                     catalog={catalog}
                     groupByFamily
-                    onSelect={(sku) => onResolveCable(warning.edgeId!, sku)}
+                    onSelect={(sku) => onResolveCable(warning.edgeId!, sku, warning.sourceCableKey)}
                   />
                 ) : (
                   <SearchResolve
                     label={`${warning.edgeId} 연결할 품목 검색`}
                     catalog={catalog}
-                    onSelect={(sku) => onResolveCable(warning.edgeId!, sku)}
+                    onSelect={(sku) => onResolveCable(warning.edgeId!, sku, warning.sourceCableKey)}
                   />
                 ))}
               {isOption &&

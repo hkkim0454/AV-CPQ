@@ -92,6 +92,7 @@ function cableToLine(line: CableLine): QuoteLineInput {
     ...(line.laborMappingId !== undefined ? { laborMappingId: line.laborMappingId } : {}),
     remark: remarkForCable(line),
     sourceEdgeIds: line.sourceEdgeIds,
+    ...(line.sourceCableKey !== undefined ? { sourceCableKey: line.sourceCableKey } : {}),
   };
 }
 

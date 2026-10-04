@@ -31,6 +31,8 @@ import { matchByModel, type MatchResult } from './matchCatalog';
 import type { DiagramFile, DiagramNode } from './types';
 
 export type ImportWarningCode =
+  | 'misc-classification-missing'
+  | 'misc-basis-review-required'
   | 'device-not-in-catalog'
   | 'device-ambiguous-match'
   | 'option-definition-missing'
@@ -56,6 +58,8 @@ export interface ImportWarning {
   message: string;
   nodeId?: string;
   edgeId?: string;
+  /** 같은 연결선 안의 서로 다른 BOM 품목을 구별하는 집계 키. */
+  sourceCableKey?: string;
   /**
    * `device-ambiguous-match`일 때만 있다 — 모델명이 걸린 SKU들
    * (`matchByModel`의 `ambiguousSkus`). 화면이 사람에게 고르게 하는

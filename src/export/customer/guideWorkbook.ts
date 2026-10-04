@@ -260,12 +260,17 @@ export function buildSystemSheetContent(
       }
     } else {
       // 잡자재비 — 품목부터 **바로 윗 행까지**. 배관 기타자재를 포함한다.
+      const excludedRows = (row.derived.excludedRowIds ?? []).flatMap(id => {
+        const sourceRow = rowByRowId.get(id);
+        return sourceRow === undefined ? [] : [sourceRow];
+      });
       const built = F.derivedFromRange(
         layout,
         layout.firstBodyRow,
         at - 1,
         'material.amount',
         percent,
+        excludedRows,
       );
       unitPrice = typeof built === 'string' ? formula(built) : num('0');
       // 잡자재비의 원가측은 **두 프로파일 모두** 계산한다 (실측 G14).
@@ -276,6 +281,7 @@ export function buildSystemSheetContent(
           at - 1,
           'cost.amount',
           percent,
+          excludedRows,
         );
         costUnitPrice = typeof costBuilt === 'string' ? formula(costBuilt) : num('0');
       }

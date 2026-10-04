@@ -206,6 +206,18 @@ export function QuoteSheet({
                       </tr>
                     );
                   })}
+                  {document.derivedRows.filter(row => row.systemId === system.systemId).map(row => {
+                    const rowCalc = calc?.rows.find(item => item.rowId === row.rowId);
+                    return (
+                      <tr key={row.rowId} data-row-id={row.rowId} data-derived="true">
+                        <td>{row.name}</td><td>{row.specification}</td><td>{row.unit}</td><td>{row.quantity}</td>
+                        <td>{row.internalDescription ?? ''}</td><td>{row.remark}</td>
+                        <td>{rowCalc?.materialAmount?.toFixed() ?? '미등록'}</td>
+                        <td>{row.laborMode === 'not-applicable' ? '해당없음' : rowCalc?.laborAmount?.toFixed() ?? '미등록'}</td>
+                        <td>{rowCalc?.total?.toFixed() ?? '미등록'}</td><td></td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
                 {calc !== undefined && (
                   <tfoot>

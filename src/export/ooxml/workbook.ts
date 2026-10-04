@@ -170,6 +170,7 @@ function buildSystemSheet(layout: SystemLayout, template: TemplatePackage): stri
                 planned.derivedRange.first,
                 planned.derivedRange.last,
                 percent,
+                planned.derivedExcludedRows,
               ),
               cached(calc?.materialUnitPrice),
             ),

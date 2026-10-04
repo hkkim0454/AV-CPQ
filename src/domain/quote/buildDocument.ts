@@ -60,6 +60,7 @@ export interface QuoteLineInput {
   optionId?: string;
   /** 케이블 행에만 있다. 미해결 케이블 경고를 행과 다시 연결하는 데 쓴다. */
   sourceEdgeIds?: readonly string[];
+  sourceCableKey?: string;
 }
 
 export interface QuoteSystemInput {
@@ -112,6 +113,7 @@ export function toRow(
     ...(line.sourceNodeIds !== undefined ? { sourceNodeIds: line.sourceNodeIds } : {}),
     ...(line.optionId !== undefined ? { optionId: line.optionId } : {}),
     ...(line.sourceEdgeIds !== undefined ? { sourceEdgeIds: line.sourceEdgeIds } : {}),
+    ...(line.sourceCableKey !== undefined ? { sourceCableKey: line.sourceCableKey } : {}),
     ...(line.laborMappingId !== undefined
       ? { laborMode: 'mapped' as const, laborMappingId: line.laborMappingId }
       : { laborMode: 'unresolved' as const }),

@@ -159,8 +159,11 @@ function documentWithDerivedRows(
   };
 }
 
-function build(profile: IndirectProfileId, level: 0 | 1 | 2) {
+function build(profile: IndirectProfileId, level: 0 | 1 | 2, excludeFirst = false) {
   const document = documentWithDerivedRows(profile);
+  if (excludeFirst) {
+    document.derivedRows[1]!.derived = { kind: 'material-sum-to-here', excludedRowIds: [document.rows[0]!.rowId] };
+  }
   const calculation = calculateQuote(document);
   const projection = buildCustomerProjection(document, calculation);
   const guide = selectGuide(allGuides(), profile, level === 0);
@@ -212,6 +215,23 @@ function cellOf(sheet: string, ref: string): string | undefined {
 }
 
 describe('파생 행 — 재료측 (회귀, 기존 동작)', () => {
+  it.each([
+    ['general', 0], ['general', 1], ['general', 2], ['ds', 0], ['ds', 1], ['ds', 2],
+  ] as const)('%s/%s: 잡자재비 수식은 제외 행을 빼고 배관 기타자재를 포함한다', (profile, level) => {
+    const result = build(profile, level, true);
+    const layout = result.layout;
+    const sheet = detailOf(result.bytes);
+    const misc = layout.derivedRows[1]!.row;
+    const first = layout.itemRows[0]!.row;
+    const last = layout.derivedRows[0]!.row;
+    const roles = level === 0 ? ['material', 'cost'] : ['material'];
+    for (const role of roles) {
+      const amount = layout.column(`${role}.amount`);
+      const cell = cellOf(sheet, `${layout.column(`${role}.unit`)}${misc}`)!;
+      expect(cell).toContain(`INT((SUM(${amount}${first}:${amount}${last})-${amount}${first})*2%)`);
+    }
+  });
+
   it.each([['general'], ['ds']] as const)(
     '%s: 배관 기타자재 재료단가가 직전 배관 재료금액의 40%% 수식이다',
     (profile) => {

@@ -154,6 +154,7 @@ export interface QuoteRow {
    * 행과 다시 연결할 때 쓴다.
    */
   sourceEdgeIds?: readonly string[];
+  sourceCableKey?: string;
 
   origin: RowOrigin;
   ruleInstanceId?: string;
@@ -192,7 +193,7 @@ export type SheetRow =
  */
 export type DerivedBasis =
   | { kind: 'single-row-material'; sourceRowId: string }
-  | { kind: 'material-sum-to-here' };
+  | { kind: 'material-sum-to-here'; excludedRowIds?: readonly string[] };
 
 export interface DerivedRow extends Omit<QuoteRow, 'sellingUnitPrice'> {
   derived: DerivedBasis;

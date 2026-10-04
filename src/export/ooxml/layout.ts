@@ -40,6 +40,7 @@ export interface PlannedBodyRow {
   derivedSourceRow?: number;
   /** 파생 행이 합산할 범위. */
   derivedRange?: { first: number; last: number };
+  derivedExcludedRows?: number[];
 }
 
 export interface PlannedIndirectRow {
@@ -199,6 +200,10 @@ function planSystem(
         if (sourceRow !== undefined) planned.derivedSourceRow = sourceRow;
       } else if (firstItemRow !== undefined) {
         planned.derivedRange = { first: firstItemRow, last: row - 1 };
+        planned.derivedExcludedRows = (source.derived.excludedRowIds ?? []).flatMap(id => {
+          const at = rowNumberByRowId.get(id);
+          return at === undefined ? [] : [at];
+        });
       }
     }
 

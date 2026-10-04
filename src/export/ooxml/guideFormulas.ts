@@ -71,10 +71,14 @@ export function derivedFromRange(
   lastRow: number,
   amountRole: string,
   ratePercent: string,
+  excludedRows: readonly number[] = [],
 ): string | { constant: 0 } {
   if (lastRow < firstRow) return { constant: 0 };
   const column = layout.column(amountRole);
-  return `INT(SUM(${column}${firstRow}:${column}${lastRow})*${ratePercent}%)`;
+  const excluded = [...new Set(excludedRows)].filter(row => row >= firstRow && row <= lastRow);
+  const range = `SUM(${column}${firstRow}:${column}${lastRow})`;
+  const basis = excluded.length === 0 ? range : `(${range}-${excluded.map(row => `${column}${row}`).join('-')})`;
+  return `INT(${basis}*${ratePercent}%)`;
 }
 
 /**

@@ -52,8 +52,12 @@ export function derivedFromRange(
   firstRow: number,
   lastRow: number,
   ratePercent: string,
+  excludedRows: readonly number[] = [],
 ): string {
-  return `INT(SUM(G${firstRow}:G${lastRow})*${ratePercent}%)`;
+  const excluded = [...new Set(excludedRows)].filter(row => row >= firstRow && row <= lastRow);
+  const range = `SUM(G${firstRow}:G${lastRow})`;
+  const basis = excluded.length === 0 ? range : `(${range}-${excluded.map(row => `G${row}`).join('-')})`;
+  return `INT(${basis}*${ratePercent}%)`;
 }
 
 /**

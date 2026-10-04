@@ -304,7 +304,8 @@ function calculateDerivedRow(
       basis = source.materialAmount;
     }
   } else {
-    basis = sum(priorRows.map((r) => r.materialAmount ?? ZERO));
+      const excluded = new Set(row.derived.excludedRowIds ?? []);
+      basis = sum(priorRows.filter((r) => !excluded.has(r.rowId)).map((r) => r.materialAmount ?? ZERO));
   }
 
   // F = INT(기준 × 요율). 원본의 `=INT(G17*20%)` / `=INT(SUM(G12:G21)*2%)`.

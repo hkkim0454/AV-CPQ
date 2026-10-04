@@ -15,6 +15,7 @@ import { indirectCostsFor, type IndirectProfileId } from '../export/ooxml/guideT
 import { toRow } from '../domain/quote/buildDocument';
 import { computeActiveWarnings } from '../domain/quote/activeWarnings';
 import { withResolvedProduct } from '../domain/quote/resolveProduct';
+import { synchronizeMiscMaterials, computeMiscMaterialWarnings } from '../domain/quote/miscMaterials';
 import {
   applyInstallationPatch,
   computeInstallationWarnings,
@@ -62,7 +63,7 @@ export interface Workspace {
   /** 옵션 카드 경고를 해소한다 — optionId로 정확히 그 옵션 행만 찾는다. */
   resolveOption(optionId: string, sku: string): void;
   /** 미해결 케이블 경고를 해소한다 — sourceEdgeIds로 그 구간 행만 찾는다. */
-  resolveCable(edgeId: string, sku: string): void;
+  resolveCable(edgeId: string, sku: string, sourceCableKey?: string): void;
   /**
    * 배관 입력(거리·줄 수·종류·기타자재 비율)을 바꾸고, 유효하면 배관
    * 행과 `배관 기타자재` 파생행을 재산출한다(`installation.ts`).
@@ -184,6 +185,7 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
         importWarnings: [
           ...computeActiveWarnings(document, allImportWarnings),
           ...computeInstallationWarnings(document, resources.catalog),
+          ...computeMiscMaterialWarnings(document, resources.catalog),
         ],
         // 문서에 아직 기준이 안 적혀 있으면(새로 변환한 직후) 처음 적는다.
         // 그 다음부터는 같은 기준인지만 대조한다 — 조용한 재계산이 아니다.
@@ -203,7 +205,7 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
       // 자료가 아직 준비되지 않았으면 조용히 멈춘다 — 그 사이 입구
       // 버튼은 비활성이라 화면에서는 실제로 호출되지 않는다.
       if (basis === undefined || resources === undefined) return;
-      const seeded = seedDefaultProfile(input.document, resources.guides);
+      const seeded = synchronizeMiscMaterials(seedDefaultProfile(input.document, resources.guides), resources.catalog);
       // `prepareNow`를 재사용하지 않는다 — 그건 `allImportWarnings` 상태를
       // 클로저로 캡처하는데, 이 함수 안의 `setAllImportWarnings` 호출은
       // 비동기라 이 시점엔 아직 반영 전이다(이전 문서의 경고가 섞인다).
@@ -224,6 +226,7 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
         importWarnings: [
           ...computeActiveWarnings(seeded, input.importWarnings),
           ...computeInstallationWarnings(seeded, resources.catalog),
+          ...computeMiscMaterialWarnings(seeded, resources.catalog),
         ],
         wageMode: 'initialize-new',
       });
@@ -236,9 +239,11 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
   const commit = useCallback((mutate: (document: QuoteDocument) => QuoteDocument) => {
     setHistory((h) => {
       if (h.present === undefined) return h;
-      return { past: [...h.past, h.present], present: mutate(h.present), future: [] };
+      const changed = mutate(h.present);
+      const present = resources === undefined ? changed : synchronizeMiscMaterials(changed, resources.catalog);
+      return { past: [...h.past, h.present], present, future: [] };
     });
-  }, []);
+  }, [resources]);
 
   const mutateRow = useCallback(
     (rowId: string, patch: (row: QuoteDocument['rows'][number]) => QuoteDocument['rows'][number]) => {
@@ -394,19 +399,25 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
   );
 
   const resolveCable = useCallback(
-    (edgeId: string, sku: string) => {
+    (edgeId: string, sku: string, sourceCableKey?: string) => {
       if (resources === undefined) return;
       const product = resources.catalog.products.find((p) => p.sku === sku);
       if (product === undefined) return;
       const price = resources.catalog.prices.get(sku);
 
-      commit((document) => ({
-        ...document,
-        rows: document.rows.map((r) => {
-          if (r.type !== 'item' || !(r.sourceEdgeIds?.includes(edgeId) ?? false)) return r;
-          return withResolvedProduct(r, product, price);
-        }),
-      }));
+      commit((document) => {
+        const targets = document.rows.filter((r) => r.type === 'item' &&
+          (r.sourceEdgeIds?.includes(edgeId) ?? false) &&
+          (sourceCableKey === undefined || r.sourceCableKey === sourceCableKey));
+        // 예전 자료에 집계 키가 없으면 대상이 하나일 때만 연결한다.
+        // 같은 edge의 다른 BOM 품목을 추측으로 함께 바꾸지 않는다.
+        if (targets.length !== 1) return document;
+        return {
+          ...document,
+          rows: document.rows.map((r) => r.type === 'item' && r.rowId === targets[0]!.rowId
+            ? withResolvedProduct(r, product, price) : r),
+        };
+      });
     },
     [commit, resources],
   );

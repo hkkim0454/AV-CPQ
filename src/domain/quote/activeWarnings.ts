@@ -47,8 +47,10 @@ function optionRowResolved(document: QuoteDocument, optionId: string): boolean {
 }
 
 /** 케이블 행 — sourceEdgeIds로 찾는다(`cables.ts`). */
-function cableRowResolved(document: QuoteDocument, edgeId: string): boolean {
-  const rows = document.rows.filter((r): r is ItemRow => r.type === 'item' && (r.sourceEdgeIds?.includes(edgeId) ?? false));
+function cableRowResolved(document: QuoteDocument, edgeId: string, sourceCableKey?: string): boolean {
+  const rows = document.rows.filter((r): r is ItemRow => r.type === 'item' &&
+    (r.sourceEdgeIds?.includes(edgeId) ?? false) &&
+    (sourceCableKey === undefined || r.sourceCableKey === sourceCableKey));
   return rows.length > 0 && rows.every(isFilled);
 }
 
@@ -71,7 +73,7 @@ export function computeActiveWarnings(
     }
     // 케이블 경고 — sourceEdgeIds로 그 구간 행이 채워졌는지 본다.
     if (warning.code === 'cable-item-unresolved' && warning.edgeId !== undefined) {
-      return !cableRowResolved(document, warning.edgeId);
+      return !cableRowResolved(document, warning.edgeId, warning.sourceCableKey);
     }
     // 아직 이 기능이 다루지 않는 다른 경고(가격 미등록, 배관 등 —
     // 배관은 `computeInstallationWarnings`가 별도로 순수 파생한다)는

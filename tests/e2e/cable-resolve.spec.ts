@@ -99,6 +99,32 @@ async function setupCatalog(page: Parameters<typeof mockResources>[0]): Promise<
   });
 }
 
+test('같은 연결선의 다른 BOM 케이블은 미해결 품목 선택으로 덮어쓰지 않는다', async ({ page }) => {
+  await setupCatalog(page);
+  await page.goto('/');
+  const diagram = JSON.parse(diagramWithUnresolvedHdmiCable());
+  diagram.edges[0].data.bomRows.push({
+    cableType: 'ready-made', productName: 'AOC-10M', length: '10', quantity: '1',
+  });
+  await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'two-cables.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(diagram)),
+  });
+  const optical = page.locator('.q-quote-table tbody tr', { hasText: 'HDMI Optical Cable' });
+  await expect(optical).toContainText('120000');
+  const warning = page.getByRole('alert').filter({ hasText: '확인이 필요합니다' })
+    .locator('li', { hasText: 'HDMI 케이블(미지정)' }).first();
+  await warning.getByRole('listitem').filter({ hasText: '3M' }).getByRole('button', { name: '선택' }).click();
+  await expect(optical).toHaveCount(1);
+  await expect(optical).toContainText('120000');
+  const copper = page.locator('.q-quote-table tbody tr', { hasText: 'HDMI Cable' });
+  await expect(copper).toHaveCount(1);
+  await expect(copper).toContainText('25000');
+  await page.getByRole('button', { name: '실행 취소' }).click();
+  await expect(optical).toContainText('120000');
+  await expect(warning).toBeVisible();
+});
+
 test('HDMI 케이블 — 제조사별 종류(묶음)로 나뉜 목록에서 길이를 직접 골라 해소한다', async ({ page }) => {
   await setupCatalog(page);
   await page.goto('/');
@@ -139,4 +165,80 @@ test('HDMI 케이블 — 제조사별 종류(묶음)로 나뉜 목록에서 길�
   await expect(page.getByRole('alert').filter({ hasText: '확인이 필요합니다' })).toContainText(
     'HDMI 케이블(미지정)',
   );
+});
+
+/**
+ * 구성도 노드 2쌍(연결선 2개)이 **같은 품명·같은 길이 계단**이면
+ * `cables.ts`가 한 행으로 합친다(`ready:productName:step` 키) — 커넥터·
+ * 배관과 같은 "병합 = 같은 것이라 하나로 본다" 설계다. 그래서 둘 중
+ * 하나의 경고만 해소해도 **합쳐진 행 전체**가 바뀌고, 그 행에 연결된
+ * 나머지 구간(edge)의 경고도 같이 사라진다 — 부분 해결이 아니다.
+ * 사용자가 "꼭 검증하라"고 지적한 지점이라 별도 시험으로 못박는다.
+ */
+test('병합된 케이블 행 — 한 구간만 해소해도 합쳐진 다른 구간의 경고까지 같이 사라진다(의도된 동작)', async ({
+  page,
+}) => {
+  await setupCatalog(page);
+  await page.goto('/');
+
+  const diagram = JSON.stringify({
+    version: '1',
+    nodes: [
+      { id: 'n1', data: { model: '', name: '소스1', systemName: '시스템1' } },
+      { id: 'n2', data: { model: '', name: '싱크1', systemName: '시스템1' } },
+      { id: 'n3', data: { model: '', name: '소스2', systemName: '시스템1' } },
+      { id: 'n4', data: { model: '', name: '싱크2', systemName: '시스템1' } },
+    ],
+    edges: [
+      {
+        id: 'e1',
+        source: 'n1',
+        target: 'n2',
+        data: {
+          lineTypeId: 'video',
+          bomRows: [{ cableType: 'ready-made', productName: 'HDMI 케이블(미지정)', length: '2', quantity: '1' }],
+        },
+      },
+      {
+        id: 'e2',
+        source: 'n3',
+        target: 'n4',
+        data: {
+          lineTypeId: 'video',
+          // e1과 품명·길이 계단(둘 다 2m)이 같다 — 같은 행으로 합쳐진다.
+          bomRows: [{ cableType: 'ready-made', productName: 'HDMI 케이블(미지정)', length: '2', quantity: '1' }],
+        },
+      },
+    ],
+    lineTypes: [{ id: 'video', name: 'HDMI', color: '#ef4444' }],
+  });
+
+  await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'diagram.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(diagram),
+  });
+
+  const warnings = page.getByRole('alert').filter({ hasText: '확인이 필요합니다' });
+  // e1·e2 둘 다 미해결 경고를 낸다 — 두 구간이 각자 독립적으로 보고된다.
+  await expect(warnings.locator('li', { hasText: 'HDMI 케이블(미지정)' })).toHaveCount(2);
+  // 합쳐진 한 행만 있다 — 수량 2(두 구간)
+  const row = page.locator('.q-quote-table tbody tr', { hasText: 'HDMI 케이블(미지정)' });
+  await expect(row).toHaveCount(1);
+  await expect(row.getByLabel(/수량/)).toHaveValue('2');
+
+  // e1·e2 중 하나(먼저 뜬 경고)만 골라 해소한다.
+  const firstWarning = warnings.locator('li', { hasText: 'HDMI 케이블(미지정)' }).first();
+  await firstWarning.getByRole('listitem').filter({ hasText: '3M' }).getByRole('button', { name: '선택' }).click();
+
+  // 합쳐진 행이므로 e1·e2 둘 다의 경고가 같이 사라진다 — 부분 해결이 아니다.
+  await expect(warnings.locator('li', { hasText: 'HDMI 케이블(미지정)' })).toHaveCount(0);
+  const resolvedRow = page.locator('.q-quote-table tbody tr', { hasText: 'HDMI Cable' });
+  await expect(resolvedRow).toHaveCount(1);
+  await expect(resolvedRow.getByLabel(/수량/)).toHaveValue('2'); // 합친 수량은 그대로 2다
+
+  // 실행취소 — 둘 다 다시 미해결로 돌아간다.
+  await page.getByRole('button', { name: '실행 취소' }).click();
+  await expect(warnings.locator('li', { hasText: 'HDMI 케이블(미지정)' })).toHaveCount(2);
 });

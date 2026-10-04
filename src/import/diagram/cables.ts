@@ -82,6 +82,7 @@ export interface CableLine {
   lineTypeId: string;
   /** 합쳐진 연결선 전부. */
   sourceEdgeIds: string[];
+  sourceCableKey?: string;
   /** 벌크일 때 합산 전 실제 길이(m). 사람이 검토할 근거. */
   totalMeters?: DecimalText;
 }
@@ -196,6 +197,7 @@ export function buildCableLines(
   const reportedUnknown = new Set<string>();
 
   const push = (key: string, line: CableLine, amount: number, edgeId: string): void => {
+    line.sourceCableKey = key;
     const existing = byKey.get(key);
     if (existing === undefined) {
       const accumulator: Accumulator = {
@@ -243,6 +245,7 @@ export function buildCableLines(
           segmentCount: 1,
           lineTypeId,
           sourceEdgeIds: [edge.id],
+          sourceCableKey: key,
         };
         byKey.set(key, { line, amount: new Decimal(0), edges: new Set([edge.id]) });
         lines.push(line);
@@ -259,6 +262,7 @@ export function buildCableLines(
           '행은 만들었으나 수량을 정할 수 없다.',
         edgeId: edge.id,
         candidates: cableCandidates(catalog, label),
+        sourceCableKey: key,
       });
       continue;
     }
@@ -318,6 +322,7 @@ export function buildCableLines(
       }
 
       const meters = routeMeters !== undefined ? Number(routeMeters) : toNumber(row.length, 0);
+      const key = bulk ? `bulk:${productName}` : `ready:${productName}:${snapToStep(meters)}`;
 
       // 완제품이고 실측 거리가 있으면, 원래 맞은 제품의 품셈 묶음에서
       // 그 거리에 맞는 계단 길이의 SKU를 다시 찾는다. BOM.length(제품
@@ -341,6 +346,7 @@ export function buildCableLines(
                 '제품을 같은 묶음에서 찾지 못했다. 품목을 다시 확인해야 한다.',
           edgeId: edge.id,
           candidates: ambiguous ?? cableCandidates(catalog, label),
+          sourceCableKey: key,
         });
       } else if (!rerouted && match.product === undefined) {
         // 지금까지는 이 경우(이름은 있지만 카탈로그에 안 걸림)에 아무
@@ -352,6 +358,7 @@ export function buildCableLines(
           blocking: true,
           message: `'${productName}'을(를) 카탈로그에서 찾을 수 없다. 품목을 직접 선택해야 한다.`,
           edgeId: edge.id,
+          sourceCableKey: key,
           candidates: cableCandidates(catalog, label),
         });
       }
@@ -359,7 +366,6 @@ export function buildCableLines(
       // 완제품은 **길이가 다르면 다른 품목이다.** 길이를 키에서 빼면
       // 3m 구간과 15m 구간이 한 행으로 합쳐지고, 먼저 온 쪽 길이가 남아
       // 15m 자리에 3m 케이블이 나간다. 현장에서 모자라고 경고도 없다.
-      const key = bulk ? `bulk:${productName}` : `ready:${productName}:${snapToStep(meters)}`;
       const line: CableLine = {
         ...(match.product !== undefined ? { sku: match.product.sku } : {}),
         name: match.product?.quoteName ?? productName,

@@ -27,7 +27,7 @@ function customProducts(): unknown {
         quoteName: 'E2E 설치 시험 장비',
         quoteSpec: 'E2E-DEVICE',
         unit: 'EA',
-        options: {},
+        options: { group: '합성 장비' },
         currency: 'KRW',
         evidence: 'verified',
       },

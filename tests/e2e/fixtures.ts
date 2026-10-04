@@ -34,7 +34,7 @@ function syntheticProducts(): unknown {
         quoteName: '합성 테스트 품목',
         quoteSpec: 'FIX-SPEC',
         unit: 'EA',
-        options: {},
+        options: { group: '합성 장비' },
         currency: 'KRW',
         evidence: 'verified',
       },
