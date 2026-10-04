@@ -71,6 +71,7 @@ function deviceToLine(line: DeviceLine): QuoteLineInput {
       : {}),
     ...(line.laborMappingId !== undefined ? { laborMappingId: line.laborMappingId } : {}),
     sourceNodeIds: line.sourceNodeIds,
+    ...(line.optionId !== undefined ? { optionId: line.optionId } : {}),
     isAccessory: line.isAccessory,
     remark: remarkFor(line),
   };

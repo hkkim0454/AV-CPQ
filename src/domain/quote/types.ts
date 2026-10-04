@@ -141,6 +141,13 @@ export interface QuoteRow {
    * 연결할 때 쓴다 — 품목 직접 선택 경로의 행에는 없다.
    */
   sourceNodeIds?: readonly string[];
+  /**
+   * 옵션 카드 행에만 있다(`devices.ts`). 옵션은 **노드가 아니라
+   * optionId로 합쳐진다** — 한 노드의 본체 행과 옵션 행이 같은
+   * `sourceNodeIds`를 가질 수 있으므로, 옵션을 다시 연결할 때는
+   * `sourceNodeIds`가 아니라 이 값으로 정확히 그 옵션 행만 찾는다.
+   */
+  optionId?: string;
 
   origin: RowOrigin;
   ruleInstanceId?: string;

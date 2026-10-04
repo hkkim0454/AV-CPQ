@@ -54,6 +54,13 @@ export interface ImportWarning {
    * 추측하지 않는다 — 화면이 카탈로그 검색으로 직접 찾게 한다.
    */
   candidates?: readonly string[];
+  /**
+   * 옵션 카드 경고에만 있다. 옵션은 **optionId로 합쳐진다** — 같은
+   * 노드의 본체 경고와 `nodeId`가 같을 수 있으므로, 이 값이 있으면
+   * `nodeId` 대신 이 값으로 정확히 그 옵션 행을 찾아야 한다(본체 SKU
+   * 선택이 옵션까지 바꿔 버리는 것을 막는다).
+   */
+  optionId?: string;
 }
 
 export interface DeviceLine {
@@ -75,6 +82,8 @@ export interface DeviceLine {
   isAccessory: boolean;
   /** 합쳐진 노드 전부. 나중에 되돌릴 수 있게 남긴다. */
   sourceNodeIds: string[];
+  /** 옵션 카드 행에만 있다 — `optionByKey`의 병합 키와 같다. */
+  optionId?: string;
   /** 어떻게 붙었는지. 사람이 검토할 근거. */
   matchedBy: MatchResult['matchedBy'];
   matchedFragment?: string;
@@ -220,6 +229,7 @@ export function buildDeviceLines(
               `옵션 '${optionId}'의 제품 정의가 구성도에 없다. ` +
               '수량만 살려 행을 만들었다. 어떤 카드인지 지정해야 확정할 수 있다.',
             nodeId: node.id,
+            optionId,
           });
         }
         pushOrMerge(
@@ -232,6 +242,7 @@ export function buildDeviceLines(
             quantity: String(rawQuantity),
             isAccessory: true,
             sourceNodeIds: [node.id],
+            optionId,
             matchedBy: 'none',
           },
           String(rawQuantity),
@@ -246,6 +257,7 @@ export function buildDeviceLines(
           blocking: true,
           message: `옵션 '${definition.model}'이 카탈로그에 없다. 단가가 미등록이다.`,
           nodeId: node.id,
+          optionId,
         });
       } else if (optionMatch.sellingUnitPrice === undefined) {
         warnings.push({
@@ -253,6 +265,7 @@ export function buildDeviceLines(
           blocking: true,
           message: `옵션 '${optionMatch.product.quoteName}'의 판매 단가가 미등록이다.`,
           nodeId: node.id,
+          optionId,
         });
       }
 
@@ -275,6 +288,7 @@ export function buildDeviceLines(
             : {}),
           isAccessory: true,
           sourceNodeIds: [node.id],
+          optionId,
           matchedBy: optionMatch.matchedBy,
           ...(optionMatch.matchedFragment !== undefined
             ? { matchedFragment: optionMatch.matchedFragment }

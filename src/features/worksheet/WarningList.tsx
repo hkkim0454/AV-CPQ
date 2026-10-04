@@ -1,47 +1,38 @@
 /**
  * 확인 경고 목록 (계획 2026-10-04-quote-workspace-ui Task 2).
  *
- * 구성도/품셈/계산 경고를 전부 보여준다. 일괄 지우기는 없다 — 실제
- * 값을 해결해야 경고가 해소된다(계획 §3).
+ * `warnings`는 이미 **지금 문서 상태로 걸러진** 유효한 경고만 받는다
+ * (`computeActiveWarnings`, workspace의 `prepareNow`가 적용해
+ * `prepared.importWarnings`로 내려준다) — 여기서 다시 거르지 않는다.
+ * 표시와 `prepared.blocking`(출력 차단)이 같은 집합을 보게 하려고
+ * 그 판단을 한 곳(workspace)에만 둔다.
  *
- * 미해결 모델/옵션(`device-not-in-catalog`/`device-ambiguous-match`)은
- * 여기서 바로 해결할 수 있다. 후보(`candidates`, 모델이 여러 제품에
- * 걸린 경우)가 있으면 그 목록에서 고르고, 없으면 카탈로그를 검색해
- * 고른다 — 둘 다 **사람이 SKU 하나를 직접 고르는** 것이지 추측으로
- * 채우지 않는다. 경고를 지우는 것은 "해결 처리" 버튼이 아니라, 고른
- * 행이 실제로 `sku`와 `sellingUnitPrice`를 둘 다 갖게 됐는지를 문서에서
- * 다시 확인한 결과다 — 그래서 실행취소로 문서가 되돌아가면 이 경고도
- * 저절로 다시 뜬다(별도 "해결됨" 상태를 안 둔다).
+ * 일괄 지우기는 없다 — 실제 값을 해결해야 경고가 해소된다(계획 §3).
+ * 미해결 모델(`device-not-in-catalog`/`device-ambiguous-match`)은
+ * 후보가 있으면 그 목록에서, 없으면 카탈로그 검색으로 고른다. 옵션
+ * 카드 경고(`optionId`가 있는 경고 — `option-definition-missing`과
+ * 옵션 자체의 미등록·모호 매칭)는 `onResolveOption`으로 **본체와
+ * 분리해** 그 옵션 행만 바꾼다.
  */
 import { useState } from 'react';
 import type { Catalog } from '../../data/catalog/load';
 import type { ImportWarning } from '../../import/diagram/devices';
-import type { QuoteDocument } from '../../domain/quote/types';
 
 interface WarningListProps {
   warnings: readonly ImportWarning[];
-  document: QuoteDocument;
   catalog: Catalog;
-  onResolve(nodeId: string, sku: string): void;
-}
-
-function isResolved(document: QuoteDocument, nodeId: string): boolean {
-  const row = document.rows.find(
-    (r) => r.type === 'item' && (r.sourceNodeIds?.includes(nodeId) ?? false),
-  );
-  return row !== undefined && row.type === 'item' && row.sku !== undefined && row.sellingUnitPrice !== undefined;
+  onResolveDevice(nodeId: string, sku: string): void;
+  onResolveOption(optionId: string, sku: string): void;
 }
 
 function CandidateList({
-  nodeId,
   candidates,
   catalog,
-  onResolve,
+  onSelect,
 }: {
-  nodeId: string;
   candidates: readonly string[];
   catalog: Catalog;
-  onResolve(nodeId: string, sku: string): void;
+  onSelect(sku: string): void;
 }) {
   const bySku = new Map(catalog.products.map((p) => [p.sku, p]));
   return (
@@ -54,7 +45,7 @@ function CandidateList({
               {sku}
               {product !== undefined ? ` — ${product.quoteName}` : ''}
             </span>
-            <button type="button" className="q-button" onClick={() => onResolve(nodeId, sku)}>
+            <button type="button" className="q-button" onClick={() => onSelect(sku)}>
               선택
             </button>
           </li>
@@ -65,13 +56,13 @@ function CandidateList({
 }
 
 function SearchResolve({
-  nodeId,
+  label,
   catalog,
-  onResolve,
+  onSelect,
 }: {
-  nodeId: string;
+  label: string;
   catalog: Catalog;
-  onResolve(nodeId: string, sku: string): void;
+  onSelect(sku: string): void;
 }) {
   const [query, setQuery] = useState('');
   const trimmed = query.trim().toLowerCase();
@@ -85,7 +76,7 @@ function SearchResolve({
   return (
     <div className="q-resolve-search">
       <input
-        aria-label={`${nodeId} 연결할 품목 검색`}
+        aria-label={label}
         placeholder="품명 또는 SKU로 검색"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
@@ -98,7 +89,7 @@ function SearchResolve({
               <span>
                 {product.quoteName} ({product.sku})
               </span>
-              <button type="button" className="q-button" onClick={() => onResolve(nodeId, product.sku)}>
+              <button type="button" className="q-button" onClick={() => onSelect(product.sku)}>
                 연결
               </button>
             </li>
@@ -109,41 +100,57 @@ function SearchResolve({
   );
 }
 
-function isDeviceWarning(warning: ImportWarning): boolean {
-  return warning.code === 'device-not-in-catalog' || warning.code === 'device-ambiguous-match';
-}
-
-export function WarningList({ warnings, document, catalog, onResolve }: WarningListProps) {
-  // 실제로 해소된 미해결 모델/옵션 경고는 여기서만 숨긴다 — 경고 자체를
-  // 지우지 않으므로(별도 "해결됨" 상태가 없다), 실행취소로 문서가
-  // 되돌아가면 이 필터가 다시 평가되어 저절로 다시 뜬다.
-  const visible = warnings.filter(
-    (w) => !(isDeviceWarning(w) && w.nodeId !== undefined && isResolved(document, w.nodeId)),
-  );
-  if (visible.length === 0) return null;
+export function WarningList({ warnings, catalog, onResolveDevice, onResolveOption }: WarningListProps) {
+  if (warnings.length === 0) return null;
 
   return (
     <div className="q-card q-warning-list" role="alert">
-      <h3>확인이 필요합니다 ({visible.length}건)</h3>
+      <h3>확인이 필요합니다 ({warnings.length}건)</h3>
       <ul>
-        {visible.map((warning, index) => {
-          const resolvable = isDeviceWarning(warning) && warning.nodeId !== undefined;
+        {warnings.map((warning, index) => {
+          // optionId가 있으면 코드와 무관하게 옵션 경고다 — 본체와
+          // 완전히 분리된 해소 경로(onResolveOption)를 쓴다. 같은
+          // 노드라도 본체 행과 sourceNodeIds를 공유할 수 있어 코드만으로는
+          // 구분이 안 된다 — optionId 유무로만 가른다.
+          const isOption = warning.optionId !== undefined;
+          const isDevice =
+            !isOption &&
+            (warning.code === 'device-not-in-catalog' || warning.code === 'device-ambiguous-match') &&
+            warning.nodeId !== undefined;
+
           return (
-            <li key={`${warning.code}-${warning.nodeId ?? warning.edgeId ?? index}`}>
+            <li key={`${warning.code}-${warning.nodeId ?? warning.edgeId ?? index}-${warning.optionId ?? ''}`}>
               <strong>{warning.blocking ? '확정 차단' : '확인'}</strong> {warning.message}
               {(warning.nodeId !== undefined || warning.edgeId !== undefined) && (
                 <span className="q-muted"> ({warning.nodeId ?? warning.edgeId})</span>
               )}
-              {resolvable &&
+              {isOption &&
                 (warning.candidates !== undefined && warning.candidates.length > 0 ? (
                   <CandidateList
-                    nodeId={warning.nodeId!}
                     candidates={warning.candidates}
                     catalog={catalog}
-                    onResolve={onResolve}
+                    onSelect={(sku) => onResolveOption(warning.optionId!, sku)}
                   />
                 ) : (
-                  <SearchResolve nodeId={warning.nodeId!} catalog={catalog} onResolve={onResolve} />
+                  <SearchResolve
+                    label={`${warning.optionId} 연결할 품목 검색`}
+                    catalog={catalog}
+                    onSelect={(sku) => onResolveOption(warning.optionId!, sku)}
+                  />
+                ))}
+              {isDevice &&
+                (warning.candidates !== undefined && warning.candidates.length > 0 ? (
+                  <CandidateList
+                    candidates={warning.candidates}
+                    catalog={catalog}
+                    onSelect={(sku) => onResolveDevice(warning.nodeId!, sku)}
+                  />
+                ) : (
+                  <SearchResolve
+                    label={`${warning.nodeId} 연결할 품목 검색`}
+                    catalog={catalog}
+                    onSelect={(sku) => onResolveDevice(warning.nodeId!, sku)}
+                  />
                 ))}
             </li>
           );

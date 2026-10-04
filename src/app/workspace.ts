@@ -13,6 +13,8 @@ import { buildGuideBasis } from '../data/catalog/guideBasis';
 import { prepareQuote, type PreparedQuote } from '../export/variants/prepare';
 import { indirectCostsFor, type IndirectProfileId } from '../export/ooxml/guideTemplate';
 import { toRow } from '../domain/quote/buildDocument';
+import { computeActiveWarnings } from '../domain/quote/activeWarnings';
+import { withResolvedProduct } from '../domain/quote/resolveProduct';
 import type { QuoteDocument, QuoteHeader } from '../domain/quote/types';
 import type { ImportWarning } from '../import/diagram/devices';
 import type { Resources } from './resources';
@@ -27,7 +29,6 @@ export type WorkspaceStatus =
   | {
       kind: 'editing';
       document: QuoteDocument;
-      importWarnings: readonly ImportWarning[];
       prepared: PreparedQuote;
     };
 
@@ -51,6 +52,8 @@ export interface Workspace {
    * 고쳤을 수 있다)·rowId는 그대로 둔다.
    */
   resolveDevice(nodeId: string, sku: string): void;
+  /** 옵션 카드 경고를 해소한다 — optionId로 정확히 그 옵션 행만 찾는다. */
+  resolveOption(optionId: string, sku: string): void;
   undo(): void;
   redo(): void;
 }
@@ -125,7 +128,11 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
   );
 
   const [history, setHistory] = useState<History>(EMPTY_HISTORY);
-  const [importWarnings, setImportWarnings] = useState<readonly ImportWarning[]>([]);
+  // 변환 시점에 나온 **원본** 경고 전부 — 실행취소로 문서가 바뀌어도
+  // 이 목록 자체는 바뀌지 않는다. 실제로 화면에 보여줄 "지금 유효한"
+  // 부분집합은 매번 `computeActiveWarnings(document, allImportWarnings)`로
+  // 다시 계산한다(`prepareNow`).
+  const [allImportWarnings, setAllImportWarnings] = useState<readonly ImportWarning[]>([]);
 
   const prepareNow = useCallback(
     (document: QuoteDocument): PreparedQuote | undefined => {
@@ -139,13 +146,18 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
         // state가 없으니 실행취소가 문서를 되돌리면 이 맵도 같이
         // 저절로 되돌아간다.
         profileBySystem: profileMapOf(document),
-        importWarnings,
+        // 원본 경고(allImportWarnings)가 아니라 **지금 문서 상태로 다시
+        // 평가한** 부분집합을 넘긴다 — 그래야 해결한 경고가 여기서도
+        // 빠지고, `blocking`(출력 차단)도 실제로 풀린다. 화면
+        // (WarningList)도 이 함수가 돌려주는 `prepared.importWarnings`를
+        // 그대로 쓴다 — 표시와 차단 판정이 같은 집합을 보게 된다.
+        importWarnings: computeActiveWarnings(document, allImportWarnings),
         // 문서에 아직 기준이 안 적혀 있으면(새로 변환한 직후) 처음 적는다.
         // 그 다음부터는 같은 기준인지만 대조한다 — 조용한 재계산이 아니다.
         wageMode: document.versions.wage === 'unknown' ? 'initialize-new' : 'preserve',
       });
     },
-    [basis, resources, importWarnings],
+    [basis, resources, allImportWarnings],
   );
 
   const prepared = useMemo(
@@ -159,10 +171,13 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
       // 버튼은 비활성이라 화면에서는 실제로 호출되지 않는다.
       if (basis === undefined || resources === undefined) return;
       const seeded = seedDefaultProfile(input.document, resources.guides);
-      // `prepareNow`를 재사용하지 않는다 — 그건 `importWarnings` 상태를
-      // 클로저로 캡처하는데, 이 함수 안의 `setImportWarnings` 호출은
+      // `prepareNow`를 재사용하지 않는다 — 그건 `allImportWarnings` 상태를
+      // 클로저로 캡처하는데, 이 함수 안의 `setAllImportWarnings` 호출은
       // 비동기라 이 시점엔 아직 반영 전이다(이전 문서의 경고가 섞인다).
-      // 그래서 여기서는 `input.importWarnings`를 직접 쓴다.
+      // 그래서 여기서는 `input.importWarnings`를 직접 쓴다. 갓 들어온
+      // 문서라 아직 아무 것도 해결되지 않았으므로
+      // `computeActiveWarnings`를 거쳐도 결과는 같지만, 경로를 하나로
+      // 유지하려고 그대로 거친다.
       //
       // 즉시 한 번 준비해 기준을 문서에 찍은 **그** 문서를 현재 상태로
       // 삼는다 — 안 그러면 다음 렌더의 재준비가 'initialize-new'를 다시
@@ -173,10 +188,10 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
         basisVersions: basis.versions,
         guides: resources.guides,
         profileBySystem: profileMapOf(seeded),
-        importWarnings: input.importWarnings,
+        importWarnings: computeActiveWarnings(seeded, input.importWarnings),
         wageMode: 'initialize-new',
       });
-      setImportWarnings(input.importWarnings);
+      setAllImportWarnings(input.importWarnings);
       setHistory({ past: [], present: first.document, future: [] });
     },
     [basis, resources],
@@ -296,30 +311,36 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
       const product = resources.catalog.products.find((p) => p.sku === sku);
       if (product === undefined) return; // 호출부가 검색/후보 목록에서만 고르므로 정상적으로는 안 생긴다.
       const price = resources.catalog.prices.get(sku);
-      const description = product.options['description'];
 
       commit((document) => ({
         ...document,
         rows: document.rows.map((r) => {
-          if (r.type !== 'item' || !(r.sourceNodeIds?.includes(nodeId) ?? false)) return r;
-          // 수량·비고·설명(사람이 이미 고쳤을 수 있다)·rowId·sourceNodeIds는
-          // 그대로 둔다 — 카탈로그에서 끌어오는 칸만 바꾼다.
-          const resolved = {
-            ...r,
-            sku: product.sku,
-            productId: product.sku,
-            name: product.quoteName,
-            specification: product.quoteSpec,
-            unit: product.unit,
-          };
-          const withPrice = price !== undefined ? { ...resolved, sellingUnitPrice: price } : resolved;
-          const withDescription =
-            r.internalDescription === undefined && description !== undefined && description !== ''
-              ? { ...withPrice, internalDescription: description }
-              : withPrice;
-          return product.laborMappingId !== undefined
-            ? { ...withDescription, laborMode: 'mapped' as const, laborMappingId: product.laborMappingId }
-            : { ...withDescription, laborMode: 'unresolved' as const };
+          // 옵션 행은 제외한다 — 같은 노드의 본체와 옵션이 `sourceNodeIds`를
+          // 공유할 수 있다. 본체를 골랐다고 옵션까지 같은 제품으로
+          // 바뀌면 안 된다(옵션은 `resolveOption`이 optionId로 정확히
+          // 찾아 따로 처리한다).
+          if (r.type !== 'item' || r.optionId !== undefined || !(r.sourceNodeIds?.includes(nodeId) ?? false)) {
+            return r;
+          }
+          return withResolvedProduct(r, product, price);
+        }),
+      }));
+    },
+    [commit, resources],
+  );
+
+  const resolveOption = useCallback(
+    (optionId: string, sku: string) => {
+      if (resources === undefined) return;
+      const product = resources.catalog.products.find((p) => p.sku === sku);
+      if (product === undefined) return;
+      const price = resources.catalog.prices.get(sku);
+
+      commit((document) => ({
+        ...document,
+        rows: document.rows.map((r) => {
+          if (r.type !== 'item' || r.optionId !== optionId) return r;
+          return withResolvedProduct(r, product, price);
         }),
       }));
     },
@@ -355,7 +376,7 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
   const status: WorkspaceStatus =
     history.present === undefined || prepared === undefined
       ? { kind: 'empty' }
-      : { kind: 'editing', document: history.present, importWarnings, prepared };
+      : { kind: 'editing', document: history.present, prepared };
 
   return {
     status,
@@ -371,6 +392,7 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     addItem,
     removeRow,
     resolveDevice,
+    resolveOption,
     undo,
     redo,
   };

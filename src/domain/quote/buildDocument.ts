@@ -56,6 +56,8 @@ export interface QuoteLineInput {
   remark?: string;
   /** 구성도 노드 id들. 미해결 모델 경고를 행과 다시 연결하는 데 쓴다. */
   sourceNodeIds?: readonly string[];
+  /** 옵션 카드 행에만 있다. 옵션은 optionId로 합쳐지므로 이 값으로 정확히 찾는다. */
+  optionId?: string;
 }
 
 export interface QuoteSystemInput {
@@ -106,6 +108,7 @@ export function toRow(
       ? { internalDescription: line.internalDescription }
       : {}),
     ...(line.sourceNodeIds !== undefined ? { sourceNodeIds: line.sourceNodeIds } : {}),
+    ...(line.optionId !== undefined ? { optionId: line.optionId } : {}),
     ...(line.laborMappingId !== undefined
       ? { laborMode: 'mapped' as const, laborMappingId: line.laborMappingId }
       : { laborMode: 'unresolved' as const }),

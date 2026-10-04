@@ -182,10 +182,10 @@ export function App() {
                 <>
                   <CoverSheet header={status.document.header} onChange={workspace.setHeader} />
                   <WarningList
-                    warnings={status.importWarnings}
-                    document={status.document}
+                    warnings={status.prepared.importWarnings}
                     catalog={resources.catalog}
-                    onResolve={workspace.resolveDevice}
+                    onResolveDevice={workspace.resolveDevice}
+                    onResolveOption={workspace.resolveOption}
                   />
                   <QuoteSheet
                     document={status.document}

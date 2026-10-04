@@ -124,6 +124,34 @@ function diagramWithUnresolvedDevices(): string {
   });
 }
 
+/**
+ * 본체 하나 + 옵션 카드 2종, 전부 카탈로그에 없는 모델이다. 옵션은
+ * `diagram.options`로 실제로 정의한다("옵션 미정"이 아니라 모델이
+ * 카탈로그에 없는 경우) — 본체를 해결해도 옵션 둘은 그대로 남고,
+ * 옵션 하나를 해결해도 나머지 하나와 본체는 그대로인지 보는 데 쓴다.
+ */
+function diagramWithDeviceAndTwoOptions(): string {
+  return JSON.stringify({
+    version: '1',
+    nodes: [
+      {
+        id: 'body-1',
+        data: {
+          model: 'BODY-UNRESOLVED',
+          systemName: '시스템1',
+          selectedOptionQuantities: { 'opt-a': 1, 'opt-b': 1 },
+        },
+      },
+    ],
+    edges: [],
+    lineTypes: [],
+    options: [
+      { id: 'opt-a', model: 'OPT-A-UNRESOLVED' },
+      { id: 'opt-b', model: 'OPT-B-UNRESOLVED' },
+    ],
+  });
+}
+
 async function setupCustomCatalog(page: Parameters<typeof mockResources>[0]): Promise<void> {
   await mockResources(page, {
     '/data/approved/products.json': customProducts(),
@@ -473,4 +501,59 @@ test('미해결 모델/옵션 — 후보 선택·검색 연결로 실제 원인�
   await expect(warningPanelAfterUndo).toContainText('NOPE-MODEL-XYZ');
   await expect(warningPanelAfterUndo).not.toContainText('AMB-MODEL');
   await expect(resolvedAmbiguousRow).toHaveAttribute('data-row-id', ambiguousRowId ?? '');
+});
+
+test('본체+옵션 2종 — 본체를 해결해도 옵션 행은 그대로고, 옵션끼리도 서로 무관하다', async ({ page }) => {
+  await setupCustomCatalog(page);
+  await page.goto('/');
+
+  await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'diagram.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(diagramWithDeviceAndTwoOptions()),
+  });
+
+  const bodyRow = page.locator('.q-quote-table tbody tr', { hasText: 'BODY-UNRESOLVED' });
+  const optionARow = page.locator('.q-quote-table tbody tr', { hasText: 'OPT-A-UNRESOLVED' });
+  const optionBRow = page.locator('.q-quote-table tbody tr', { hasText: 'OPT-B-UNRESOLVED' });
+  await expect(bodyRow).toBeVisible();
+  await expect(optionARow).toBeVisible();
+  await expect(optionBRow).toBeVisible();
+
+  const warningPanel = page.getByRole('alert').filter({ hasText: '확인이 필요합니다' });
+  await expect(warningPanel).toContainText('BODY-UNRESOLVED');
+  await expect(warningPanel).toContainText('OPT-A-UNRESOLVED');
+  await expect(warningPanel).toContainText('OPT-B-UNRESOLVED');
+
+  // --- 1) 본체만 해결한다 — 옵션 두 행은 전혀 안 바뀐다 ---
+  await page.getByLabel('body-1 연결할 품목 검색').fill('E2E 테스트 품목');
+  await page.locator('.q-resolve-search').filter({ has: page.getByLabel('body-1 연결할 품목 검색') }).getByRole('button', { name: '연결' }).click();
+
+  await expect(page.locator('.q-quote-table tbody tr', { hasText: 'E2E 테스트 품목' })).toBeVisible();
+  // 옵션 두 행은 이름이 그대로다 — 본체 선택이 옵션까지 바꾸지 않는다.
+  await expect(optionARow).toBeVisible();
+  await expect(optionBRow).toBeVisible();
+  await expect(warningPanel).not.toContainText('BODY-UNRESOLVED');
+  await expect(warningPanel).toContainText('OPT-A-UNRESOLVED');
+  await expect(warningPanel).toContainText('OPT-B-UNRESOLVED');
+
+  // --- 2) 옵션 A만 해결한다 — 옵션 B와 본체(이미 해결됨)는 안 바뀐다 ---
+  await page.getByLabel('opt-a 연결할 품목 검색').fill('E2E 무상 품목');
+  await page.locator('.q-resolve-search').filter({ has: page.getByLabel('opt-a 연결할 품목 검색') }).getByRole('button', { name: '연결' }).click();
+
+  await expect(page.locator('.q-quote-table tbody tr', { hasText: 'E2E 무상 품목' })).toBeVisible();
+  await expect(optionBRow).toBeVisible(); // 옵션 B는 그대로 미해결.
+  await expect(page.locator('.q-quote-table tbody tr', { hasText: 'E2E 테스트 품목' })).toBeVisible(); // 본체는 그대로 해결된 채.
+  await expect(warningPanel).not.toContainText('OPT-A-UNRESOLVED');
+  await expect(warningPanel).toContainText('OPT-B-UNRESOLVED');
+  await expect(warningPanel).not.toContainText('BODY-UNRESOLVED');
+
+  // --- 실행취소 — 옵션 A 해결만 되돌아가고, 본체 해결은 유지된다 ---
+  await page.getByRole('button', { name: '실행 취소' }).click();
+  await expect(optionARow).toBeVisible();
+  await expect(warningPanel).toContainText('OPT-A-UNRESOLVED');
+  await expect(warningPanel).toContainText('OPT-B-UNRESOLVED');
+  await expect(warningPanel).not.toContainText('BODY-UNRESOLVED');
+  await expect(page.locator('.q-quote-table tbody tr', { hasText: 'E2E 테스트 품목' })).toBeVisible();
 });
