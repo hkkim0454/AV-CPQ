@@ -333,8 +333,8 @@ describe('parsePrivatePrices — 열 매핑과 검증 (설계서 §8.2, §8.3)',
 
 describe('PrivateCostSession — 메모리 전용 (설계서 §8.1, §8.4)', () => {
   const entries = [
-    { sku: 'A-1', purchaseUnitPrice: '1000', currency: 'KRW' as const, unit: 'EA' },
-    { sku: 'B-2', purchaseUnitPrice: '2500', currency: 'KRW' as const, unit: 'M' },
+    { entryId: `e${1}`, sku: 'A-1', purchaseUnitPrice: '1000', currency: 'KRW' as const, unit: 'EA' },
+    { entryId: `e${2}`, sku: 'B-2', purchaseUnitPrice: '2500', currency: 'KRW' as const, unit: 'M' },
   ];
 
   it('SKU로 원가를 찾는다', () => {
@@ -408,7 +408,7 @@ describe('가산율과 이익률 (설계서 §8.7)', () => {
 
 describe('internalLines — 내부용 계산 (설계서 §8.7)', () => {
   const session = createSession([
-    { sku: 'A-1', purchaseUnitPrice: '1000', currency: 'KRW', unit: 'EA' },
+    { entryId: `e${3}`, sku: 'A-1', purchaseUnitPrice: '1000', currency: 'KRW', unit: 'EA' },
   ]);
 
   it('원가가 있는 행만 계산하고 없는 행은 미등록으로 표시한다', () => {

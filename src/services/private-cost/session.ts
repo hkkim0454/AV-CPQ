@@ -15,13 +15,30 @@
 import type { PriceEntry } from './parse';
 
 export interface PrivateCostSession {
-  /** 등록된 SKU 수. 값이 아니라 개수만 노출한다. */
+  /** 등록된 줄 수. 값이 아니라 개수만 노출한다. */
   readonly size: number;
   readonly cleared: boolean;
-  /** 정확 일치로만 찾는다. 부분 일치로 엉뚱한 원가를 붙이지 않는다. */
+  /** SKU 정확 일치. 부분 일치로 엉뚱한 원가를 붙이지 않는다. */
   lookup(sku: string): PriceEntry | undefined;
+  /** 사람이 확인해 연결한 줄을 자리표로 꺼낸다. */
+  byEntryId(entryId: string): PriceEntry | undefined;
+  /**
+   * 모델명으로 **후보를 전부** 돌려준다. 하나를 고르지 않는다.
+   *
+   * 원가 파일에 같은 모델이 두 줄 있을 수 있고, 비슷한 모델명이 여럿일 수도
+   * 있다. 여기서 먼저 온 것이나 가장 비슷한 것을 고르면 **조용히 틀린 원가**가
+   * 붙는다. 어느 줄인지는 사람이 정한다.
+   */
+  candidatesByModel(model: string): PriceEntry[];
   /** 등록된 SKU 목록 — 매칭 현황 표시용. 원가 값은 주지 않는다. */
   knownSkus(): string[];
+  /** 등록된 모델명 목록 — 연결 화면이 고를 거리. 원가 값은 주지 않는다. */
+  knownModels(): string[];
+}
+
+/** 비교용 모델명 — 공백·대소문자만 맞춘다. **유사 추측은 하지 않는다.** */
+function normalizeModel(value: string): string {
+  return value.replace(/\s+/g, '').toUpperCase();
 }
 
 class Session implements PrivateCostSession {
@@ -29,8 +46,19 @@ class Session implements PrivateCostSession {
   #entries: Map<string, PriceEntry>;
   #cleared = false;
 
+  /** 모델명(정규화) → 그 모델인 줄들. 여러 줄일 수 있다. */
+  #byModel: Map<string, PriceEntry[]>;
+
   constructor(entries: readonly PriceEntry[]) {
-    this.#entries = new Map(entries.map((e) => [e.sku, e]));
+    this.#entries = new Map(entries.map((e) => [e.entryId, e]));
+    this.#byModel = new Map();
+    for (const entry of entries) {
+      if (entry.model === undefined) continue;
+      const key = normalizeModel(entry.model);
+      const list = this.#byModel.get(key) ?? [];
+      list.push(entry);
+      this.#byModel.set(key, list);
+    }
   }
 
   get size(): number {
@@ -42,16 +70,41 @@ class Session implements PrivateCostSession {
   }
 
   lookup(sku: string): PriceEntry | undefined {
-    return this.#entries.get(sku);
+    for (const entry of this.#entries.values()) {
+      if (entry.sku === sku) return entry;
+    }
+    return undefined;
+  }
+
+  byEntryId(entryId: string): PriceEntry | undefined {
+    return this.#entries.get(entryId);
+  }
+
+  candidatesByModel(model: string): PriceEntry[] {
+    return [...(this.#byModel.get(normalizeModel(model)) ?? [])];
   }
 
   knownSkus(): string[] {
-    return [...this.#entries.keys()];
+    const out: string[] = [];
+    for (const entry of this.#entries.values()) {
+      if (entry.sku !== undefined) out.push(entry.sku);
+    }
+    return out;
+  }
+
+  knownModels(): string[] {
+    const out = new Set<string>();
+    for (const entry of this.#entries.values()) {
+      if (entry.model !== undefined) out.add(entry.model);
+    }
+    return [...out];
   }
 
   clear(): void {
     this.#entries.clear();
     this.#entries = new Map();
+    this.#byModel.clear();
+    this.#byModel = new Map();
     this.#cleared = true;
   }
 

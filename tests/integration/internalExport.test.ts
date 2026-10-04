@@ -60,6 +60,7 @@ function setup() {
 
   const session = createSession(
     Object.entries(SENTINEL_COSTS).map(([sku, price]) => ({
+      entryId: `cost-${sku}`,
       sku,
       purchaseUnitPrice: price,
       currency: 'KRW' as const,

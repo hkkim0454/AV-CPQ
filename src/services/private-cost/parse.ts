@@ -9,22 +9,44 @@
 import { dec } from '../../domain/calculation/rounding';
 import type { Table } from './readTable';
 
-/** 열 이름 매핑. 값이 아니라 **이름**만 담는다 — 저장해도 원가가 새지 않는다. */
+/**
+ * 열 이름 매핑. 값이 아니라 **이름**만 담는다 — 저장해도 원가가 새지 않는다.
+ *
+ * ## 총액 열이 없는 이유
+ *
+ * 실제 원가 파일에는 총액 칸(H열)이 있지만 **읽지 않는다.** 그건 그 파일을
+ * 만들 때의 수량으로 계산된 값이다. 견적의 수량은 다르다. 매입단가만 읽고
+ * **견적의 수량으로 다시 곱한다.**
+ *
+ * ## SKU 가 없을 수 있다
+ *
+ * 사용자의 원가 파일은 B열 품명, C열(머리글은 '규격'이지만 실제로는
+ * 모델명, 예: `SRG-A40`), G열 매입단가 꼴이다. 내부 SKU 가 없다.
+ * 그래서 `sku` 와 `model` 중 **하나만 있어도** 읽는다. 어느 견적 행에
+ * 붙일지는 사람이 확인해 연결한다 — 여기서 추측하지 않는다.
+ */
 export interface ColumnMapping {
-  sku: string;
+  /** 내부 SKU 열. 사용자 원가 파일에는 보통 없다. */
+  sku?: string;
+  /** 모델명 열. 사용자 파일에서는 머리글이 '규격' 인 경우가 많다. */
+  model?: string;
   purchaseUnitPrice: string;
   currency: string;
   unit: string;
+  /** 품명 열. 사람이 연결을 확인할 때 본다. */
+  name?: string;
   /** 선택 열 (설계서 §8.2). */
   brand?: string;
-  model?: string;
   lengthM?: string;
   effectiveDate?: string;
 }
 
 export type PriceErrorCode =
   | 'column-missing'
+  | 'key-column-missing'
   | 'sku-empty'
+  | 'model-empty'
+  | 'duplicate-model'
   | 'duplicate-sku'
   | 'price-empty'
   | 'price-formula'
@@ -45,12 +67,23 @@ export interface PriceError {
 
 /** 원가 한 줄. **이 타입은 영속 객체에 들어가지 않는다** (설계서 §6.2). */
 export interface PriceEntry {
-  sku: string;
+  /**
+   * 이 줄의 자리표. 원가 파일 안에서만 뜻이 있다 (`row-3` 꼴).
+   *
+   * 견적 행과 이어 주는 열쇠다. SKU 가 없는 파일도 있으므로 SKU 를
+   * 열쇠로 쓸 수 없다.
+   */
+  entryId: string;
+  /** 파일에 SKU 열이 없으면 없다. */
+  sku?: string;
+  /** 모델명. 사용자 파일의 '규격' 열이 여기로 온다. */
+  model?: string;
+  /** 품명. 사람이 연결을 확인할 때 본다. */
+  name?: string;
   purchaseUnitPrice: string;
   currency: string;
   unit: string;
   brand?: string;
-  model?: string;
   lengthM?: string;
   effectiveDate?: string;
 }
@@ -78,11 +111,31 @@ export function parsePrivatePrices(table: Table, mapping: ColumnMapping): ParseR
   const indexOf = (name: string): number =>
     table.header.findIndex((h) => h === name);
 
+  // SKU 와 모델명 중 **하나는** 있어야 한다. 둘 다 없으면 어느 견적 행에
+  // 붙일 건지 사람이 확인할 단서조차 없다.
+  if (mapping.sku === undefined && mapping.model === undefined) {
+    return {
+      entries: [],
+      errors: [
+        {
+          code: 'key-column-missing',
+          row: 0,
+          message: 'SKU 열과 모델명 열이 둘 다 없다. 하나는 지정해야 한다.',
+        },
+      ],
+    };
+  }
+
   const required: Array<[keyof ColumnMapping, string]> = [
-    ['sku', mapping.sku],
     ['purchaseUnitPrice', mapping.purchaseUnitPrice],
     ['currency', mapping.currency],
     ['unit', mapping.unit],
+    ...(mapping.sku !== undefined
+      ? ([['sku', mapping.sku]] as Array<[keyof ColumnMapping, string]>)
+      : []),
+    ...(mapping.model !== undefined
+      ? ([['model', mapping.model]] as Array<[keyof ColumnMapping, string]>)
+      : []),
   ];
 
   const columnIndex: Partial<Record<keyof ColumnMapping, number>> = {};
@@ -99,7 +152,7 @@ export function parsePrivatePrices(table: Table, mapping: ColumnMapping): ParseR
       columnIndex[key] = at;
     }
   }
-  for (const key of ['brand', 'model', 'lengthM', 'effectiveDate'] as const) {
+  for (const key of ['brand', 'name', 'lengthM', 'effectiveDate'] as const) {
     const name = mapping[key];
     if (name === undefined) continue;
     const at = indexOf(name);
@@ -119,8 +172,10 @@ export function parsePrivatePrices(table: Table, mapping: ColumnMapping): ParseR
       return at === undefined ? '' : (row[at] ?? '').trim();
     };
 
-    const sku = cell('sku');
-    if (sku === '') {
+    const sku = mapping.sku === undefined ? '' : cell('sku');
+    const model = mapping.model === undefined ? '' : cell('model');
+
+    if (mapping.sku !== undefined && sku === '') {
       errors.push({
         code: 'sku-empty',
         row: rowNumber,
@@ -129,13 +184,30 @@ export function parsePrivatePrices(table: Table, mapping: ColumnMapping): ParseR
       });
       return;
     }
-    const previous = seen.get(sku);
+    if (mapping.sku === undefined && model === '') {
+      errors.push({
+        code: 'model-empty',
+        row: rowNumber,
+        ...(mapping.model !== undefined ? { column: mapping.model } : {}),
+        message: `${rowNumber}행: 모델명이 비어 있다.`,
+      });
+      return;
+    }
+
+    // 중복은 **버리지 않고 알린다.** 같은 모델이 두 줄이면 어느 쪽 원가인지
+    // 사람이 정해야 한다. 여기서 먼저 온 쪽을 고르면 조용히 틀린다.
+    const key = sku !== '' ? `sku:${sku}` : `model:${model}`;
+    const previous = seen.get(key);
     if (previous !== undefined) {
       errors.push({
-        code: 'duplicate-sku',
+        code: sku !== '' ? 'duplicate-sku' : 'duplicate-model',
         row: rowNumber,
-        column: mapping.sku,
-        message: `${rowNumber}행: SKU '${sku}'가 ${previous}행과 중복이다.`,
+        ...((sku !== '' ? mapping.sku : mapping.model) !== undefined
+          ? { column: (sku !== '' ? mapping.sku : mapping.model)! }
+          : {}),
+        message:
+          `${rowNumber}행: ${sku !== '' ? `SKU '${sku}'` : `모델명 '${model}'`}가 ` +
+          `${previous}행과 중복이다. 어느 쪽 원가인지 사람이 정해야 한다.`,
       });
       return;
     }
@@ -224,18 +296,20 @@ export function parsePrivatePrices(table: Table, mapping: ColumnMapping): ParseR
     }
 
     const brand = cell('brand');
-    const model = cell('model');
+    const name = cell('name');
     const lengthM = cell('lengthM');
     const effectiveDate = cell('effectiveDate');
 
-    seen.set(sku, rowNumber);
+    seen.set(key, rowNumber);
     entries.push({
-      sku,
+      entryId: `row-${rowNumber}`,
+      ...(sku !== '' ? { sku } : {}),
+      ...(model !== '' ? { model } : {}),
+      ...(name !== '' ? { name } : {}),
       purchaseUnitPrice: price,
       currency,
       unit,
       ...(brand !== '' ? { brand } : {}),
-      ...(model !== '' ? { model } : {}),
       ...(lengthM !== '' ? { lengthM } : {}),
       ...(effectiveDate !== '' ? { effectiveDate } : {}),
     });

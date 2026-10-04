@@ -36,6 +36,16 @@ export function marginRate(
 export interface InternalLineInput {
   rowId: string;
   sku?: string;
+  /**
+   * 사람이 확인해 연결한 원가 줄의 자리표.
+   *
+   * 사용자의 원가 파일에는 내부 SKU 가 없다. 품명과 모델명을 보고 **사람이**
+   * 어느 견적 행에 붙일지 정한 결과가 여기로 온다. 있으면 SKU 조회보다
+   * 우선한다 — 사람이 정한 것을 코드가 뒤집지 않는다.
+   *
+   * 비슷한 모델명으로 자동 연결하지 않는다. 그건 조용히 틀린 원가를 붙인다.
+   */
+  costEntryId?: string;
   /** 견적서 B열. 내부용 표에 그대로 싣는다. */
   name?: string;
   /** 견적서 C열. */
@@ -78,7 +88,13 @@ export function internalLines(
 ): InternalLine[] {
   return rows.map((row) => {
     const quantity = dec(row.quantity);
-    const entry = row.sku === undefined ? undefined : session.lookup(row.sku);
+    // 사람이 확인한 연결이 있으면 그것을 쓴다. 없으면 SKU 정확 일치.
+    const entry =
+      row.costEntryId !== undefined
+        ? session.byEntryId(row.costEntryId)
+        : row.sku === undefined
+          ? undefined
+          : session.lookup(row.sku);
     const selling = decOrUndefined(row.sellingUnitPrice);
 
     const line: InternalLine = {
@@ -100,6 +116,8 @@ export function internalLines(
 
     const cost = dec(entry.purchaseUnitPrice);
     line.purchaseUnitPrice = cost;
+    // **원가 파일의 총액 칸을 읽지 않는다.** 그건 그 파일을 만들 때의 수량으로
+    // 계산된 값이다. 견적의 수량으로 다시 곱한다.
     line.purchaseAmount = quantity.times(cost);
     line.costUnit = entry.unit;
 
