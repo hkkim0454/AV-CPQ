@@ -73,14 +73,17 @@ test('다운로드는 원본과 바이트가 동일한 표준품셈 PDF를 내�
   expect(downloaded.equals(original)).toBe(true);
 });
 
-test('표준품셈 PDF는 내용 추출이 아니라 원문 보기·다운로드로만 제공한다고 명시한다', async ({ page }) => {
+test('표준품셈 PDF는 발행 기관명과 보기·다운로드 전용 범위를 명시한다', async ({ page }) => {
   await mockResources(page);
   await page.goto('/');
-  await expect(page.getByText('내용을 추출해 화면에 다시 표시하거나', { exact: false })).toBeVisible();
+  await expect(page.getByText('한국정보통신산업연구원', { exact: false })).toBeVisible();
+  await expect(page.getByText('원문 보기·다운로드만 제공합니다', { exact: false })).toBeVisible();
 });
 
-test('노임 공표 PDF는 17개 직종 전체의 근거가 아니라고 명시한다', async ({ page }) => {
+test('노임 공표 PDF는 템플릿 미포함 5개 직종을 명시한다', async ({ page }) => {
   await mockResources(page);
   await page.goto('/');
-  await expect(page.getByText('템플릿 17개 직종 전체의 근거는 아닙니다', { exact: false })).toBeVisible();
+  await expect(
+    page.getByText('저압케이블공·내선전공·플랜트기계설치공·내장공·건축목공', { exact: false }),
+  ).toBeVisible();
 });

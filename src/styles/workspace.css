@@ -293,3 +293,35 @@
     white-space: normal;
   }
 }
+
+.q-reference-docs ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.q-reference-docs li + li {
+  padding-top: 14px;
+  border-top: 1px solid var(--q-line);
+}
+
+.q-reference-doc-actions {
+  display: inline-flex;
+  gap: 14px;
+  margin-left: 12px;
+}
+
+.q-reference-doc-actions a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--q-accent);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.q-reference-doc-actions a:hover {
+  text-decoration: underline;
+}
