@@ -148,10 +148,18 @@ function injectNumericCell(
   if (target === undefined) throw new Error(`시험 전제가 깨졌다 — ${part} 가 없다.`);
   const xml = strFromU8(target);
   const cellRe = new RegExp(`<c r="${ref}"[^>]*/>|<c r="${ref}"[^>]*>[\\s\\S]*?</c>`);
-  if (!cellRe.test(xml)) {
-    throw new Error(`시험 전제가 깨졌다 — ${part}!${ref} 셀을 못 찾았다.`);
+  const injected = `<c r="${ref}"><v>${value}</v></c>`;
+  // 그 주소에 이미 칸이 있으면 바꾸고, 없으면(예: 다른 시트의 빈 자리)
+  // `</sheetData>` 바로 앞에 끼워 넣는다. `scanCostLeak` 은 `<row>` 구조를
+  // 안 보고 `<c>` 요소만 정규식으로 훑으므로, 끼워 넣는 위치가 실제 행
+  // 구조와 안 맞아도(이 바이트는 Excel 로 열 용도가 아니라 스캐너 시험
+  // 전용이다) 검사 대상이 되는 데는 지장이 없다.
+  const patched = cellRe.test(xml)
+    ? xml.replace(cellRe, injected)
+    : xml.replace('</sheetData>', `${injected}</sheetData>`);
+  if (patched === xml) {
+    throw new Error(`시험 전제가 깨졌다 — ${part} 에 </sheetData> 가 없다.`);
   }
-  const patched = xml.replace(cellRe, `<c r="${ref}"><v>${value}</v></c>`);
   const out: Record<string, Uint8Array> = {};
   for (const [name, b] of Object.entries(files)) {
     out[name] = name === part ? strToU8(patched) : b;
@@ -239,26 +247,44 @@ describe('실물 고객용 산출물 — 칸 출처로 가린다', () => {
     },
   );
 
-  it('다른 시트의 같은 주소에 원가 숫자가 있어도 잡는다', () => {
-    const { result, sellingValues } = build('general');
-    // D11 은 갑지의 시스템 규격 칸(텍스트)이다. 면제 목록에 없다.
-    const ref = 'D11';
-    const mutated = injectNumericCell(
-      result.bytes,
-      'xl/worksheets/sheet1.xml',
-      ref,
-      sellingValues[0]!,
-    );
-    const found = scanCostLeak(mutated, {
-      costValues: sellingValues,
-      allowedCells: sellingCells(result),
-    });
-    expect(
-      found.some(
-        (f) => f.kind === 'cost-value' && f.part === 'xl/worksheets/sheet1.xml' && f.ref === ref,
-      ),
-    ).toBe(true);
-  });
+  it(
+    '세부내역의 허용 주소라도 갑지의 같은 주소에서는 허용되지 않는다 — ' +
+      'part+ref 로 가른다',
+    () => {
+      const { result, sellingValues } = build('general');
+      // "허용 칸"이 ref 문자열만으로 정해지는 게 아니라 part(시트) 까지
+      // 합쳐 가려진다는 것을 확인한다. D11 처럼 면제 목록에 없는 주소를
+      // 고르면 "애초에 안 썼을 뿐"인지 "part 로 가른 덕"인지 구분이 안
+      // 된다 — 그래서 세부내역에서 **실제로 허용된** 주소를 그대로
+      // 가져와 갑지의 같은 ref 에 주입한다.
+      const detailAllowed = [...sellingCells(result)].find((cell) =>
+        cell.startsWith('xl/worksheets/sheet2.xml!'),
+      );
+      if (detailAllowed === undefined) {
+        throw new Error('시험 전제가 깨졌다 — 세부내역 허용 칸이 하나도 없다.');
+      }
+      const ref = detailAllowed.split('!')[1]!;
+
+      const mutated = injectNumericCell(
+        result.bytes,
+        'xl/worksheets/sheet1.xml',
+        ref,
+        sellingValues[0]!,
+      );
+      const found = scanCostLeak(mutated, {
+        costValues: sellingValues,
+        allowedCells: sellingCells(result),
+      });
+      expect(
+        found.some(
+          (f) =>
+            f.kind === 'cost-value' &&
+            f.part === 'xl/worksheets/sheet1.xml' &&
+            f.ref === ref,
+        ),
+      ).toBe(true);
+    },
+  );
 
   it('고객용에 있으면 안 되는 파트가 없다', () => {
     const { result } = build('general');

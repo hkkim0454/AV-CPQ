@@ -256,6 +256,35 @@ describe('고객용 가이드 통합문서 — 경계', () => {
     expect(result.layout.column('remark')).toBe('K');
   });
 
+  /**
+   * B2 잔여 지적: 행 번호(A)·수량 칸을 원가 유출 검사에서 면제한
+   * 이유는 "그 칸에 원가가 들어올 수식 경로가 없다"는 것이었지, "그
+   * 칸의 값이 맞다"는 것이 아니었다. 면제가 "검증 안 함"으로 읽히지
+   * 않도록, 생성기 내부 계산을 다시 읽는 게 아니라 **이 시험이 입력에
+   * 직접 넣은 수량**과 독립적으로 대조한다.
+   */
+  it('행 번호·수량 칸이 입력값과 독립적으로 일치한다 — 면제가 검증 생략이 아니다', () => {
+    const { result } = build('general', 9);
+    const layout = result.layout;
+    const detail = detailOf(result.bytes);
+    expect(layout.itemRows).toHaveLength(9);
+
+    layout.itemRows.forEach((planned, index) => {
+      // build() 가 품목에 넣은 수량은 i+1 이다(이 파일의 build 정의,
+      // `quantity: String(i + 1)`) — 생성기 내부 상태가 아니라 이 시험이
+      // 구성한 입력 그 자체다.
+      const expectedQuantity = String(index + 1);
+
+      const noRef = `A${planned.row}`;
+      const noCell = new RegExp(`<c r="${noRef}"[^>]*>.*?</c>`, 's').exec(detail)!;
+      expect(noCell[0], noRef).toContain(`<v>${index + 1}</v>`);
+
+      const qtyRef = `${layout.column('quantity')}${planned.row}`;
+      const qtyCell = new RegExp(`<c r="${qtyRef}"[^>]*>.*?</c>`, 's').exec(detail)!;
+      expect(qtyCell[0], qtyRef).toContain(`<v>${expectedQuantity}</v>`);
+    });
+  });
+
   it('시스템이 둘이면 아직 막는다 — 조용히 하나만 내보내지 않는다', () => {
     const catalog = buildCatalog(j('products.json'), j('prices.json'));
     const matrix = catalog.products.find((p) => p.quoteSpec === 'XDM-12')!;
