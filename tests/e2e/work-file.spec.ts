@@ -145,9 +145,12 @@ test('재계산은 미리보기→취소(원본 유지)→다시 미리보기→
   const conflict = page.getByRole('alert').filter({ hasText: '계산 기준이 바뀌었습니다' });
   await expect(conflict).toBeVisible();
 
-  // 1) 미리보기 — 아직 적용 전, 편집 화면은 뜨지 않는다.
+  // 1) 미리보기 — 아직 적용 전, 편집 화면은 뜨지 않는다. labor/wage는
+  // 저장 당시와 같으니(카탈로그만 바뀜) 이전 합계를 실제로 재현해
+  // 보여줘야 한다 — "재현할 수 없습니다"가 아니다(독립 검토 지적).
   await conflict.getByRole('button', { name: '현재 기준으로 다시 계산 — 미리보기' }).click();
   await expect(conflict.getByText(/10000.*20000/)).toBeVisible();
+  await expect(conflict.getByText('이전 기준을 재현할 수 없습니다')).toHaveCount(0);
   await expect(page.locator('.q-quote-table')).toHaveCount(0);
 
   // 2) 취소 — 원본 그대로, 충돌도 그대로다.

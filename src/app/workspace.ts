@@ -591,16 +591,31 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
       present.versions.labor !== prepared.document.versions.labor ||
       present.versions.wage !== prepared.document.versions.wage;
 
-    // 저장 당시 기준(labor/wage)으로는 더는 계산할 수 없을 수 있다 —
-    // `priceQuote`는 버전 대조 없이 그냥 넘겨받은 참조로 계산만 하므로,
-    // 저장된 문서 그대로 지금의 `laborReference`로 돌려 "참고용 이전
-    // 합계"를 얻는다. laborMappingId가 지금 참조에 전혀 없는 등으로
-    // 계산 자체가 의미를 잃으면(예외) 재현 불가로 표시한다(독립 검토
-    // 지적 — 과거 기준이 없으면 과거 합계를 재현할 수 없다고 밝힌다).
+    // 저장 당시 노임/품셈 기준(labor/wage)이 **지금 것과 실제로 같을
+    // 때만** 이전 합계를 다시 계산한다(독립 검토 지적: `priceQuote`는
+    // 버전 대조 없이 넘겨받은 참조로 그냥 계산하므로, 저장 당시
+    // 기준이 지금과 다른데도 지금 노임표로 돌리면 "과거 합계"를
+    // 사칭하는 숫자가 나온다 — 재현이 아니라 창작이다). `present`의
+    // 행 자체(품목 단가·수량·절사 자릿수)는 저장된 그대로이므로,
+    // labor/wage만 같으면 지금 `basis.reference`로 다시 돌려도 원래
+    // 계산과 같은 값이 나온다 — catalog/template/rule이 그 사이
+    // 바뀌었어도 이 값 자체에는 영향이 없다(그 축들은 rowChanges 등
+    // 다른 항목으로 따로 보여준다).
+    const laborWageUnchanged =
+      present.versions.labor !== '' &&
+      present.versions.labor !== 'unknown' &&
+      present.versions.labor === basis.versions.labor &&
+      present.versions.wage !== '' &&
+      present.versions.wage !== 'unknown' &&
+      present.versions.wage === basis.versions.wage;
     let beforeTotal: string | undefined;
-    try {
-      beforeTotal = priceQuote(present, basis.reference).calculation.cover.finalTotal.toString();
-    } catch {
+    if (laborWageUnchanged) {
+      try {
+        beforeTotal = priceQuote(present, basis.reference).calculation.cover.finalTotal.toString();
+      } catch {
+        beforeTotal = undefined;
+      }
+    } else {
       beforeTotal = undefined;
     }
     const afterTotal = prepared.priced.calculation.cover.finalTotal.toString();
