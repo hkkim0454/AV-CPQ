@@ -68,23 +68,35 @@ export interface GuideSheetLayout {
   column: (role: string) => string;
 }
 
+export type GuideBodyRowKind = 'item' | 'derived';
+
+export interface GuideBodyRow {
+  rowId: string;
+  kind: GuideBodyRowKind;
+  /** `kind === 'derived'` 일 때만 쓴다. */
+  derivedKind?: DerivedBasis['kind'];
+}
+
 export interface GuideLayoutInput {
   guide: GuideTemplate;
-  /** 품목 행의 문서 식별자. 순서가 곧 출력 순서다. */
-  itemRowIds: readonly string[];
-  /** 파생 행의 문서 식별자. 보통 배관 기타자재·잡자재비 둘이다. */
-  derivedRowIds: readonly string[];
   /**
-   * 파생 행의 종류. **순서 검증에만 쓴다** — 자리 배정에는 여전히
-   * `derivedRowIds` 의 배열 순서를 쓴다.
+   * 품목·파생 행을 **원래 순서 그대로** 준다(독립 검토 P1-5 재지적).
    *
-   * 템플릿의 두 자리는 **역할이 고정**돼 있다. 13행은 배관 기타자재
+   * 예전에는 품목 id 배열과 파생 id 배열을 따로 받아 이 함수 안에서
+   * "품목 전부 → 파생 전부" 순서로 다시 썼다. 입력이 이미 그 순서면
+   * 문제가 없지만, **파생 행 뒤에 품목 행이 있는 입력**이면 그 품목이
+   * 조용히 앞으로 당겨져 `material-sum-to-here`(잡자재비)의 합산 범위
+   * (`firstBodyRow` 부터 그 파생 행 바로 앞까지)가 원본 행 배치와
+   * 달라진다 — 숫자는 나오지만 조용히 틀린 값이다.
+   *
+   * 이제 **배열의 순서가 곧 물리적 행 순서다.** 이 함수는 품목과 파생을
+   * 갈라 다시 묶지 않고, 준 순서 그대로 위에서부터 행 번호를 매긴다.
+   * 서식(`styleFromRow`)은 물리적 위치가 아니라 **역할**로 고른다 —
+   * 품목은 몇 번째 품목인지로, 파생은 `derivedKind` 로 고른다. 템플릿의
+   * 두 파생 자리는 역할이 고정돼 있다 — 13행은 배관 기타자재
    * (`single-row-material`), 14행은 잡자재비(`material-sum-to-here`)다.
-   * 잡자재비는 "품목부터 바로 윗 행까지" 를 합산하므로, 순서가 뒤집히면
-   * 배관 기타자재가 합산 범위 밖으로 빠진다 — 숫자는 나오지만 원본보다
-   * 작은, 조용히 틀린 값이다.
    */
-  derivedRowKinds?: readonly DerivedBasis['kind'][];
+  bodyRows: readonly GuideBodyRow[];
 }
 
 export class GuideLayoutError extends Error {
@@ -110,62 +122,76 @@ export function planGuideSheet(input: GuideLayoutInput): GuideSheetLayout {
   const base = guide.rows;
   const templateDerivedCount = base.derived.length;
 
-  if (input.derivedRowIds.length > templateDerivedCount) {
+  const derivedEntries = input.bodyRows.filter((r) => r.kind === 'derived');
+  if (derivedEntries.length > templateDerivedCount) {
     // 원본에 자리가 둘뿐이다. 셋을 넣으려면 서식을 지어내야 한다 (D17 위반).
     throw new GuideLayoutError(
-      `파생 행이 ${input.derivedRowIds.length}개인데 가이드에는 ` +
+      `파생 행이 ${derivedEntries.length}개인데 가이드에는 ` +
         `${templateDerivedCount}개 자리뿐이다.`,
     );
   }
 
-  if (input.derivedRowKinds !== undefined) {
-    // 'material-sum-to-here' 는 "품목부터 바로 윗 행까지" 를 합산한다.
-    // 그 앞에 'single-row-material' 이 와야 **그 행까지 포함**된다.
-    // 뒤집히면 숫자는 나오지만 원본보다 작은, 조용히 틀린 값이 된다.
-    let seenSumToHere = false;
-    for (const kind of input.derivedRowKinds) {
-      if (kind === 'material-sum-to-here') {
-        seenSumToHere = true;
-        continue;
-      }
-      if (seenSumToHere) {
-        throw new GuideLayoutError(
-          "파생 행 순서가 틀렸다 — 'material-sum-to-here'(잡자재비) 뒤에 " +
-            "'single-row-material'(배관 기타자재류) 가 왔다. 잡자재비는 " +
-            '앞선 행까지만 합산하므로, 이 순서면 배관 기타자재가 합산 범위 밖으로 빠진다.',
-        );
-      }
+  // 'material-sum-to-here' 는 "품목부터 바로 앞 행까지" 를 합산한다.
+  // 'single-row-material' 이 그보다 뒤에 오면 물리적으로도 합산 범위
+  // 밖에 남아 조용히 빠진다. 템플릿 자체가 배관 기타자재(13) → 잡자재비
+  // (14) 고정 순서라 이 조합은 의도된 입력이 아니다 — 던진다.
+  let seenSumToHere = false;
+  for (const entry of derivedEntries) {
+    if (entry.derivedKind === 'material-sum-to-here') {
+      seenSumToHere = true;
+      continue;
+    }
+    if (seenSumToHere) {
+      throw new GuideLayoutError(
+        "파생 행 순서가 틀렸다 — 'material-sum-to-here'(잡자재비) 뒤에 " +
+          "'single-row-material'(배관 기타자재류) 가 왔다. 잡자재비는 " +
+          '앞선 행까지만 합산하므로, 이 순서면 배관 기타자재가 합산 범위 밖으로 빠진다.',
+      );
     }
   }
 
-  const rows: PlannedRow[] = [];
-  let row = base.firstItem;
-
-  // --- 품목 ---
   // 품목이 하나도 없어도 **한 줄도 만들지 않는다.** 빈 줄을 넣으면 직접비계
   // SUM 이 빈 칸을 가리키고, 사람은 품목이 빠진 줄 모른다.
-  const itemRows: PlannedRow[] = input.itemRowIds.map((rowId, index) => {
-    const planned: PlannedRow = {
-      row: row + index,
-      kind: 'item',
-      // 원본 품목 행이 7줄이다. 그보다 많으면 마지막 서식을 되쓴다.
-      styleFromRow: Math.min(base.firstItem + index, base.lastItem),
-      rowId,
-    };
-    return planned;
-  });
-  rows.push(...itemRows);
-  row += itemRows.length;
+  //
+  // **갈라 모으지 않는다.** `input.bodyRows` 의 순서가 곧 물리적 행
+  // 순서다 — 품목과 파생이 섞여 있어도 준 순서 그대로 위에서부터 행
+  // 번호를 매긴다. 서식은 물리적 위치가 아니라 역할로 고른다: 품목은
+  // "몇 번째 품목인지"로(원본이 7줄이라 그보다 많으면 마지막 서식을
+  // 되쓴다), 파생은 `derivedKind` 로(배관 기타자재류는 13행 서식,
+  // 잡자재비는 14행 서식 — 어디에 물리적으로 있든 같다).
+  const rows: PlannedRow[] = [];
+  const itemRows: PlannedRow[] = [];
+  const derivedRows: PlannedRow[] = [];
+  let row = base.firstItem;
+  let itemsSeen = 0;
 
-  // --- 파생 (배관 기타자재 → 잡자재비 순서를 지킨다) ---
-  const derivedRows: PlannedRow[] = input.derivedRowIds.map((rowId, index) => ({
-    row: row + index,
-    kind: 'derived' as const,
-    styleFromRow: base.derived[index] ?? base.derived[base.derived.length - 1]!,
-    rowId,
-  }));
-  rows.push(...derivedRows);
-  row += derivedRows.length;
+  for (const entry of input.bodyRows) {
+    if (entry.kind === 'item') {
+      const planned: PlannedRow = {
+        row,
+        kind: 'item',
+        styleFromRow: Math.min(base.firstItem + itemsSeen, base.lastItem),
+        rowId: entry.rowId,
+      };
+      rows.push(planned);
+      itemRows.push(planned);
+      itemsSeen += 1;
+    } else {
+      const styleFromRow =
+        entry.derivedKind === 'material-sum-to-here'
+          ? (base.derived[1] ?? base.derived[base.derived.length - 1]!)
+          : (base.derived[0] ?? base.derived[base.derived.length - 1]!);
+      const planned: PlannedRow = {
+        row,
+        kind: 'derived',
+        styleFromRow,
+        rowId: entry.rowId,
+      };
+      rows.push(planned);
+      derivedRows.push(planned);
+    }
+    row += 1;
+  }
 
   const directSubtotalRow = row;
   rows.push({

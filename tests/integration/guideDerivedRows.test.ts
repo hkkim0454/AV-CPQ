@@ -10,7 +10,6 @@ import { buildCustomerProjection } from '@/export/customer/projection';
 import {
   buildCustomerGuideWorkbook,
   buildGuideBase,
-  GuideWorkbookError,
 } from '@/export/customer/guideWorkbook';
 import { buildSalesGuideWorkbook } from '@/export/internal/guideWorkbook';
 import { GuideLayoutError } from '@/export/ooxml/guideLayout';
@@ -313,15 +312,19 @@ describe('파생 행 — 순서 (P1-5)', () => {
   });
 
   /**
-   * 독립 검토 재지적: 파생 **종류** 순서 가드(위 시험)만으로는 부족하다.
-   * `buildGuideBase`가 `system.rows`를 품목/파생으로 각각 걸러 모은 뒤
-   * "품목 전부 → 파생 전부" 순서로 다시 쓰는데, **파생 행 뒤에 품목 행이
-   * 있는 입력**이 오면 그 품목이 조용히 앞으로 당겨진다. 그러면
-   * 잡자재비(`material-sum-to-here`)의 합산 범위가 원본 행 배치와
-   * 달라진다 — 숫자는 나오지만 원본이 의도한 범위보다 넓은, 조용히
-   * 틀린 값이다.
+   * 독립 검토 재지적: 파생 **종류** 순서 가드(위 시험)만으로는 "원래 행
+   * 의미 보존" 요구를 채우지 못한다. 예전에는 `buildGuideBase`가
+   * `system.rows`를 품목/파생으로 각각 걸러 모은 뒤 "품목 전부 → 파생
+   * 전부" 순서로 다시 썼다 — 파생 행 뒤에 품목 행이 있는 입력이면 그
+   * 품목이 조용히 앞으로 당겨져, 잡자재비(`material-sum-to-here`)의
+   * 합산 범위가 원본 행 배치보다 넓어졌다.
+   *
+   * 이제 `planGuideSheet`가 `bodyRows` 순서를 그대로 물리적 행 번호로
+   * 쓰므로, "이 품목을 파생 뒤에 둔다"는 입력은 재배치되지 않고 **그
+   * 품목이 실제로 잡자재비 합산 범위 밖에 물리적으로 놓인다** — 원본의
+   * 행 배치가 가진 의미가 그대로 보존된다.
    */
-  it('파생 행 뒤에 품목 행이 있으면 조용히 재배치하지 않고 던진다', () => {
+  it('파생 행 뒤로 옮긴 품목은 잡자재비 합산 범위 밖에 그대로 남는다', () => {
     const document = documentWithDerivedRows('general');
     const calculation = calculateQuote(document);
     const projection = buildCustomerProjection(document, calculation);
@@ -331,8 +334,7 @@ describe('파생 행 — 순서 (P1-5)', () => {
     const lastItem = itemRows[itemRows.length - 1]!;
 
     // "이 품목은 파생 뒤에 둔다" = 잡자재비 합산에서 빠져야 한다는 뜻으로
-    // 읽힐 수 있는 입력이다. buildGuideBase 가 품목·파생을 각각 다시
-    // 묶어 버리면 이 의미가 사라진다.
+    // 읽히는 입력이다.
     const reordered = {
       ...projection,
       systems: [
@@ -343,7 +345,28 @@ describe('파생 행 — 순서 (P1-5)', () => {
       ],
     };
     const guide = selectGuide(allGuides(), 'general', false);
-    expect(() => buildGuideBase(reordered, guide)).toThrow(GuideWorkbookError);
-    expect(() => buildGuideBase(reordered, guide)).toThrow(/파생 행 뒤에 품목/);
+    const result = buildGuideBase(reordered, guide);
+    const layout = result.layout;
+
+    const conduitDerivedRow = layout.derivedRows[0]!.row; // 배관 기타자재
+    const miscRow = layout.derivedRows[1]!.row; // 잡자재비
+    const relocatedItemRow = layout.itemRows[layout.itemRows.length - 1]!.row;
+
+    // 전제 확인: 뒤로 옮긴 품목이 실제로 잡자재비보다 물리적으로 뒤에 있다.
+    expect(relocatedItemRow).toBeGreaterThan(miscRow);
+
+    const sheet = detailOf(result.bytes);
+    const miscCell = cellOf(sheet, `${layout.column('material.unit')}${miscRow}`)!;
+    // 합산 범위는 "품목부터 배관 기타자재까지" 로 끝난다 — 뒤로 간 품목의
+    // 행 번호가 범위 끝에 나오면 안 된다.
+    expect(miscCell).toContain(`:${layout.column('material.amount')}${conduitDerivedRow}`);
+    expect(miscCell).not.toContain(`${layout.column('material.amount')}${relocatedItemRow}`);
+
+    // 뒤로 간 품목 자체는 사라지지 않는다 — 자기 위치에서 정상적으로 계산된다.
+    const relocatedCell = cellOf(
+      sheet,
+      `${layout.column('material.amount')}${relocatedItemRow}`,
+    );
+    expect(relocatedCell).toBeDefined();
   });
 });

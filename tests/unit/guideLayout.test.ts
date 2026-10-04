@@ -27,8 +27,18 @@ const guide = (id: GuideId) =>
 const plan = (id: GuideId, items: number, derived = 2) =>
   planGuideSheet({
     guide: guide(id),
-    itemRowIds: Array.from({ length: items }, (_, i) => `r${i + 1}`),
-    derivedRowIds: Array.from({ length: derived }, (_, i) => `d${i + 1}`),
+    bodyRows: [
+      ...Array.from({ length: items }, (_, i) => ({
+        rowId: `r${i + 1}`,
+        kind: 'item' as const,
+      })),
+      ...Array.from({ length: derived }, (_, i) => ({
+        rowId: `d${i + 1}`,
+        kind: 'derived' as const,
+        derivedKind:
+          i === 0 ? ('single-row-material' as const) : ('material-sum-to-here' as const),
+      })),
+    ],
   });
 
 describe('planGuideSheet — 원본과 같은 줄 수', () => {

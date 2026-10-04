@@ -15,9 +15,13 @@
  */
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 
-import type { CustomerExport } from './projection';
+import type { CustomerDerivedRow, CustomerExport, CustomerItemRow } from './projection';
 import type { GuideTemplate } from '../ooxml/guideTemplate';
-import { planGuideSheet, type GuideSheetLayout } from '../ooxml/guideLayout';
+import {
+  planGuideSheet,
+  type GuideBodyRow,
+  type GuideSheetLayout,
+} from '../ooxml/guideLayout';
 import * as F from '../ooxml/guideFormulas';
 import {
   columnIndex,
@@ -117,43 +121,32 @@ export function buildGuideBase(
     throw new GuideWorkbookError(`시스템 ${system.systemId} 의 계산 결과가 없다.`);
   }
 
-  // **행 순서를 보존한다 — 재배치가 아니라 가름이다.**
+  // **행 순서를 보존한다 — 가르지 않는다(독립 검토 P1-5 재지적).**
   //
-  // 바로 아래에서 품목과 파생을 각각 따로 묶어 "품목 전부 → 파생 전부"
-  // 순서로 다시 쓴다. 입력이 이미 그 순서라면 아무 일도 안 생기지만,
-  // **파생 행 뒤에 품목 행이 있는 입력**이면 그 품목이 조용히 앞으로
-  // 당겨진다 — 그러면 잡자재비(`material-sum-to-here`)가 "품목부터
-  // 바로 앞 행까지"로 잡는 합산 범위에 **원래는 빠졌어야 할 품목**이
-  // 들어간다. 독립 검토 지적: 가르는 게 아니라 뒤섞는 것이고, 원본의
-  // 행 배치가 가진 의미(이 품목은 이 파생 다음 것이다)가 사라진다.
+  // 예전에는 품목과 파생을 각각 따로 걸러 모아 "품목 전부 → 파생 전부"
+  // 순서로 `planGuideSheet` 에 넘겼다. 파생 행 뒤에 품목 행이 있는
+  // 입력이면 그 품목이 조용히 앞으로 당겨져, 잡자재비
+  // (`material-sum-to-here`)가 "품목부터 바로 앞 행까지"로 잡는 합산
+  // 범위에 **원래는 빠졌어야 할 품목**이 들어갔다.
   //
-  // 가이드 템플릿 자체가 "품목 블록 → 파생 2줄 고정 블록" 구조라 둘을
-  // 진짜로 섞어 배치할 자리가 없다 — 지어낼 수 없다(D17). 그래서 재배열
-  // 대신 **거부**한다.
-  const firstDerivedIndex = system.rows.findIndex((r) => r.type === 'derived');
-  if (firstDerivedIndex !== -1) {
-    const itemAfterDerived = system.rows
-      .slice(firstDerivedIndex + 1)
-      .some((r) => r.type === 'item');
-    if (itemAfterDerived) {
-      throw new GuideWorkbookError(
-        '파생 행 뒤에 품목 행이 있다 — 가이드 템플릿은 품목을 모두 앞에 두고 ' +
-          '파생 행을 모두 뒤에 두는 구조만 지원한다. 이 순서를 그대로 받아들여 ' +
-          "품목을 앞으로 당기면 잡자재비('material-sum-to-here')의 합산 범위가 " +
-          '원본의 행 배치와 달라진다.',
-      );
-    }
-  }
-
+  // 이제 `system.rows` 의 품목·파생 순서를 **그대로** `bodyRows` 로
+  // 넘긴다. `planGuideSheet` 가 이 순서 그대로 물리적 행 번호를 매기므로
+  // (서식은 물리적 위치가 아니라 역할로 고른다), 합산 범위는 항상
+  // 원본 행 배치와 일치한다.
   const itemRows = system.rows.filter((r) => r.type === 'item');
   const derivedRows = system.rows.filter((r) => r.type === 'derived');
+  const bodyRows: GuideBodyRow[] = system.rows
+    .filter(
+      (r): r is CustomerItemRow | CustomerDerivedRow =>
+        r.type === 'item' || r.type === 'derived',
+    )
+    .map((r) =>
+      r.type === 'item'
+        ? { rowId: r.rowId, kind: 'item' as const }
+        : { rowId: r.rowId, kind: 'derived' as const, derivedKind: r.derived.kind },
+    );
 
-  const layout = planGuideSheet({
-    guide,
-    itemRowIds: itemRows.map((r) => r.rowId),
-    derivedRowIds: derivedRows.map((r) => r.rowId),
-    derivedRowKinds: derivedRows.map((r) => r.derived.kind),
-  });
+  const layout = planGuideSheet({ guide, bodyRows });
 
   const col = layout.column;
   const rowByRowId = new Map<string, number>();
