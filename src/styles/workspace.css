@@ -28,6 +28,46 @@
   padding-left: 18px;
 }
 
+.q-warning-list > ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.q-warning-list li {
+  margin-bottom: 10px;
+}
+
+.q-resolve-candidates {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.q-resolve-candidates li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 10px;
+  border: 1px solid var(--q-line);
+  border-radius: var(--q-r-chip);
+  font-size: 12px;
+}
+
+.q-resolve-search {
+  margin-top: 6px;
+}
+
+.q-resolve-search input {
+  border: 1px solid var(--q-line);
+  background: var(--q-field-fill);
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
 .q-card {
   border: 1px solid var(--q-line);
   background: var(--q-bg);

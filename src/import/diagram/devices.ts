@@ -47,6 +47,13 @@ export interface ImportWarning {
   message: string;
   nodeId?: string;
   edgeId?: string;
+  /**
+   * `device-ambiguous-match`일 때만 있다 — 모델명이 걸린 SKU들
+   * (`matchByModel`의 `ambiguousSkus`). 화면이 사람에게 고르게 하는
+   * 선택지다. 후보가 없는 경우(`device-not-in-catalog`)는 비워 두고
+   * 추측하지 않는다 — 화면이 카탈로그 검색으로 직접 찾게 한다.
+   */
+  candidates?: readonly string[];
 }
 
 export interface DeviceLine {
@@ -151,6 +158,7 @@ export function buildDeviceLines(
             `'${model || name}'이 카탈로그의 여러 제품에 걸린다 ` +
             `(${match.ambiguousSkus.join(', ')}). 어느 것인지 사람이 정해야 한다.`,
           nodeId: node.id,
+          candidates: match.ambiguousSkus,
         });
       } else {
         warnings.push({

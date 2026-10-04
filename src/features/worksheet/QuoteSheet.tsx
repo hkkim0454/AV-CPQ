@@ -159,7 +159,7 @@ export function QuoteSheet({
                     const totalText = rowCalc?.total !== undefined ? rowCalc.total.toFixed() : '미등록';
 
                     return (
-                      <tr key={row.rowId}>
+                      <tr key={row.rowId} data-row-id={row.rowId}>
                         <td>{row.name}</td>
                         <td>{row.specification}</td>
                         <td>{row.unit}</td>

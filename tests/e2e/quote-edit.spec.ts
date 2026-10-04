@@ -4,6 +4,8 @@ import { mockResources } from './fixtures';
 const SKU_PRICED = 'E2E-001';
 const SKU_NO_PRICE = 'E2E-002';
 const SKU_ZERO_PRICE = 'E2E-003';
+const SKU_AMBIGUOUS_A = 'E2E-010';
+const SKU_AMBIGUOUS_B = 'E2E-011';
 const DESCRIPTION = '합성 설명 문구 — E2E 전용';
 const SHA = 'c'.repeat(64);
 
@@ -49,6 +51,32 @@ function customProducts(): unknown {
         currency: 'KRW',
         evidence: 'verified',
       },
+      // 같은 모델 문자열(quoteSpec)에 두 제품이 걸린다 — 모호한 매칭
+      // 경고(device-ambiguous-match)의 후보 선택 검증용이다.
+      {
+        productId: SKU_AMBIGUOUS_A,
+        sku: SKU_AMBIGUOUS_A,
+        brand: '',
+        model: 'AMB-MODEL',
+        quoteName: 'E2E 후보 A',
+        quoteSpec: 'AMB-MODEL',
+        unit: 'EA',
+        options: {},
+        currency: 'KRW',
+        evidence: 'verified',
+      },
+      {
+        productId: SKU_AMBIGUOUS_B,
+        sku: SKU_AMBIGUOUS_B,
+        brand: '',
+        model: 'AMB-MODEL',
+        quoteName: 'E2E 후보 B',
+        quoteSpec: 'AMB-MODEL',
+        unit: 'EA',
+        options: {},
+        currency: 'KRW',
+        evidence: 'verified',
+      },
     ],
   };
 }
@@ -64,6 +92,8 @@ function customPrices(): unknown {
     prices: {
       [SKU_PRICED]: { sellingUnitPrice: '50000', currency: 'KRW' },
       [SKU_ZERO_PRICE]: { sellingUnitPrice: '0', currency: 'KRW' },
+      [SKU_AMBIGUOUS_A]: { sellingUnitPrice: '70000', currency: 'KRW' },
+      [SKU_AMBIGUOUS_B]: { sellingUnitPrice: '80000', currency: 'KRW' },
     },
   };
 }
@@ -73,6 +103,22 @@ function diagramWithTwoDevices(): string {
   return JSON.stringify({
     version: '1',
     nodes: [node('n1'), node('n2')],
+    edges: [],
+    lineTypes: [],
+  });
+}
+
+/**
+ * 모호한 모델(두 후보에 걸림) 하나, 카탈로그에 아예 없는 모델 하나 —
+ * 두 경고가 서로 독립적으로 해소되는지 보는 데 쓴다.
+ */
+function diagramWithUnresolvedDevices(): string {
+  return JSON.stringify({
+    version: '1',
+    nodes: [
+      { id: 'amb-1', data: { model: 'AMB-MODEL', systemName: '시스템1' } },
+      { id: 'unknown-1', data: { model: 'NOPE-MODEL-XYZ', name: '알 수 없는 장비', systemName: '시스템1' } },
+    ],
     edges: [],
     lineTypes: [],
   });
@@ -369,4 +415,62 @@ test('기존 견적에 품목 추가/삭제 — 실행취소가 기존 수동 �
   await page.getByRole('button', { name: '실행 취소' }).click();
   await expect(rows).toHaveCount(rowCountBefore + 1);
   await expect(page.locator('.q-quote-table tbody tr', { hasText: 'E2E 무상 품목' })).toBeVisible();
+});
+
+test('미해결 모델/옵션 — 후보 선택·검색 연결로 실제 원인을 해소하고, 관련 없는 경고는 남는다', async ({
+  page,
+}) => {
+  await setupCustomCatalog(page);
+  await page.goto('/');
+
+  await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'diagram.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(diagramWithUnresolvedDevices()),
+  });
+
+  const warningPanel = page.getByRole('alert').filter({ hasText: '확인이 필요합니다' });
+  await expect(warningPanel).toContainText('AMB-MODEL');
+  await expect(warningPanel).toContainText('NOPE-MODEL-XYZ');
+
+  // 해결 전 행 — rowId 안정성 확인용으로 미리 적어 둔다.
+  const ambiguousRowBefore = page.locator('.q-quote-table tbody tr', { hasText: 'AMB-MODEL' });
+  const ambiguousRowId = await ambiguousRowBefore.getAttribute('data-row-id');
+  expect(ambiguousRowId).not.toBeNull();
+
+  // --- 1) 모호한 모델 — 후보 목록에서 하나를 직접 고른다 ---
+  await warningPanel.getByRole('button', { name: '선택' }).first().click();
+
+  // 그 경고만 사라지고, 검색이 필요한 나머지 경고는 그대로 남는다 —
+  // 관련 없는 경고가 조용히 같이 지워지지 않는다.
+  await expect(warningPanel).not.toContainText('AMB-MODEL');
+  await expect(warningPanel).toContainText('NOPE-MODEL-XYZ');
+
+  // rowId는 그대로고, 품명만 고른 후보로 바뀌었다.
+  const resolvedAmbiguousRow = page.locator(
+    '.q-quote-table tbody tr',
+    { hasText: /E2E 후보 [AB]/ },
+  );
+  await expect(resolvedAmbiguousRow).toHaveAttribute('data-row-id', ambiguousRowId ?? '');
+
+  // --- 2) 카탈로그에 전혀 없는 모델 — 검색으로 직접 연결한다 ---
+  await page.getByLabel('unknown-1 연결할 품목 검색').fill('E2E 테스트 품목');
+  await page.getByRole('button', { name: '연결' }).click();
+
+  // 이 구성도는 배관(Flexible Conduit) 행도 자동으로 만든다 — 그건 이
+  // 기능(미해결 모델/옵션)이 다루는 경고가 아니므로 그대로 남아야
+  // 한다. "관련 없는 경고가 조용히 같이 지워지지 않는다"를 바로 그
+  // 경고로 확인한다.
+  const warningPanelAfterResolve = page.getByRole('alert').filter({ hasText: '확인이 필요합니다' });
+  await expect(warningPanelAfterResolve).not.toContainText('AMB-MODEL');
+  await expect(warningPanelAfterResolve).not.toContainText('NOPE-MODEL-XYZ');
+  await expect(warningPanelAfterResolve).toContainText('배관');
+
+  // --- 실행취소 — 검색 연결만 되돌아가고, 후보 선택은 그대로 유지된다 ---
+  await page.getByRole('button', { name: '실행 취소' }).click();
+  const warningPanelAfterUndo = page.getByRole('alert').filter({ hasText: '확인이 필요합니다' });
+  await expect(warningPanelAfterUndo).toContainText('NOPE-MODEL-XYZ');
+  await expect(warningPanelAfterUndo).not.toContainText('AMB-MODEL');
+  await expect(resolvedAmbiguousRow).toHaveAttribute('data-row-id', ambiguousRowId ?? '');
 });

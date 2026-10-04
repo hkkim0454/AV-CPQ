@@ -45,6 +45,12 @@ export interface Workspace {
   /** 기존 견적에 품목을 더한다. 카탈로그에 없는 SKU는 조용히 무시한다 — 호출부가 검색 결과에서만 골라 준다. */
   addItem(systemId: string, sku: string, quantity: string): void;
   removeRow(rowId: string): void;
+  /**
+   * 미해결 모델/옵션 경고를 실제로 해소한다 — 그 노드가 합쳐진 행을
+   * 찾아 카탈로그 제품으로 바꿔 심는다. 수량·비고·설명(사람이 이미
+   * 고쳤을 수 있다)·rowId는 그대로 둔다.
+   */
+  resolveDevice(nodeId: string, sku: string): void;
   undo(): void;
   redo(): void;
 }
@@ -284,6 +290,42 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     [commit, resources],
   );
 
+  const resolveDevice = useCallback(
+    (nodeId: string, sku: string) => {
+      if (resources === undefined) return;
+      const product = resources.catalog.products.find((p) => p.sku === sku);
+      if (product === undefined) return; // 호출부가 검색/후보 목록에서만 고르므로 정상적으로는 안 생긴다.
+      const price = resources.catalog.prices.get(sku);
+      const description = product.options['description'];
+
+      commit((document) => ({
+        ...document,
+        rows: document.rows.map((r) => {
+          if (r.type !== 'item' || !(r.sourceNodeIds?.includes(nodeId) ?? false)) return r;
+          // 수량·비고·설명(사람이 이미 고쳤을 수 있다)·rowId·sourceNodeIds는
+          // 그대로 둔다 — 카탈로그에서 끌어오는 칸만 바꾼다.
+          const resolved = {
+            ...r,
+            sku: product.sku,
+            productId: product.sku,
+            name: product.quoteName,
+            specification: product.quoteSpec,
+            unit: product.unit,
+          };
+          const withPrice = price !== undefined ? { ...resolved, sellingUnitPrice: price } : resolved;
+          const withDescription =
+            r.internalDescription === undefined && description !== undefined && description !== ''
+              ? { ...withPrice, internalDescription: description }
+              : withPrice;
+          return product.laborMappingId !== undefined
+            ? { ...withDescription, laborMode: 'mapped' as const, laborMappingId: product.laborMappingId }
+            : { ...withDescription, laborMode: 'unresolved' as const };
+        }),
+      }));
+    },
+    [commit, resources],
+  );
+
   const removeRow = useCallback(
     (rowId: string) => {
       commit((document) => ({
@@ -328,6 +370,7 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     setIndirectRule,
     addItem,
     removeRow,
+    resolveDevice,
     undo,
     redo,
   };

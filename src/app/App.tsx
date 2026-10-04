@@ -181,7 +181,12 @@ export function App() {
               {status.kind === 'editing' && (
                 <>
                   <CoverSheet header={status.document.header} onChange={workspace.setHeader} />
-                  <WarningList warnings={status.importWarnings} />
+                  <WarningList
+                    warnings={status.importWarnings}
+                    document={status.document}
+                    catalog={resources.catalog}
+                    onResolve={workspace.resolveDevice}
+                  />
                   <QuoteSheet
                     document={status.document}
                     calculation={status.prepared.priced.calculation}

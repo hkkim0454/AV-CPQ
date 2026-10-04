@@ -70,6 +70,7 @@ function deviceToLine(line: DeviceLine): QuoteLineInput {
       ? { internalDescription: line.internalDescription }
       : {}),
     ...(line.laborMappingId !== undefined ? { laborMappingId: line.laborMappingId } : {}),
+    sourceNodeIds: line.sourceNodeIds,
     isAccessory: line.isAccessory,
     remark: remarkFor(line),
   };
