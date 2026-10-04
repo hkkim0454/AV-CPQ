@@ -25,7 +25,7 @@
  * 조용히 빼면 1,000만원대가 빠진 견적이 나간다.
  */
 import type { DecimalText } from '../../domain/quote/types';
-import type { Catalog } from '../../data/catalog/load';
+import type { Catalog, CatalogProduct } from '../../data/catalog/load';
 import { dec, text } from '../../domain/calculation/rounding';
 import { matchByModel, type MatchResult } from './matchCatalog';
 import type { DiagramFile, DiagramNode } from './types';
@@ -57,6 +57,8 @@ export interface DeviceLine {
   quantity: DecimalText;
   /** 미등록이면 **없다**. `0`으로 채우지 않는다. */
   sellingUnitPrice?: DecimalText;
+  /** 카탈로그 `options['description']`. 사람이 쓴 비고(`remark`)와 다른 칸이다. */
+  internalDescription?: string;
   /**
    * 품셈 연결 id. 카탈로그 제품이 품셈을 갖고 있으면 그 SKU다.
    * 없으면 노무비를 **0으로 두지 않고** `unresolved`로 막는다.
@@ -78,6 +80,12 @@ export interface BuildDeviceLinesResult {
 
 /** 옵션 카드 품명. 정의가 없을 때 쓴다. */
 const UNKNOWN_OPTION_NAME = '옵션 카드 (미상)';
+
+/** 카탈로그 제품 설명. 없거나 빈 문자열이면 칸 자체를 만들지 않는다. */
+function descriptionOf(product: CatalogProduct | undefined): string | undefined {
+  const description = product?.options['description'];
+  return description !== undefined && description !== '' ? description : undefined;
+}
 
 /** 합산 키 — SKU가 있으면 SKU, 없으면 모델명, 그것도 없으면 품명. */
 function mergeKey(node: DiagramNode, match: MatchResult): string {
@@ -162,6 +170,7 @@ export function buildDeviceLines(
       });
     }
 
+    const deviceDescription = descriptionOf(match.product);
     const deviceLine: DeviceLine = {
       ...(match.product !== undefined ? { sku: match.product.sku } : {}),
       // 카탈로그 품명을 쓴다. 구성도의 이름은 설계자가 붙인 별명일 수 있다
@@ -173,6 +182,7 @@ export function buildDeviceLines(
       ...(match.sellingUnitPrice !== undefined
         ? { sellingUnitPrice: match.sellingUnitPrice }
         : {}),
+      ...(deviceDescription !== undefined ? { internalDescription: deviceDescription } : {}),
       ...(match.product?.laborMappingId !== undefined
         ? { laborMappingId: match.product.laborMappingId }
         : {}),
@@ -238,6 +248,7 @@ export function buildDeviceLines(
         });
       }
 
+      const optionDescription = descriptionOf(optionMatch.product);
       pushOrMerge(
         optionByKey,
         `option:${optionId}`,
@@ -250,6 +261,7 @@ export function buildDeviceLines(
           ...(optionMatch.sellingUnitPrice !== undefined
             ? { sellingUnitPrice: optionMatch.sellingUnitPrice }
             : {}),
+          ...(optionDescription !== undefined ? { internalDescription: optionDescription } : {}),
           ...(optionMatch.product?.laborMappingId !== undefined
             ? { laborMappingId: optionMatch.product.laborMappingId }
             : {}),

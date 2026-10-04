@@ -1,6 +1,6 @@
 /*
- * 본문 작업면 — 안내/오류 배너, 입구 카드. 견적 표 자체는 Task 2에서
- * 이어 만든다(§4 파일 책임 — 이 파일이 그 표의 스크롤/반응형까지 맡는다).
+ * 본문 작업면 — 안내/오류 배너, 입구 카드, 견적 표/간접비 패널의
+ * 스크롤·반응형(§4 파일 책임).
  */
 .q-notice {
   padding: 12px 15px;
@@ -43,4 +43,114 @@
 .q-muted {
   color: var(--q-muted);
   font-size: 13px;
+}
+
+.q-field-error {
+  margin: 4px 0 0;
+  color: var(--q-v-no-ink);
+  font-size: 11px;
+}
+
+.q-quote-sheet,
+.q-indirect-panel {
+  margin-top: 16px;
+}
+
+.q-quote-system + .q-quote-system {
+  margin-top: 24px;
+}
+
+.q-table-wrap {
+  overflow-x: auto;
+}
+
+.q-quote-table,
+.q-indirect-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.q-quote-table th,
+.q-quote-table td,
+.q-indirect-table th,
+.q-indirect-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--q-line);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.q-quote-table th,
+.q-indirect-table th {
+  color: var(--q-muted);
+  font-weight: 400;
+  background: var(--q-soft);
+}
+
+.q-quote-table td:last-child,
+.q-quote-table th:last-child,
+.q-indirect-table td:last-child,
+.q-indirect-table th:last-child {
+  text-align: right;
+}
+
+.q-quote-table input,
+.q-indirect-table input {
+  width: 100%;
+  min-width: 72px;
+  border: 1px solid var(--q-line);
+  background: var(--q-field-fill);
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.q-quote-table input:focus-visible,
+.q-indirect-table input:focus-visible {
+  outline: none;
+  background: var(--q-field-fill-focus);
+  box-shadow: var(--q-focus-ring);
+}
+
+.q-quote-table tfoot td {
+  font-weight: var(--q-fw-medium);
+  background: var(--q-soft);
+}
+
+.q-picker-matches,
+.q-picker-picked {
+  list-style: none;
+  margin: 10px 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.q-picker-matches li,
+.q-picker-picked li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--q-line);
+  border-radius: var(--q-r-chip);
+}
+
+.q-picker-picked input {
+  width: 72px;
+  border: 1px solid var(--q-line);
+  background: var(--q-field-fill);
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+
+@media (max-width: 720px) {
+  .q-quote-table th,
+  .q-quote-table td,
+  .q-indirect-table th,
+  .q-indirect-table td {
+    white-space: normal;
+  }
 }

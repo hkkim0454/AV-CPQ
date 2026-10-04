@@ -12,7 +12,7 @@
  * 예외: `prices.json`은 없어도 된다(결정 D3) — 판매단가 배포를 나중에
  * 가릴 수 있어야 하므로, 이건 "실패"가 아니라 "미등록"으로 다룬다.
  */
-import { buildLaborReference, loadCatalog, type Catalog, type LaborReference } from '../data/catalog/load';
+import { buildLaborReference, loadCatalog, type Catalog } from '../data/catalog/load';
 import {
   GUIDE_IDS,
   readGuideTemplate,
@@ -22,9 +22,23 @@ import {
   type GuideTemplateSet,
 } from '../export/ooxml/guideTemplate';
 
+/**
+ * 품셈·노임·매핑의 **원자료**(아직 파싱만 한 JSON). 완성된 `LaborReference`를
+ * 여기서 만들어 내보내지 않는다 — `buildLaborReference`가 그대로 돌려주는
+ * 것은 배포본(**상반기**) 노임이고, 실제 견적 계산은 가이드 노임(**하반기**,
+ * `buildGuideBasis({..., choice:{kind:'guide', guide}})`)을 써야 한다(계획
+ * 2026-10-04-quote-workspace-ui Task 2 독립 검토 지적). 그 선택은 어느
+ * 가이드/프로파일을 쓸지 아는 쪽(`src/app/workspace.ts`)의 책임이다.
+ */
+export interface LaborBasisRaw {
+  laborItemsRaw: unknown;
+  wageTableRaw: unknown;
+  laborMappingsRaw: unknown;
+}
+
 export interface Resources {
   catalog: Catalog;
-  laborReference: LaborReference;
+  laborBasisRaw: LaborBasisRaw;
   guides: GuideTemplateSet;
 }
 
@@ -70,18 +84,26 @@ export async function loadResources(options: LoadResourcesOptions = {}): Promise
     }
   }
 
-  let laborReference: LaborReference | undefined;
+  // 배포본(approved) 기준으로 파싱·상호 검증만 한다(다른 원본이 섞였는지 등).
+  // 그 결과(상반기 노임 포함)는 버린다 — 계산에는 쓰지 않는다. 여기서는
+  // "이 세 파일이 서로 맞는 원본에서 나온, 읽을 수 있는 JSON인가"만 확인한다.
+  let laborBasisRaw: LaborBasisRaw | undefined;
   if (
     laborRaw['labor-items.json'] !== undefined &&
     laborRaw['wage-table.json'] !== undefined &&
     laborRaw['labor-mappings.json'] !== undefined
   ) {
     try {
-      laborReference = buildLaborReference(
+      buildLaborReference(
         laborRaw['labor-items.json'],
         laborRaw['wage-table.json'],
         laborRaw['labor-mappings.json'],
       );
+      laborBasisRaw = {
+        laborItemsRaw: laborRaw['labor-items.json'],
+        wageTableRaw: laborRaw['wage-table.json'],
+        laborMappingsRaw: laborRaw['labor-mappings.json'],
+      };
     } catch (err) {
       reasons.push(messageOf(err, '품셈 기준을 읽을 수 없다.'));
     }
@@ -122,12 +144,12 @@ export async function loadResources(options: LoadResourcesOptions = {}): Promise
 
   const guidesReady = GUIDE_IDS.every((id) => guides[id] !== undefined);
 
-  if (catalog === undefined || laborReference === undefined || manifest === undefined || !guidesReady) {
+  if (catalog === undefined || laborBasisRaw === undefined || manifest === undefined || !guidesReady) {
     return { kind: 'error', reasons };
   }
 
   return {
     kind: 'ready',
-    resources: { catalog, laborReference, guides: guides as GuideTemplateSet },
+    resources: { catalog, laborBasisRaw, guides: guides as GuideTemplateSet },
   };
 }

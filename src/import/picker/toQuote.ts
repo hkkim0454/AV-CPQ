@@ -104,6 +104,9 @@ export function pickedItemsToQuote(
         quantity: item.quantity,
         // 미등록 단가는 **넣지 않는다**. `0`으로 채우면 설계서 §5.6 위반이다.
         ...(price !== undefined ? { sellingUnitPrice: price } : {}),
+        ...(product.options['description'] !== undefined && product.options['description'] !== ''
+          ? { internalDescription: product.options['description'] }
+          : {}),
         // 품셈이 없으면 넣지 않는다 → `buildQuoteDocument`가 `unresolved`로 막는다.
         // `not-applicable`로 두면 간접비까지 0이 된다.
         ...(product.laborMappingId !== undefined

@@ -1,16 +1,23 @@
 /**
- * React 진입 셸 — 원가 없는 작업 화면 (계획 2026-10-04-quote-workspace-ui Task 1).
+ * React 진입 셸 — 견적 작업 화면 (계획 2026-10-04-quote-workspace-ui
+ * Task 1·2).
  *
- * 이 파일은 초기 자료 로딩 상태와 두 실제 입구만 다룬다. 문서 편집·
- * 견적 표·원가는 각각의 Task에서 이어 만든다(§4 파일 책임). 여기서
- * 앞질러 만들지 않는다 — 버튼만 그리고 동작을 남겨두지 않는다는 원칙은
- * 반대 방향으로도 적용된다: 아직 만들 단계가 아닌 기능은 거짓으로
- * "완성된 것처럼" 보이게 하지 않는다.
+ * 금액은 전부 `prepareQuote`가 돌려주는 `CalculationSnapshot`에서 읽는다
+ * — React에서 다시 계산하지 않는다(§4 Global Constraints).
+ *
+ * 툴바(입구 버튼·실행취소/다시실행·출력 등급)는 초기 자료 로딩이
+ * 실패해도 계속 보인다 — 화면이 통째로 죽지 않는다(계획 §5 Review
+ * Focus 5번). `useWorkspace`는 자료가 아직 없을 때도 같은 순서로
+ * 불려야 하므로(React 훅 규칙) `Resources | undefined`를 받는다.
  */
 import { useEffect, useState } from 'react';
 import { loadResources, type ResourcesResult } from './resources';
+import { useWorkspace, type LoadedDocument } from './workspace';
 import { DiagramInput } from '../features/entry/DiagramInput';
 import { ProductPicker } from '../features/entry/ProductPicker';
+import { QuoteSheet } from '../features/worksheet/QuoteSheet';
+import { IndirectPanel } from '../features/worksheet/IndirectPanel';
+import { WarningList } from '../features/worksheet/WarningList';
 
 type LoadState = { kind: 'loading' } | ResourcesResult;
 
@@ -26,12 +33,16 @@ type EntryView = 'diagram' | 'picker' | null;
 
 export function App() {
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
-  const [outputGrade, setOutputGrade] = useState<OutputGrade>('2');
   const [entry, setEntry] = useState<EntryView>(null);
+  const [outputGrade, setOutputGrade] = useState<OutputGrade>('2');
+
+  const resources = state.kind === 'ready' ? state.resources : undefined;
+  const workspace = useWorkspace(resources);
+  const status = workspace.status;
 
   useEffect(() => {
     let cancelled = false;
-    loadResources()
+    loadResources({ baseUrl: import.meta.env.BASE_URL })
       .then((result) => {
         if (!cancelled) setState(result);
       })
@@ -47,6 +58,11 @@ export function App() {
       cancelled = true;
     };
   }, []);
+
+  function handleLoaded(input: LoadedDocument): void {
+    workspace.loadDocument(input);
+    setEntry(null);
+  }
 
   return (
     <div className="q-page">
@@ -66,17 +82,33 @@ export function App() {
           <div className="q-meta">
             <b>㈜서울영상테크</b>
             <br />
-            원가 없는 작업 셸
+            견적 작업 공간
           </div>
         </header>
 
         <div className="q-workspace">
           <div className="q-tools">
-            <button type="button" className="q-button" onClick={() => setEntry('diagram')}>
+            <button
+              type="button"
+              className="q-button"
+              disabled={resources === undefined}
+              onClick={() => setEntry('diagram')}
+            >
               구성도 JSON 열기
             </button>
-            <button type="button" className="q-button" onClick={() => setEntry('picker')}>
+            <button
+              type="button"
+              className="q-button"
+              disabled={resources === undefined}
+              onClick={() => setEntry('picker')}
+            >
               품목 직접 선택
+            </button>
+            <button type="button" className="q-button" onClick={workspace.undo} disabled={!workspace.canUndo}>
+              실행 취소
+            </button>
+            <button type="button" className="q-button" onClick={workspace.redo} disabled={!workspace.canRedo}>
+              다시 실행
             </button>
           </div>
           <div className="q-grade" role="radiogroup" aria-label="출력 등급">
@@ -92,8 +124,8 @@ export function App() {
                 {grade.label}
               </label>
             ))}
-            {/* 문서가 없으면 다운로드할 것이 없다 — 항상 비활성으로 시작한다. 실제
-                활성화는 Task 6(출력)에서 준비된 문서가 있을 때만 켠다. */}
+            {/* 준비된 출력 함수가 아직 안 붙었다 — 항상 비활성이다. 실제
+                활성화는 Task 6(출력)에서 한다. */}
             <button type="button" className="q-button q-primary" disabled>
               Excel 다운로드
             </button>
@@ -117,18 +149,53 @@ export function App() {
               </ul>
             </div>
           )}
-          {state.kind === 'ready' && (
+          {resources !== undefined && (
             <>
-              {!state.resources.catalog.pricesAvailable && (
+              {!resources.catalog.pricesAvailable && (
                 <p role="status" className="q-notice">
-                  판매단가 파일이 없습니다({state.resources.catalog.pricesUnavailableReason}) — 모든
-                  품목을 '미등록'으로 표시합니다.
+                  판매단가 파일이 없습니다({resources.catalog.pricesUnavailableReason}) — 모든 품목을
+                  '미등록'으로 표시합니다.
                 </p>
               )}
-              {entry === 'diagram' && <DiagramInput />}
-              {entry === 'picker' && <ProductPicker catalog={state.resources.catalog} />}
-              {entry === null && (
+
+              {entry === 'diagram' && <DiagramInput catalog={resources.catalog} onLoaded={handleLoaded} />}
+              {entry === 'picker' && <ProductPicker catalog={resources.catalog} onLoaded={handleLoaded} />}
+
+              {entry === null && status.kind === 'empty' && (
                 <p className="q-muted">왼쪽 위 버튼으로 구성도를 열거나 품목을 직접 고르세요.</p>
+              )}
+
+              {status.kind === 'editing' && (
+                <>
+                  <WarningList warnings={status.importWarnings} />
+                  <QuoteSheet
+                    document={status.document}
+                    calculation={status.prepared.priced.calculation}
+                    onQuantityChange={workspace.setQuantity}
+                    onDescriptionChange={workspace.setDescription}
+                    onRemarkChange={workspace.setRemark}
+                  />
+                  {status.document.systems.map((system) => {
+                    const calc = status.prepared.priced.calculation.systems.find(
+                      (s) => s.systemId === system.systemId,
+                    );
+                    if (calc === undefined) return null;
+                    return (
+                      <IndirectPanel
+                        key={system.systemId}
+                        system={system}
+                        calculation={calc}
+                        onProfileChange={(profile) => workspace.setProfile(system.systemId, profile)}
+                        onToggleApplied={(itemId, applied) =>
+                          workspace.setIndirectRule(system.systemId, itemId, { applied })
+                        }
+                        onRateChange={(itemId, rate) =>
+                          workspace.setIndirectRule(system.systemId, itemId, { rate })
+                        }
+                      />
+                    );
+                  })}
+                </>
               )}
             </>
           )}

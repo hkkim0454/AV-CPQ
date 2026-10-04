@@ -66,6 +66,9 @@ function deviceToLine(line: DeviceLine): QuoteLineInput {
     ...(line.sellingUnitPrice !== undefined
       ? { sellingUnitPrice: line.sellingUnitPrice }
       : {}),
+    ...(line.internalDescription !== undefined
+      ? { internalDescription: line.internalDescription }
+      : {}),
     ...(line.laborMappingId !== undefined ? { laborMappingId: line.laborMappingId } : {}),
     isAccessory: line.isAccessory,
     remark: remarkFor(line),

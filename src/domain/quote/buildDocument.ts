@@ -38,6 +38,11 @@ export interface QuoteLineInput {
   /** 미등록이면 생략한다. **`0`으로 채우지 않는다** (설계서 §5.6). */
   sellingUnitPrice?: DecimalText;
   /**
+   * 카탈로그 `options['description']`(가이드 D열). 사람이 쓰는
+   * `remark`와 다른 칸이다 — 섞지 않는다.
+   */
+  internalDescription?: string;
+  /**
    * 품셈 연결 id.
    *
    * ☠ **없다고 `laborMode: 'not-applicable'`로 두면 안 된다.**
@@ -93,6 +98,9 @@ function toRow(
     quantity: line.quantity ?? '1',
     ...(line.sellingUnitPrice !== undefined
       ? { sellingUnitPrice: line.sellingUnitPrice }
+      : {}),
+    ...(line.internalDescription !== undefined
+      ? { internalDescription: line.internalDescription }
       : {}),
     ...(line.laborMappingId !== undefined
       ? { laborMode: 'mapped' as const, laborMappingId: line.laborMappingId }
