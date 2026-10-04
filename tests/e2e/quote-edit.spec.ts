@@ -3,6 +3,7 @@ import { mockResources } from './fixtures';
 
 const SKU_PRICED = 'E2E-001';
 const SKU_NO_PRICE = 'E2E-002';
+const SKU_ZERO_PRICE = 'E2E-003';
 const DESCRIPTION = '합성 설명 문구 — E2E 전용';
 const SHA = 'c'.repeat(64);
 
@@ -36,6 +37,18 @@ function customProducts(): unknown {
         currency: 'KRW',
         evidence: 'verified',
       },
+      {
+        productId: SKU_ZERO_PRICE,
+        sku: SKU_ZERO_PRICE,
+        brand: '',
+        model: 'E2E-MODEL-3',
+        quoteName: 'E2E 무상 품목',
+        quoteSpec: 'E2E-MODEL-3',
+        unit: 'EA',
+        options: {},
+        currency: 'KRW',
+        evidence: 'verified',
+      },
     ],
   };
 }
@@ -47,7 +60,11 @@ function customPrices(): unknown {
     sourceSha256: SHA,
     currency: 'KRW',
     // SKU_NO_PRICE는 의도적으로 뺐다 — 미등록 검증용.
-    prices: { [SKU_PRICED]: { sellingUnitPrice: '50000', currency: 'KRW' } },
+    // SKU_ZERO_PRICE는 **명시적** 0원이다 — 미등록과 다른 상태다.
+    prices: {
+      [SKU_PRICED]: { sellingUnitPrice: '50000', currency: 'KRW' },
+      [SKU_ZERO_PRICE]: { sellingUnitPrice: '0', currency: 'KRW' },
+    },
   };
 }
 
@@ -96,17 +113,30 @@ test('두 입구(구성도/품목 선택) — 같은 품목·수량이면 직접
   expect(diagramTotal).toBe(pickerTotal);
 });
 
-test('미등록과 0을 구분한다', async ({ page }) => {
+test('미등록과 명시적 0을 구분한다', async ({ page }) => {
   await setupCustomCatalog(page);
   await page.goto('/');
 
   await page.getByRole('button', { name: '품목 직접 선택' }).click();
   await page.getByLabel('품목 검색').fill('E2E 미등록 품목');
   await page.getByRole('button', { name: '추가' }).click();
+  await page.getByLabel('품목 검색').fill('E2E 무상 품목');
+  await page.getByRole('button', { name: '추가' }).click();
   await page.getByRole('button', { name: '견적 만들기' }).click();
 
-  const row = page.locator('.q-quote-table tbody tr', { hasText: 'E2E 미등록 품목' });
-  await expect(row).toContainText('미등록');
+  const unregisteredRow = page.locator('.q-quote-table tbody tr', { hasText: 'E2E 미등록 품목' });
+  await expect(unregisteredRow).toContainText('미등록');
+
+  // 판매단가 0은 '미등록'이 아니라 숫자 0으로 보여야 한다. 노무비 칸은
+  // 이 품목에 품셈 연결이 없어 별개로 '미등록'이 맞다 — 여기서 보는
+  // 것은 재료비 칸 하나다.
+  const zeroRow = page.locator('.q-quote-table tbody tr', { hasText: 'E2E 무상 품목' });
+  await expect(zeroRow.locator('td').nth(6)).toHaveText('0'); // 재료비 칸
+
+  // 무상 품목 쪽은 가격 미등록 경고가 없어야 한다 — 미등록 품목 경고만 있다.
+  const warnings = page.getByRole('alert').filter({ hasText: '확인이 필요합니다' });
+  await expect(warnings).toContainText('E2E 미등록 품목');
+  await expect(warnings).not.toContainText('E2E 무상 품목');
 });
 
 test('카탈로그 설명이 실제로 표시되고 사용자 편집을 보존한다', async ({ page }) => {
@@ -250,4 +280,28 @@ test('견적 정보(머리글) 편집과 취소', async ({ page }) => {
   await expect(projectInput).toHaveValue('');
   await page.getByRole('button', { name: '실행 취소' }).click();
   await expect(customerInput).toHaveValue('');
+});
+
+test('건강보험 미적용 상태에서 장기요양을 켜면 0원 사유를 보여준다', async ({ page }) => {
+  await setupCustomCatalog(page);
+  await page.goto('/');
+
+  await page.getByRole('button', { name: '품목 직접 선택' }).click();
+  await page.getByLabel('품목 검색').fill('E2E 테스트 품목');
+  await page.getByRole('button', { name: '추가' }).click();
+  await page.getByRole('button', { name: '견적 만들기' }).click();
+
+  const healthApplied = page.getByLabel('국민건강보험료 적용');
+  const longTermApplied = page.getByLabel('노인장기요양보험료 적용');
+  const longTermRow = page.locator('.q-indirect-table tbody tr', { hasText: '노인장기요양보험료' });
+
+  // 원본 그대로 둘 다 기본 미적용이다.
+  await expect(healthApplied).not.toBeChecked();
+  await expect(longTermApplied).not.toBeChecked();
+
+  // 건강보험은 그대로 끈 채로 장기요양만 켠다.
+  await longTermApplied.check();
+  await expect(longTermApplied).toBeChecked();
+  await expect(longTermRow).toContainText('기준인 국민건강보험료이(가) 0원이라 이 항목도 0원입니다');
+  await expect(longTermRow.locator('td').last()).toContainText('0');
 });
