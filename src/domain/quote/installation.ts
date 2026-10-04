@@ -198,13 +198,34 @@ export function conduitBasisText(
 
 /** 재산출로 교체할 배관 행을 다시 찾기 위한 표식. 실제 구성도 nodeId와
  *  겹치지 않도록 접두사를 둔다(실제 `eq-xlsx-…` 체계와 다르다). */
+const CONDUIT_SENTINEL_PREFIX = 'derived:conduit:';
+
 export function conduitRowSentinel(systemId: string): string {
-  return `derived:conduit:${systemId}`;
+  return `${CONDUIT_SENTINEL_PREFIX}${systemId}`;
+}
+
+/**
+ * 이 id가 배관 행 표식인지. 일반 `resolveDevice`(구성도 노드용)가
+ * 배관 행을 건드리지 못하게 막는 경계에 쓴다 — 배관은
+ * `resolveConduitProduct`만 받아야 묶음 검증이 항상 적용된다(독립
+ * 검토 지적).
+ */
+export function isConduitSentinel(id: string): boolean {
+  return id.startsWith(CONDUIT_SENTINEL_PREFIX);
 }
 
 export type InstallationPatch = Partial<
   Pick<QuoteSystem, 'farthestDeviceMeters' | 'conduitRuns' | 'conduitType' | 'conduitMaterialRate'>
->;
+> & {
+  /**
+   * 사용자가 화면에서 "기본값 사용"/"직접 지정"을 명시로 고른 결과.
+   * `false`를 주면 비율을 현재 종류의 기본값으로 되돌리고 출처를
+   * manual=false로 적는다 — 단순히 `conduitMaterialRate`를 생략하는
+   * 것과 다르다(그건 "이번엔 비율을 안 건드린다"는 뜻이지 "기본값으로
+   * 되돌려라"가 아니다).
+   */
+  conduitMaterialRateManual?: boolean;
+};
 
 function conduitCandidates(catalog: Catalog, conduitType: ConduitType): readonly string[] {
   const group = CONDUIT_GROUP[conduitType];
@@ -255,8 +276,18 @@ export function applyInstallationPatch(
   const nextType = patch.conduitType ?? previousType;
   let nextRate = system.conduitMaterialRate;
   let nextRateManual = system.conduitMaterialRateManual ?? false;
-  if (patch.conduitMaterialRate !== undefined) {
-    nextRate = patch.conduitMaterialRate;
+  if (patch.conduitMaterialRateManual === false) {
+    // 사용자가 화면에서 "기본값 사용"을 명시로 골랐다 — 현재 종류의
+    // 기본값으로 되돌리고 출처를 manual=false로 적는다.
+    nextRate = DEFAULT_CONDUIT_MATERIAL_RATE[nextType];
+    nextRateManual = false;
+  } else if (patch.conduitMaterialRate !== undefined || patch.conduitMaterialRateManual === true) {
+    // 사용자가 "직접 지정"을 골랐거나 비율 칸을 실제로 고쳤다 — 값이
+    // 기본값과 우연히 같아도(예: 후렉시블 20%를 다시 20이라고 써도)
+    // 이 분기를 타면 manual=true로 명시된다. 포커스/blur만으로는 이
+    // 분기에 들어오지 않는다 — 화면이 명시적인 선택에서만 이 필드를
+    // 보낸다.
+    nextRate = patch.conduitMaterialRate ?? nextRate ?? DEFAULT_CONDUIT_MATERIAL_RATE[nextType];
     nextRateManual = true;
   } else if (nextRate === undefined) {
     nextRate = DEFAULT_CONDUIT_MATERIAL_RATE[nextType];
@@ -355,9 +386,21 @@ export function computeInstallationWarnings(document: QuoteDocument, catalog: Ca
   for (const system of document.systems) {
     const row = findConduitRow(document, system.systemId);
     if (row === undefined) continue; // 거리·줄 수 미입력 — 행이 없으니 경고도 없다
-    if (row.sku !== undefined && row.sellingUnitPrice !== undefined) continue; // 이미 해소됐다
 
     const conduitType: ConduitType = system.conduitType ?? 'flexible';
+
+    // sku·판매단가가 있다는 것만으로 "해소됐다"로 보지 않는다 — 그
+    // 제품이 **지금 배관 종류의 묶음에 실제로 속하는지**까지 봐야
+    // 한다. 일반 resolveDevice나 저장된 작업 파일 복원 등 이 함수가
+    // 모르는 경로로 행이 채워졌을 수 있어서다(독립 검토 지적) —
+    // `resolveConduitProduct`는 쓰는 시점에 이미 검증하지만, 여기서
+    // 또 보는 것은 "그 검증을 거치지 않고 채워진 상태"까지 잡기 위해서다.
+    const resolvedProduct = row.sku !== undefined ? catalog.products.find((p) => p.sku === row.sku) : undefined;
+    const resolved =
+      resolvedProduct !== undefined &&
+      row.sellingUnitPrice !== undefined &&
+      resolvedProduct.options['group'] === CONDUIT_GROUP[conduitType];
+    if (resolved) continue;
     const candidates = conduitCandidates(catalog, conduitType);
     warnings.push({
       code: 'device-not-in-catalog',

@@ -207,3 +207,28 @@ test('배관 입력도 실행취소/다시실행으로 되돌아간다 — 입�
   await expect(runsInput).toHaveValue('2');
   await expect(status).toContainText('10m × 2줄 = 20m');
 });
+
+test('기타자재 비율을 "직접 지정"으로 20%를 명시하면, 배관 종류를 바꿔도 20%가 유지된다', async ({ page }) => {
+  await startDocument(page);
+
+  await page.getByLabel('시스템1 장비실→가장 먼 장비 거리(m)').fill('10');
+  await page.getByLabel('시스템1 장비실→가장 먼 장비 거리(m)').blur();
+
+  // 기본값 사용(20%) 상태에서 시작한다 — 후렉시블 기본값이다.
+  await expect(page.getByRole('radio', { name: /기본값 사용/ })).toBeChecked();
+
+  // "직접 지정"으로 바꾸고 기본값과 같은 수(20)를 명시로 입력한다 —
+  // 값이 같아도 출처는 manual이어야 한다(독립 검토 지적).
+  await page.getByRole('radio', { name: '직접 지정' }).check();
+  const rateInput = page.getByLabel('시스템1 배관 기타자재 비율(%)');
+  await expect(rateInput).toHaveValue('20');
+  await rateInput.fill('20');
+  await rateInput.blur();
+
+  await page.getByRole('radio', { name: 'CD관' }).check();
+  await expect(rateInput).toHaveValue('20'); // CD 기본값(40%)으로 안 바뀐다
+
+  // "기본값 사용"으로 되돌리면 그제서야 CD 기본값을 따라간다.
+  await page.getByRole('radio', { name: /기본값 사용/ }).check();
+  await expect(page.getByRole('radio', { name: /기본값 사용 \(40%\)/ })).toBeChecked();
+});

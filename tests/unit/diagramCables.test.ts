@@ -465,6 +465,135 @@ describe('RouteInput — 실측 거리가 있으면 그걸 쓴다(결정 D8 보�
     expect(withoutRoutes.lines[0]!.totalMeters).toBe('12');
     expect(withEmptyRouteMap.lines[0]!.totalMeters).toBe('12');
   });
+
+  describe('경로 입력을 시작했지만 미완성/무효 — "아예 없음"과 구분한다(독립 검토 지적)', () => {
+    it('완제품 — 수평만 적고 입상·입하를 비우면 기존 BOM 길이로 조용히 산정하지 않는다', () => {
+      const incompleteRoute: RouteInput = {
+        edgeId: 'e1',
+        systemId: 's1',
+        source: 'measured-route',
+        horizontalMeters: '10',
+        // riseMeters/dropMeters 없음 — 입력 미완성
+      };
+      const d = twoNodeDiagram([
+        edge('e1', 'n1', 'n2', 'video', {
+          bomRows: [{ cableType: 'ready-made', productName: 'HDMI-1', length: '1', quantity: '1' }],
+        }),
+      ]);
+      const result = buildCableLines(d, familyCatalog(), new Map([['e1', incompleteRoute]]));
+      expect(result.lines[0]!.sku).toBeUndefined();
+      expect(result.lines[0]!.quantity).toBeUndefined();
+      expect(result.lines[0]!.specification).toBe('경로 입력 필요');
+      const w = result.warnings.find((x) => x.edgeId === 'e1');
+      expect(w).toMatchObject({ code: 'cable-route-incomplete', blocking: true });
+      expect(w!.message).toContain('완성되지 않았다');
+    });
+
+    it('벌크 — 입력이 미완성이면 길이를 BOM.length로 대신 채우지 않고 수량도 비운다', () => {
+      const incompleteRoute: RouteInput = {
+        edgeId: 'e1',
+        systemId: 's1',
+        source: 'measured-route',
+        horizontalMeters: '10',
+        riseMeters: '2',
+        // dropMeters 없음 — 입력 미완성
+      };
+      const d = twoNodeDiagram([
+        edge('e1', 'n1', 'n2', 'network', {
+          bomRows: [{ cableType: 'manufactured', productName: 'UTP Cable (CAT6)', length: '999', quantity: '1' }],
+        }),
+      ]);
+      const result = buildCableLines(d, cat(), new Map([['e1', incompleteRoute]]));
+      expect(result.lines[0]!.quantity).toBeUndefined();
+      expect(result.lines[0]!.totalMeters).toBeUndefined();
+      const w = result.warnings.find((x) => x.edgeId === 'e1');
+      expect(w).toMatchObject({ code: 'cable-route-incomplete', blocking: true });
+    });
+
+    it('완성된 경로와 미완성 경로는 서로 다른 행으로 쌓인다 — 섞어 합산하지 않는다', () => {
+      const complete: RouteInput = {
+        edgeId: 'e1',
+        systemId: 's1',
+        source: 'confirmed-total',
+        confirmedTotalMeters: '10',
+      };
+      const incomplete: RouteInput = { edgeId: 'e2', systemId: 's1', source: 'confirmed-total' };
+      const d = twoNodeDiagram([
+        edge('e1', 'n1', 'n2', 'network', {
+          bomRows: [{ cableType: 'manufactured', productName: 'UTP Cable (CAT6)', quantity: '1' }],
+        }),
+        edge('e2', 'n1', 'n2', 'network', {
+          bomRows: [{ cableType: 'manufactured', productName: 'UTP Cable (CAT6)', quantity: '1' }],
+        }),
+      ]);
+      const result = buildCableLines(
+        d,
+        cat(),
+        new Map([
+          ['e1', complete],
+          ['e2', incomplete],
+        ]),
+      );
+      // e1(완성, 10m → 1묶음)과 e2(미완성, 수량 보류)가 한 행으로
+      // 뭉개지지 않는다 — e1의 완성된 합계가 e2의 미완성 때문에
+      // 흐려지면 안 된다.
+      const resolvedLine = result.lines.find((l) => l.quantity !== undefined);
+      const pendingLine = result.lines.find((l) => l.quantity === undefined);
+      expect(resolvedLine).toMatchObject({ totalMeters: '10', quantity: '1' });
+      expect(pendingLine).toBeDefined();
+    });
+  });
+
+  describe('완제품 재매칭 — 같은 길이에 후보가 여럿이면 자동으로 고르지 않는다(독립 검토 지적)', () => {
+    function duplicateStepCatalog(): Catalog {
+      const family = (sku: string, meters: string): CatalogProduct => ({
+        productId: sku,
+        sku,
+        brand: '',
+        model: sku,
+        quoteName: 'HDMI Cable',
+        quoteSpec: `${meters}M`,
+        unit: 'EA',
+        options: { group: 'CS_HDMI 케이블' },
+        currency: 'KRW',
+        evidence: 'review-required',
+      });
+      // 3M 길이에 SKU 두 개(제조사/사양이 다른 별도 제품)가 걸린다.
+      return cat(
+        [family('HDMI-1', '1'), family('HDMI-3A', '3'), family('HDMI-3B', '3')],
+        { 'HDMI-1': '10000', 'HDMI-3A': '15000', 'HDMI-3B': '16000' },
+      );
+    }
+
+    it('동일 묶음·동일 계단에 후보가 둘이면 자동 선택하지 않고 후보로 차단한다', () => {
+      const route: RouteInput = { edgeId: 'e1', systemId: 's1', source: 'confirmed-total', confirmedTotalMeters: '2.6' }; // → 3m 계단
+      const d = twoNodeDiagram([
+        edge('e1', 'n1', 'n2', 'video', {
+          bomRows: [{ cableType: 'ready-made', productName: 'HDMI-1', length: '1', quantity: '1' }],
+        }),
+      ]);
+      const result = buildCableLines(d, duplicateStepCatalog(), new Map([['e1', route]]));
+      expect(result.lines[0]!.sku).toBeUndefined();
+      const w = result.warnings.find((x) => x.edgeId === 'e1' && x.blocking);
+      expect(w).toBeDefined();
+      expect(w!.candidates).toEqual(expect.arrayContaining(['HDMI-3A', 'HDMI-3B']));
+      expect(w!.message).toContain('후보가 2건');
+    });
+
+    it('원래 SKU가 이미 그 계단 길이면(후보 하나뿐) 그대로 유지된다 — 회귀 확인', () => {
+      // HDMI-1은 이미 1m다. 경로 산출거리도 1m 계단으로 떨어지면
+      // 같은 묶음의 1m 후보가 하나뿐이라 그대로 재확인된다.
+      const route: RouteInput = { edgeId: 'e1', systemId: 's1', source: 'confirmed-total', confirmedTotalMeters: '0.8' }; // → 1m 계단
+      const d = twoNodeDiagram([
+        edge('e1', 'n1', 'n2', 'video', {
+          bomRows: [{ cableType: 'ready-made', productName: 'HDMI-1', length: '1', quantity: '1' }],
+        }),
+      ]);
+      const result = buildCableLines(d, duplicateStepCatalog(), new Map([['e1', route]]));
+      expect(result.lines[0]!.sku).toBe('HDMI-1');
+      expect(result.warnings.some((w) => w.edgeId === 'e1' && w.blocking)).toBe(false);
+    });
+  });
 });
 
 describe('HDMI 케이블 — 제조사별 종류·길이를 직접 고를 후보 목록', () => {

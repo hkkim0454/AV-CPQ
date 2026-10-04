@@ -38,6 +38,13 @@ export type ImportWarningCode =
   | 'unknown-line-type'
   | 'cable-item-unresolved'
   | 'cable-length-missing'
+  /**
+   * 구간 경로 입력(`RouteInput`)을 **시작은 했지만** 아직 완성되지
+   * 않았거나 형식이 틀렸다 — `cable-length-missing`(입력 자체가
+   * 없음)과 다르다. 이 상태에서는 구성도 원본 길이(`bomRows[].length`)로
+   * 조용히 대신 계산하지 않는다(독립 검토 지적).
+   */
+  | 'cable-route-incomplete'
   | 'edge-endpoint-missing';
 
 export interface ImportWarning {

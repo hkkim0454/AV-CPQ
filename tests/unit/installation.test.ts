@@ -7,6 +7,7 @@ import {
   computeInstallationWarnings,
   conduitRowSentinel,
   isConduitGroup,
+  isConduitSentinel,
   purchaseUnitMetersForGroup,
   resolveConduitProduct,
   validateConduitRuns,
@@ -271,6 +272,49 @@ describe('applyInstallationPatch — 배관 재산출: 교체, 중복 추가 없
     const switched = applyInstallationPatch(first, 'S1', { conduitType: 'cd' }, catalogWithFlexibleOnly());
     expect(switched.systems[0]!.conduitMaterialRate).toBe('20'); // CD 기본값(40%)으로 안 바뀐다
   });
+
+  it('"직접 지정"만 명시로 켜면(값을 아직 안 줘도) manual=true로 기록된다 — 화면의 방식 전환용', () => {
+    const first = applyInstallationPatch(
+      baseDocument(),
+      'S1',
+      { farthestDeviceMeters: '10', conduitRuns: '3', conduitType: 'flexible' },
+      catalogWithFlexibleOnly(),
+    );
+    expect(first.systems[0]!.conduitMaterialRateManual).toBe(false);
+
+    const switchedToManual = applyInstallationPatch(first, 'S1', { conduitMaterialRateManual: true }, catalogWithFlexibleOnly());
+    expect(switchedToManual.systems[0]!.conduitMaterialRateManual).toBe(true);
+    expect(switchedToManual.systems[0]!.conduitMaterialRate).toBe('20'); // 기존 표시값을 그대로 들고 간다
+
+    // manual 상태에서 종류를 바꿔도 더는 기본값을 따라가지 않는다.
+    const switchedType = applyInstallationPatch(switchedToManual, 'S1', { conduitType: 'cd' }, catalogWithFlexibleOnly());
+    expect(switchedType.systems[0]!.conduitMaterialRate).toBe('20');
+  });
+
+  it('"기본값 사용"을 명시로 선택하면(conduitMaterialRateManual: false) 현재 종류의 기본값으로 되돌아간다', () => {
+    const manual = applyInstallationPatch(
+      baseDocument(),
+      'S1',
+      { farthestDeviceMeters: '10', conduitRuns: '3', conduitType: 'flexible', conduitMaterialRate: '25' },
+      catalogWithFlexibleOnly(),
+    );
+    expect(manual.systems[0]!.conduitMaterialRate).toBe('25');
+    expect(manual.systems[0]!.conduitMaterialRateManual).toBe(true);
+
+    const resetToDefault = applyInstallationPatch(
+      manual,
+      'S1',
+      { conduitMaterialRateManual: false },
+      catalogWithFlexibleOnly(),
+    );
+    expect(resetToDefault.systems[0]!.conduitMaterialRate).toBe('20');
+    expect(resetToDefault.systems[0]!.conduitMaterialRateManual).toBe(false);
+
+    // 되돌린 뒤에는 다시 "손 안 댄 기본값" 취급이라, 종류를 바꾸면
+    // 또 그 종류의 기본값을 따라간다.
+    const switchedType = applyInstallationPatch(resetToDefault, 'S1', { conduitType: 'cd' }, catalogWithFlexibleOnly());
+    expect(switchedType.systems[0]!.conduitMaterialRate).toBe('40');
+  });
 });
 
 describe('computeInstallationWarnings — 문서에서 매번 새로 파생한다(undo/redo와 항상 일치)', () => {
@@ -375,5 +419,39 @@ describe('resolveConduitProduct — 현재 배관 종류의 묶음과 맞는 SKU
     );
     const attempted = resolveConduitProduct(document, 'S1', 'NOPE', catalogWithFlexibleOnly());
     expect(attempted).toEqual(document);
+  });
+});
+
+describe('isConduitSentinel — 일반 resolveDevice가 배관 행을 건드리지 못하게 막는 경계(독립 검토 지적)', () => {
+  it('conduitRowSentinel이 만든 id를 알아본다', () => {
+    expect(isConduitSentinel(conduitRowSentinel('S1'))).toBe(true);
+  });
+  it('구성도의 일반 노드 id는 아니다', () => {
+    expect(isConduitSentinel('eq-xlsx-451')).toBe(false);
+  });
+});
+
+describe('computeInstallationWarnings — sku+price만으로 해소를 단정하지 않는다(독립 검토 지적)', () => {
+  it('묶음이 다른 제품으로 채워진 행(일반 resolveDevice 우회·저장 문서 복원 등 상정)은 경고가 남는다', () => {
+    const document = applyInstallationPatch(
+      baseDocument(),
+      'S1',
+      { farthestDeviceMeters: '10', conduitRuns: '3', conduitType: 'cd' },
+      catalogWithFlexibleOnly(),
+    );
+    const sentinel = conduitRowSentinel('S1');
+    // resolveConduitProduct를 거치지 않고(검증을 우회해) 후렉시블
+    // 제품을 CD관 행에 직접 끼워 넣은 상태를 흉내낸다.
+    const bypassed: QuoteDocument = {
+      ...document,
+      rows: document.rows.map((r) =>
+        r.type === 'item' && r.sourceNodeIds?.includes(sentinel)
+          ? { ...r, sku: 'CBL-F16', sellingUnitPrice: '31000' }
+          : r,
+      ),
+    };
+    const warnings = computeInstallationWarnings(bypassed, catalogWithFlexibleOnly());
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatchObject({ installationSystemId: 'S1' });
   });
 });

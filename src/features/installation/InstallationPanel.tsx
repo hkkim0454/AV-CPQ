@@ -75,6 +75,7 @@ function DraftField({
 
 export function InstallationPanel({ system, document: doc, onChange }: InstallationPanelProps) {
   const conduitType: ConduitType = system.conduitType ?? 'flexible';
+  const manualRate = system.conduitMaterialRateManual ?? false;
   const sentinel = conduitRowSentinel(system.systemId);
   const conduitRow = doc.rows.find(
     (r): r is Extract<QuoteDocument['rows'][number], { type: 'item' }> =>
@@ -117,12 +118,36 @@ export function InstallationPanel({ system, document: doc, onChange }: Installat
             CD관
           </label>
         </span>
-        <DraftField
-          label={`${system.name} 배관 기타자재 비율(%)`}
-          value={system.conduitMaterialRate ?? DEFAULT_CONDUIT_MATERIAL_RATE[conduitType]}
-          validate={(raw) => validateDecimalInput(raw, '비율')}
-          onCommit={(conduitMaterialRate) => onChange({ conduitMaterialRate })}
-        />
+        <span className="q-rate-mode">
+          <span role="radiogroup" aria-label={`${system.name} 배관 기타자재 비율 방식`}>
+            <label className="q-grade-option">
+              <input
+                type="radio"
+                name={`conduit-rate-mode-${system.systemId}`}
+                checked={!manualRate}
+                onChange={() => onChange({ conduitMaterialRateManual: false })}
+              />
+              기본값 사용 ({DEFAULT_CONDUIT_MATERIAL_RATE[conduitType]}%)
+            </label>
+            <label className="q-grade-option">
+              <input
+                type="radio"
+                name={`conduit-rate-mode-${system.systemId}`}
+                checked={manualRate}
+                onChange={() => onChange({ conduitMaterialRateManual: true })}
+              />
+              직접 지정
+            </label>
+          </span>
+          {manualRate && (
+            <DraftField
+              label={`${system.name} 배관 기타자재 비율(%)`}
+              value={system.conduitMaterialRate ?? DEFAULT_CONDUIT_MATERIAL_RATE[conduitType]}
+              validate={(raw) => validateDecimalInput(raw, '비율')}
+              onCommit={(conduitMaterialRate) => onChange({ conduitMaterialRate, conduitMaterialRateManual: true })}
+            />
+          )}
+        </span>
       </div>
       <p role="status" className="q-muted">
         {conduitRow !== undefined

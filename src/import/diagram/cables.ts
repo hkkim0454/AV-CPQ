@@ -117,19 +117,39 @@ function lengthOf(product: CatalogProduct): number | undefined {
   return found !== null ? Number(found[1]) : undefined;
 }
 
+export interface ReadyMadeStepLookup {
+  /** 정확히 하나만 걸렸을 때만 있다. */
+  product?: CatalogProduct;
+  /** 같은 길이에 후보가 둘 이상이면(동일 묶음·동일 계단) 여기 담긴다
+   *  — 자동으로 아무거나 고르지 않는다. */
+  ambiguousSkus?: readonly string[];
+}
+
 /**
- * 원래 맞은 제품과 **같은 품셈 묶음**에서 `step`(m) 길이의 제품을
- * 찾는다. 묶음이 없거나(원래부터 미매칭) 그 길이의 제품이 묶음에
- * 없으면 `undefined` — 호출부가 확인 필요로 남긴다.
+ * 원래 맞은 제품과 **같은 품셈 묶음**에서 `step`(m) 길이의 완제품을
+ * 찾는다.
+ *
+ * - 묶음이 없으면(원래부터 미매칭) 빈 결과 — 호출부가 확인 필요로 남긴다.
+ * - 벌크(`10M`) 단위는 뺀다 — 묶음이 완제품과 벌크를 같이 포함할 수
+ *   있어서(예: 배관 묶음), 길이 변환이 완제품 영역을 벗어나지 않게
+ *   한다.
+ * - **같은 길이에 후보가 둘 이상이면 자동으로 고르지 않는다.** 같은
+ *   묶음·같은 길이라도 제조사/사양이 다른 별도 SKU일 수 있다 —
+ *   `ambiguousSkus`로 전부 돌려주고 사람이 고르게 한다.
  */
 export function findReadyMadeAtStep(
   catalog: Catalog,
   original: CatalogProduct | undefined,
   step: number,
-): CatalogProduct | undefined {
+): ReadyMadeStepLookup {
   const group = original?.options['group'];
-  if (group === undefined) return undefined;
-  return catalog.products.find((p) => p.options['group'] === group && lengthOf(p) === step);
+  if (group === undefined) return {};
+  const matches = catalog.products.filter(
+    (p) => p.options['group'] === group && p.unit !== `${BULK_UNIT_METERS}M` && lengthOf(p) === step,
+  );
+  if (matches.length === 0) return {};
+  if (matches.length === 1) return { product: matches[0]! };
+  return { ambiguousSkus: matches.map((p) => p.sku) };
 }
 
 function matchFor(product: CatalogProduct | undefined, catalog: Catalog): MatchResult {
@@ -167,6 +187,9 @@ export function buildCableLines(
   const warnings: ImportWarning[] = [];
   const lines: CableLine[] = [];
   const byKey = new Map<string, Accumulator>();
+  // 수량을 끝까지 비워 둘 키 — "0"을 수량으로 적으면 명시적 0(확정)과
+  // 구분이 안 된다. 품목 미정·경로 입력 미완성 둘 다 여기 들어간다.
+  const withholdQuantity = new Set<string>();
 
   const knownLineTypes = new Set(diagram.lineTypes.map((l) => l.id));
   const lineTypeName = new Map(diagram.lineTypes.map((l) => [l.id, l.name]));
@@ -210,6 +233,7 @@ export function buildCableLines(
       // 선은 그어져 있는데 케이블 품목이 없다. 무시하면 케이블 없는 견적이 나간다.
       const label = lineTypeName.get(lineTypeId) ?? lineTypeId ?? '미상';
       const key = `unresolved:${lineTypeId}`;
+      withholdQuantity.add(key);
       const existing = byKey.get(key);
       if (existing === undefined) {
         const line: CableLine = {
@@ -239,10 +263,21 @@ export function buildCableLines(
       continue;
     }
 
-    // 이 구간의 실측 거리 — 아직 입력 안 했으면 undefined(기존 bomRow
-    // 길이를 그대로 쓴다). source별 계산(D8)은 calcRouteMeters가 한다.
+    // 이 구간의 실측 거리 — 아직 입력 안 했으면(이 맵에 아예 없으면)
+    // undefined(기존 bomRow 길이를 그대로 쓴다). source별 계산(D8)은
+    // calcRouteMeters가 한다.
+    //
+    // `routeStarted`와 `routeMeters`를 분리하는 이유: **입력을 시작은
+    // 했지만 아직 완성되지 않았거나 형식이 틀린 경우**(예: 수평만
+    // 적고 입상·입하는 비움)를 "아예 입력한 적 없음"과 구분해야 한다
+    // (독립 검토 지적). 전자는 `calcRouteMeters`가 `undefined`를
+    // 주는데, 그렇다고 기존 bomRow 길이로 조용히 계산하면 안 된다 —
+    // 사람이 입력을 끝내지 않은 것이지 "원본 길이를 쓰라"는 뜻이
+    // 아니다.
     const route = routes.get(edge.id);
-    const routeMeters = route !== undefined ? calcRouteMeters(route) : undefined;
+    const routeStarted = route !== undefined;
+    const routeMeters = routeStarted ? calcRouteMeters(route) : undefined;
+    const routeIncomplete = routeStarted && routeMeters === undefined;
 
     for (const row of rows) {
       const productName = row.productName?.trim() ?? '';
@@ -251,6 +286,37 @@ export function buildCableLines(
       const originalMatch = matchByModel(productName, catalog);
       const bulk = isBulk(row);
       const count = toNumber(row.quantity, 1);
+      const label = lineTypeName.get(lineTypeId) ?? lineTypeId;
+
+      if (routeIncomplete) {
+        // 경로 입력이 완성되지 않았다 — 기존 길이로 정상 산정하지
+        // 않는다. 완제품·벌크 둘 다 미해결로 두고 수량도 비운다.
+        warnings.push({
+          code: 'cable-route-incomplete',
+          blocking: true,
+          message:
+            `'${productName}' 구간의 경로 입력이 아직 완성되지 않았다 ` +
+            '(수평/입상/입하 또는 확인된 총길이를 모두 채워야 한다). ' +
+            '완성 전까지는 구성도 원본 길이로 계산하지 않는다.',
+          edgeId: edge.id,
+          ...(bulk ? {} : { candidates: cableCandidates(catalog, label) }),
+        });
+
+        const key = `route-incomplete:${bulk ? 'bulk' : 'ready'}:${productName}`;
+        withholdQuantity.add(key);
+        const line: CableLine = {
+          name: productName,
+          specification: '경로 입력 필요',
+          unit: bulk ? `${BULK_UNIT_METERS}M` : 'EA',
+          segmentCount: 1,
+          lineTypeId,
+          sourceEdgeIds: [edge.id],
+        };
+        // 금액에 들어가는 양은 0 — 길이를 모르니 수량도 정할 수 없다.
+        push(key, line, 0, edge.id);
+        continue;
+      }
+
       const meters = routeMeters !== undefined ? Number(routeMeters) : toNumber(row.length, 0);
 
       // 완제품이고 실측 거리가 있으면, 원래 맞은 제품의 품셈 묶음에서
@@ -258,23 +324,23 @@ export function buildCableLines(
       // 규격)는 바꾸지 않는다 — 찾아낸 제품의 SKU·규격·가격을 통째로
       // 쓰거나, 못 찾으면 확인 필요로 남긴다(기존 SKU에 새 길이
       // 글자만 붙이지 않는다).
-      const reroutedProduct =
-        !bulk && routeMeters !== undefined
-          ? findReadyMadeAtStep(catalog, originalMatch.product, snapToStep(meters))
-          : undefined;
       const rerouted = !bulk && routeMeters !== undefined;
-      const match = rerouted ? matchFor(reroutedProduct, catalog) : originalMatch;
+      const lookup = rerouted ? findReadyMadeAtStep(catalog, originalMatch.product, snapToStep(meters)) : undefined;
+      const match = rerouted ? matchFor(lookup?.product, catalog) : originalMatch;
 
-      const label = lineTypeName.get(lineTypeId) ?? lineTypeId;
-      if (rerouted && reroutedProduct === undefined) {
+      if (rerouted && lookup?.product === undefined) {
+        const ambiguous = lookup?.ambiguousSkus;
         warnings.push({
           code: 'cable-item-unresolved',
           blocking: true,
           message:
-            `'${productName}' 구간의 실측 거리(${routeMeters}m → ${snapToStep(meters)}m 계단)에 맞는 ` +
-            '제품을 같은 묶음에서 찾지 못했다. 품목을 다시 확인해야 한다.',
+            ambiguous !== undefined
+              ? `'${productName}' 구간의 계단 길이(${snapToStep(meters)}m)에 같은 묶음 후보가 ` +
+                `${ambiguous.length}건이라 자동으로 고르지 않는다. 직접 선택해야 한다.`
+              : `'${productName}' 구간의 실측 거리(${routeMeters}m → ${snapToStep(meters)}m 계단)에 맞는 ` +
+                '제품을 같은 묶음에서 찾지 못했다. 품목을 다시 확인해야 한다.',
           edgeId: edge.id,
-          candidates: cableCandidates(catalog, label),
+          candidates: ambiguous ?? cableCandidates(catalog, label),
         });
       } else if (!rerouted && match.product === undefined) {
         // 지금까지는 이 경우(이름은 있지만 카탈로그에 안 걸림)에 아무
@@ -340,12 +406,12 @@ export function buildCableLines(
   }
 
   // 쌓은 양을 수량으로 바꾼다.
-  for (const [, accumulator] of byKey) {
+  for (const [key, accumulator] of byKey) {
     const { line, amount, edges } = accumulator;
     line.segmentCount = edges.size;
     line.sourceEdgeIds = [...edges];
 
-    if (line.name.includes('(품목 미정)')) continue; // 수량을 비워 둔다
+    if (withholdQuantity.has(key)) continue; // 수량을 비워 둔다(품목 미정·경로 입력 미완성)
 
     if (line.unit === `${BULK_UNIT_METERS}M`) {
       line.totalMeters = text(amount);

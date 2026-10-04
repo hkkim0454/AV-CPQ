@@ -18,6 +18,7 @@ import { withResolvedProduct } from '../domain/quote/resolveProduct';
 import {
   applyInstallationPatch,
   computeInstallationWarnings,
+  isConduitSentinel,
   resolveConduitProduct,
   type InstallationPatch,
 } from '../domain/quote/installation';
@@ -353,8 +354,18 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
           // 옵션 행은 제외한다 — 같은 노드의 본체와 옵션이 `sourceNodeIds`를
           // 공유할 수 있다. 본체를 골랐다고 옵션까지 같은 제품으로
           // 바뀌면 안 된다(옵션은 `resolveOption`이 optionId로 정확히
-          // 찾아 따로 처리한다).
-          if (r.type !== 'item' || r.optionId !== undefined || !(r.sourceNodeIds?.includes(nodeId) ?? false)) {
+          // 찾아 따로 처리한다). 배관 행(표식이 `isConduitSentinel`에
+          // 걸림)도 제외한다 — 배관은 `resolveConduitProduct`만 받아야
+          // 묶음(options.group) 검증이 항상 적용된다. 화면은 이미
+          // 배관 경고를 `onResolveConduit`으로만 보내지만, 이 경계
+          // 자체도 일반 경로로는 거부해야 "검증은 항상 거친다"는
+          // 보장이 선다(독립 검토 지적).
+          if (
+            r.type !== 'item' ||
+            r.optionId !== undefined ||
+            !(r.sourceNodeIds?.includes(nodeId) ?? false) ||
+            r.sourceNodeIds?.some(isConduitSentinel)
+          ) {
             return r;
           }
           return withResolvedProduct(r, product, price);
