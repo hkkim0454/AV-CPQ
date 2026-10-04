@@ -1,0 +1,96 @@
+{
+ "schemaVersion": 1,
+ "generatedOn": "2026-10-03",
+ "sourceSha256": "0cc2e8bd3ec9a28bf0622cc71f34901a8793be6ff325e25fa6e785b5826cb85a",
+ "wageTable": {
+  "wageTableId": "WAGE-26년 상반기",
+  "periodLabel": "26년 상반기",
+  "source": "표준품셈 통합문서 3행",
+  "wages": {
+   "통신관련기사": {
+    "amount": "320449",
+    "unit": "M/D"
+   },
+   "통신관련산업기사": {
+    "amount": "304509",
+    "unit": "M/D"
+   },
+   "통신설비공": {
+    "amount": "315528",
+    "unit": "M/D"
+   },
+   "보통인부": {
+    "amount": "172068",
+    "unit": "M/D"
+   },
+   "통신내선공": {
+    "amount": "284880",
+    "unit": "M/D"
+   },
+   "무선안테나공": {
+    "amount": "356809",
+    "unit": "M/D"
+   },
+   "저압케이블공": {
+    "amount": "304156",
+    "unit": "M/D"
+   },
+   "통신케이블공": {
+    "amount": "436224",
+    "unit": "M/D"
+   },
+   "내선전공": {
+    "amount": "273676",
+    "unit": "M/D"
+   },
+   "플랜트기계설치공": {
+    "amount": "230376",
+    "unit": "M/D"
+   },
+   "내장공": {
+    "amount": "256883",
+    "unit": "M/D"
+   },
+   "광케이블설치사": {
+    "amount": "471349",
+    "unit": "M/D"
+   },
+   "H/W시험사": {
+    "amount": "393090",
+    "unit": "M/D"
+   },
+   "S/W시험사": {
+    "amount": "446358",
+    "unit": "M/D"
+   },
+   "특별인부": {
+    "amount": "226122",
+    "unit": "M/D"
+   },
+   "통신관련 기능사": {
+    "amount": "249822",
+    "unit": "M/D"
+   },
+   "건축목공": {
+    "amount": "277642",
+    "unit": "M/D"
+   },
+   "응용 SW개발자": {
+    "amount": "6395094",
+    "unit": "M/M"
+   },
+   "임베디드 SW개발자": {
+    "amount": "5668383",
+    "unit": "M/M"
+   },
+   "데이터베이스 운용자": {
+    "amount": "5733364",
+    "unit": "M/M"
+   },
+   "NW엔지니어": {
+    "amount": "6846793",
+    "unit": "M/M"
+   }
+  }
+ }
+}
