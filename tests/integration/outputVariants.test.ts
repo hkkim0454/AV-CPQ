@@ -328,18 +328,69 @@ describe('가이드 템플릿 — Excel 이 거부했던 자리', () => {
     );
   });
 
-  it.each(GUIDE_IDS)('%s 의 품목 행 수식이 남아 있다 — 값만 지웠다', (id) => {
+  it.each(GUIDE_IDS)('%s 의 품목 행은 값도 수식도 없다', (id) => {
     const m = manifest().guides[id]!;
     const sheet = strFromU8(parts(id)['xl/worksheets/sheet2.xml']!);
-    // 행을 통째로 비우면 공유 수식(`<f t="shared" si="…"/>`)의 원본이 사라지고,
-    // 같은 si 를 쓰는 13·14·15행 수식이 끊겨 Excel 이 복구를 요구한다.
-    const totalCol = m.columns['total']!;
-    const cell = new RegExp(
-      `<c r="${totalCol}${m.rows.firstItem}"[^>]*>.*?</c>`,
-      's',
-    ).exec(sheet);
-    expect(cell, `${id}: ${totalCol}${m.rows.firstItem} 가 없다`).not.toBeNull();
-    expect(cell![0], `${id}: 합계 칸의 수식이 지워졌다`).toMatch(/<f[ >/]/);
-    expect(cell![0], `${id}: 캐시된 값이 남았다`).not.toMatch(/<v>/);
+    // 수식에 민감한 값이 박혀 있었다 — `I6=G6*1.2`(원가→판매가 배율),
+    // `W6=0.7+0.59`(예시 품목의 직종별 품). 수식만 남겨 두면 그게 남는다.
+    for (let row = m.rows.firstItem; row <= m.rows.lastItem; row += 1) {
+      // 자기닫기 꼴을 **먼저** 둔다. 뒤에 두면 `[^>]*` 가 `/` 를 먹고
+      // `>.*?</c>` 분기가 이겨서 다음 셀까지 한 덩어리로 잡힌다.
+      for (const cell of sheet.matchAll(
+        new RegExp(`<c r="[A-Z]+${row}"[^>]*/>|<c r="[A-Z]+${row}"[^>]*>.*?</c>`, 'gs'),
+      )) {
+        expect(cell[0], `${id}: ${row}행에 내용이 남았다`).not.toMatch(/<[fv][ >/]/);
+      }
+    }
+  });
+
+  it.each(GUIDE_IDS)('%s 의 파생 행 수식은 살아 있다 — 공유 수식을 펼쳤다', (id) => {
+    const m = manifest().guides[id]!;
+    const sheet = strFromU8(parts(id)['xl/worksheets/sheet2.xml']!);
+    const amountCol = m.columns['material.amount']!;
+    // 9~12행과 13·14행의 수식은 6~8행의 공유 수식 원본을 가리켰다.
+    // 원본을 지우기 전에 펼치지 않으면 13·14행이 끊긴다.
+    for (const row of m.rows.derived) {
+      const cell = new RegExp(`<c r="${amountCol}${row}"[^>]*>.*?</c>`, 's').exec(sheet);
+      expect(cell, `${id}: ${amountCol}${row} 가 없다`).not.toBeNull();
+      expect(cell![0], `${id}: ${amountCol}${row} 수식이 끊겼다`).toMatch(/<f[ >]/);
+    }
+  });
+
+  it.each(GUIDE_IDS)('%s 에 수식 캐시가 없다 — 예시 금액이 결과로 남는다', (id) => {
+    for (const path of ['xl/worksheets/sheet1.xml', 'xl/worksheets/sheet2.xml']) {
+      const sheet = strFromU8(parts(id)[path]!);
+      for (const cell of sheet.matchAll(/<c [^>]*\/>|<c [^>]*>.*?<\/c>/gs)) {
+        if (!/<f[ >/]/.test(cell[0])) continue;
+        // 예시 품목을 지워도 `G13=4800`·직접비계·간접비 금액이 캐시로 남았다.
+        expect(cell[0], `${id}: ${path} 에 계산 결과가 캐시로 남았다`).not.toMatch(
+          /<v>/,
+        );
+      }
+    }
+  });
+
+  it.each(GUIDE_IDS)('%s 는 열 때 전부 다시 계산한다', (id) => {
+    // 캐시를 버렸으니 Excel 이 직접 계산해야 한다. 이 표시가 없으면 빈 칸으로
+    // 보이다가 사용자가 아무 칸이나 건드릴 때 값이 나타난다.
+    expect(strFromU8(parts(id)['xl/workbook.xml']!), id).toMatch(
+      /fullCalcOnLoad="1"/,
+    );
+  });
+
+  it.each(GUIDE_IDS)('%s 에 미아가 된 공유 수식이 없다', (id) => {
+    const sheet = strFromU8(parts(id)['xl/worksheets/sheet2.xml']!);
+    const masters = new Set<string>();
+    const followers: string[] = [];
+    for (const f of sheet.matchAll(
+      /<f [^>]*t="shared"[^>]*\/>|<f [^>]*t="shared"[^>]*>.*?<\/f>/gs,
+    )) {
+      const si = /si="(\d+)"/.exec(f[0])?.[1];
+      if (si === undefined) continue;
+      if (/ref="/.test(f[0])) masters.add(si);
+      else followers.push(si);
+    }
+    const orphans = followers.filter((si) => !masters.has(si));
+    expect(orphans, `${id}: 원본 없는 공유 수식 ${orphans.join(',')}`).toEqual([]);
   });
 });

@@ -47,6 +47,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import xml.etree.ElementTree as ET  # 읽기 전용 — 다시 쓰지 않는다
 
+import guide_xml
+
 M = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -665,14 +667,31 @@ def sanitize(zf: zipfile.ZipFile, spec: dict) -> dict:
             parts[name] = drop_printer_reference(parts[name])
 
     rows = spec["rows"]
+    item_rows = range(rows["firstItem"], rows["lastItem"] + 1)
     detail = parts[DETAIL_SHEET]
-    # 예시 품목 행 전체를 비운다 — 품명·규격·설명·원가·판매가·거래처·품까지.
-    detail = clear_values_in_rows(detail, range(rows["firstItem"], rows["lastItem"] + 1))
-    # 시스템 이름 예시('소회의실')도 사용자 데이터다.
-    detail = clear_cells(detail, [f"{spec['columns'].get('name', 'B')}{rows['firstItem'] - 1}"])
+
+    # 1) 지울 행에 원본이 있는 공유 수식을 **밖의 추종자에 먼저 펼친다.**
+    #    안 펼치고 지우면 13·14행 수식이 가리킬 곳을 잃고 Excel 이 복구를 요구한다.
+    detail = guide_xml.expand_shared_across(detail, item_rows)
+
+    # 2) 예시 품목 행을 값·수식까지 전부 비운다.
+    #    수식에 민감한 값이 박혀 있다 — `I6=G6*1.2`(배율), `W6=0.7+0.59`(예시 품).
+    detail = guide_xml.clear_rows_completely(detail, item_rows)
+
+    # 3) 시스템 이름 예시('소회의실')도 사용자 데이터다.
+    detail = guide_xml.clear_cells(
+        detail, [f"{spec['columns'].get('name', 'B')}{rows['firstItem'] - 1}"]
+    )
+
+    # 4) 수식 칸의 캐시를 버린다. 예시 금액(배관기타자재 4,800, 직접비계, 간접비)이
+    #    마지막 계산 결과로 남아 있다.
+    detail = guide_xml.strip_cached_values(detail)
     parts[DETAIL_SHEET] = detail
 
-    parts[COVER_SHEET] = clear_cells(parts[COVER_SHEET], COVER_CLEAR)
+    parts[COVER_SHEET] = guide_xml.strip_cached_values(
+        guide_xml.clear_cells(parts[COVER_SHEET], COVER_CLEAR)
+    )
+    parts["xl/workbook.xml"] = guide_xml.force_full_calc(parts["xl/workbook.xml"])
 
     parts = drop_dangling_relationships(parts)
     return rebuild_shared_strings(parts)
