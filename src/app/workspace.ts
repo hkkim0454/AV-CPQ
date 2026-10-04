@@ -60,6 +60,8 @@ export interface Workspace {
   resolveDevice(nodeId: string, sku: string): void;
   /** 옵션 카드 경고를 해소한다 — optionId로 정확히 그 옵션 행만 찾는다. */
   resolveOption(optionId: string, sku: string): void;
+  /** 미해결 케이블 경고를 해소한다 — sourceEdgeIds로 그 구간 행만 찾는다. */
+  resolveCable(edgeId: string, sku: string): void;
   /**
    * 배관 입력(거리·줄 수·종류·기타자재 비율)을 바꾸고, 유효하면 배관
    * 행과 `배관 기타자재` 파생행을 재산출한다(`installation.ts`).
@@ -372,6 +374,24 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     [commit, resources],
   );
 
+  const resolveCable = useCallback(
+    (edgeId: string, sku: string) => {
+      if (resources === undefined) return;
+      const product = resources.catalog.products.find((p) => p.sku === sku);
+      if (product === undefined) return;
+      const price = resources.catalog.prices.get(sku);
+
+      commit((document) => ({
+        ...document,
+        rows: document.rows.map((r) => {
+          if (r.type !== 'item' || !(r.sourceEdgeIds?.includes(edgeId) ?? false)) return r;
+          return withResolvedProduct(r, product, price);
+        }),
+      }));
+    },
+    [commit, resources],
+  );
+
   const setInstallationInput = useCallback(
     (systemId: string, patch: InstallationPatch) => {
       if (resources === undefined) return;
@@ -438,6 +458,7 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     removeRow,
     resolveDevice,
     resolveOption,
+    resolveCable,
     setInstallationInput,
     resolveConduit,
     undo,

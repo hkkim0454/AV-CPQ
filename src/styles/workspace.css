@@ -56,6 +56,19 @@
   font-size: 12px;
 }
 
+.q-resolve-candidates-grouped {
+  margin-top: 6px;
+  display: grid;
+  gap: 10px;
+}
+
+.q-resolve-candidate-group h4 {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--q-muted);
+}
+
 .q-resolve-search {
   margin-top: 6px;
 }

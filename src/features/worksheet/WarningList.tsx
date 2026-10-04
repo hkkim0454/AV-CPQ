@@ -22,9 +22,16 @@
  * 의도다(독립 검토 지적). `onResolveConduit`도 같은 이유로 `nodeId`가
  * 아니라 `installationSystemId`로 호출한다 — 해소 함수 자체가
  * 도메인 경계에서 묶음을 한 번 더 검증한다.
+ *
+ * 케이블 경고(`optionId`·`installationSystemId`가 없고 `edgeId`만
+ * 있는 `cable-item-unresolved`)는 `onResolveCable`로 해소한다
+ * (`sourceEdgeIds`로 그 구간 행만 찾는다 — `cables.ts`). 후보
+ * (`cableCandidates`)를 **품셈 묶음(제조사별 종류)별로 묶어** 보여준다
+ * — 사람이 종류와 길이를 한눈에 보고 고를 수 있어야 한다는 요청에
+ * 따른 것이다.
  */
 import { useState } from 'react';
-import type { Catalog } from '../../data/catalog/load';
+import type { Catalog, CatalogProduct } from '../../data/catalog/load';
 import type { ImportWarning } from '../../import/diagram/devices';
 
 interface WarningListProps {
@@ -33,35 +40,74 @@ interface WarningListProps {
   onResolveDevice(nodeId: string, sku: string): void;
   onResolveOption(optionId: string, sku: string): void;
   onResolveConduit(systemId: string, sku: string): void;
+  onResolveCable(edgeId: string, sku: string): void;
 }
 
 function CandidateList({
   candidates,
   catalog,
   onSelect,
+  groupByFamily = false,
 }: {
   candidates: readonly string[];
   catalog: Catalog;
   onSelect(sku: string): void;
+  /** 제조사별 종류(품셈 묶음)별로 묶어 "아래로 펼쳐진" 목록을 보여준다. */
+  groupByFamily?: boolean;
 }) {
   const bySku = new Map(catalog.products.map((p) => [p.sku, p]));
+
+  if (!groupByFamily) {
+    return (
+      <ul className="q-resolve-candidates">
+        {candidates.map((sku) => {
+          const product = bySku.get(sku);
+          return (
+            <li key={sku}>
+              <span>
+                {sku}
+                {product !== undefined ? ` — ${product.quoteName}` : ''}
+              </span>
+              <button type="button" className="q-button" onClick={() => onSelect(sku)}>
+                선택
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    );
+  }
+
+  const byGroup = new Map<string, CatalogProduct[]>();
+  for (const sku of candidates) {
+    const product = bySku.get(sku);
+    if (product === undefined) continue;
+    const group = product.options['group'] ?? '기타';
+    const existing = byGroup.get(group);
+    if (existing === undefined) byGroup.set(group, [product]);
+    else existing.push(product);
+  }
+
   return (
-    <ul className="q-resolve-candidates">
-      {candidates.map((sku) => {
-        const product = bySku.get(sku);
-        return (
-          <li key={sku}>
-            <span>
-              {sku}
-              {product !== undefined ? ` — ${product.quoteName}` : ''}
-            </span>
-            <button type="button" className="q-button" onClick={() => onSelect(sku)}>
-              선택
-            </button>
-          </li>
-        );
-      })}
-    </ul>
+    <div className="q-resolve-candidates-grouped">
+      {[...byGroup.entries()].map(([group, products]) => (
+        <div key={group} className="q-resolve-candidate-group">
+          <h4>{group}</h4>
+          <ul className="q-resolve-candidates">
+            {products.map((product) => (
+              <li key={product.sku}>
+                <span>
+                  {product.quoteSpec !== '' ? product.quoteSpec : product.quoteName} ({product.sku})
+                </span>
+                <button type="button" className="q-button" onClick={() => onSelect(product.sku)}>
+                  선택
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -110,7 +156,14 @@ function SearchResolve({
   );
 }
 
-export function WarningList({ warnings, catalog, onResolveDevice, onResolveOption, onResolveConduit }: WarningListProps) {
+export function WarningList({
+  warnings,
+  catalog,
+  onResolveDevice,
+  onResolveOption,
+  onResolveConduit,
+  onResolveCable,
+}: WarningListProps) {
   if (warnings.length === 0) return null;
 
   return (
@@ -123,12 +176,16 @@ export function WarningList({ warnings, catalog, onResolveDevice, onResolveOptio
           // 코드와 무관하게 옵션 경고다 — 본체와 완전히 분리된 해소
           // 경로(onResolveOption)를 쓴다. 같은 노드라도 본체 행과
           // sourceNodeIds를 공유할 수 있어 코드만으로는 구분이 안 된다
-          // — optionId 유무로만 가른다.
+          // — optionId 유무로만 가른다. 케이블 경고는 노드도 시스템도
+          // 아니고 edgeId만 있다 — 그걸로 가른다.
           const isConduit = warning.installationSystemId !== undefined;
           const isOption = !isConduit && warning.optionId !== undefined;
+          const isCable =
+            !isConduit && !isOption && warning.code === 'cable-item-unresolved' && warning.edgeId !== undefined;
           const isDevice =
             !isConduit &&
             !isOption &&
+            !isCable &&
             (warning.code === 'device-not-in-catalog' || warning.code === 'device-ambiguous-match') &&
             warning.nodeId !== undefined;
 
@@ -145,6 +202,21 @@ export function WarningList({ warnings, catalog, onResolveDevice, onResolveOptio
                   onSelect={(sku) => onResolveConduit(warning.installationSystemId!, sku)}
                 />
               )}
+              {isCable &&
+                (warning.candidates !== undefined && warning.candidates.length > 0 ? (
+                  <CandidateList
+                    candidates={warning.candidates}
+                    catalog={catalog}
+                    groupByFamily
+                    onSelect={(sku) => onResolveCable(warning.edgeId!, sku)}
+                  />
+                ) : (
+                  <SearchResolve
+                    label={`${warning.edgeId} 연결할 품목 검색`}
+                    catalog={catalog}
+                    onSelect={(sku) => onResolveCable(warning.edgeId!, sku)}
+                  />
+                ))}
               {isOption &&
                 (warning.candidates !== undefined && warning.candidates.length > 0 ? (
                   <CandidateList

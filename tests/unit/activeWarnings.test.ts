@@ -123,4 +123,28 @@ describe('computeActiveWarnings', () => {
     ];
     expect(computeActiveWarnings(document, warnings)).toEqual(warnings);
   });
+
+  it('케이블 행이 sourceEdgeIds로 해소되면 cable-item-unresolved 경고가 사라진다', () => {
+    const document = {
+      ...baseDocument(),
+      rows: [itemRow({ rowId: 'r1', systemId: 'S1', sourceEdgeIds: ['e1'], sku: 'X', sellingUnitPrice: '100' })],
+    };
+    const warnings: ImportWarning[] = [{ code: 'cable-item-unresolved', blocking: true, message: 'x', edgeId: 'e1' }];
+    expect(computeActiveWarnings(document, warnings)).toEqual([]);
+  });
+
+  it('케이블 행이 아직 미해결이면 경고가 남고, 무관한 구간 경고는 각자 독립적이다', () => {
+    const document = {
+      ...baseDocument(),
+      rows: [
+        itemRow({ rowId: 'r1', systemId: 'S1', sourceEdgeIds: ['e1'], sku: 'X', sellingUnitPrice: '100' }),
+        itemRow({ rowId: 'r2', systemId: 'S1', sourceEdgeIds: ['e2'] }),
+      ],
+    };
+    const warnings: ImportWarning[] = [
+      { code: 'cable-item-unresolved', blocking: true, message: 'e1용', edgeId: 'e1' },
+      { code: 'cable-item-unresolved', blocking: true, message: 'e2용', edgeId: 'e2' },
+    ];
+    expect(computeActiveWarnings(document, warnings)).toEqual([warnings[1]]);
+  });
 });

@@ -46,6 +46,12 @@ function optionRowResolved(document: QuoteDocument, optionId: string): boolean {
   return isFilled(row);
 }
 
+/** 케이블 행 — sourceEdgeIds로 찾는다(`cables.ts`). */
+function cableRowResolved(document: QuoteDocument, edgeId: string): boolean {
+  const row = document.rows.find((r): r is ItemRow => r.type === 'item' && (r.sourceEdgeIds?.includes(edgeId) ?? false));
+  return isFilled(row);
+}
+
 export function computeActiveWarnings(
   document: QuoteDocument,
   warnings: readonly ImportWarning[],
@@ -56,14 +62,20 @@ export function computeActiveWarnings(
     if (warning.optionId !== undefined) {
       return !optionRowResolved(document, warning.optionId);
     }
-    // 본체 장비 경고 — 아직 이 기능이 다루지 않는 다른 경고(가격 미등록,
-    // 케이블·배관 관련 등)는 항상 유효한 것으로 둔다.
+    // 본체 장비 경고.
     if (
       (warning.code === 'device-not-in-catalog' || warning.code === 'device-ambiguous-match') &&
       warning.nodeId !== undefined
     ) {
       return !deviceRowResolved(document, warning.nodeId);
     }
+    // 케이블 경고 — sourceEdgeIds로 그 구간 행이 채워졌는지 본다.
+    if (warning.code === 'cable-item-unresolved' && warning.edgeId !== undefined) {
+      return !cableRowResolved(document, warning.edgeId);
+    }
+    // 아직 이 기능이 다루지 않는 다른 경고(가격 미등록, 배관 등 —
+    // 배관은 `computeInstallationWarnings`가 별도로 순수 파생한다)는
+    // 항상 유효한 것으로 둔다.
     return true;
   });
 }

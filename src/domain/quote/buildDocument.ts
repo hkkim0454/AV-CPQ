@@ -58,6 +58,8 @@ export interface QuoteLineInput {
   sourceNodeIds?: readonly string[];
   /** 옵션 카드 행에만 있다. 옵션은 optionId로 합쳐지므로 이 값으로 정확히 찾는다. */
   optionId?: string;
+  /** 케이블 행에만 있다. 미해결 케이블 경고를 행과 다시 연결하는 데 쓴다. */
+  sourceEdgeIds?: readonly string[];
 }
 
 export interface QuoteSystemInput {
@@ -109,6 +111,7 @@ export function toRow(
       : {}),
     ...(line.sourceNodeIds !== undefined ? { sourceNodeIds: line.sourceNodeIds } : {}),
     ...(line.optionId !== undefined ? { optionId: line.optionId } : {}),
+    ...(line.sourceEdgeIds !== undefined ? { sourceEdgeIds: line.sourceEdgeIds } : {}),
     ...(line.laborMappingId !== undefined
       ? { laborMode: 'mapped' as const, laborMappingId: line.laborMappingId }
       : { laborMode: 'unresolved' as const }),

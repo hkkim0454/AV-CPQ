@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bulkUnits, buildCableLines, snapToStep } from '@/import/diagram/cables';
+import { bulkUnits, buildCableLines, cableCandidates, snapToStep } from '@/import/diagram/cables';
 import type { RouteInput } from '@/domain/quote/installation';
 import { cat, diagram, edge, node } from '../fixtures/diagram';
 import type { DiagramBomRow } from '@/import/diagram/types';
@@ -146,7 +146,7 @@ describe('케이블 행 — 완제품 (설계서 §7.4)', () => {
       },
     ]);
     const { warnings } = buildCableLines(d, cat());
-    const w = warnings.find((x) => x.code === 'cable-item-unresolved');
+    const w = warnings.find((x) => x.code === 'cable-item-unresolved' && x.message.includes('33.8'));
     expect(w?.blocking).toBe(true);
     expect(w?.message).toContain('33.8');
   });
@@ -464,5 +464,85 @@ describe('RouteInput — 실측 거리가 있으면 그걸 쓴다(결정 D8 보�
     const withEmptyRouteMap = buildCableLines(d, cat(), new Map());
     expect(withoutRoutes.lines[0]!.totalMeters).toBe('12');
     expect(withEmptyRouteMap.lines[0]!.totalMeters).toBe('12');
+  });
+});
+
+describe('HDMI 케이블 — 제조사별 종류·길이를 직접 고를 후보 목록', () => {
+  function hdmiCatalog(): Catalog {
+    const product = (sku: string, group: string, meters: string): CatalogProduct => ({
+      productId: sku,
+      sku,
+      brand: '',
+      model: sku,
+      quoteName: 'HDMI Cable',
+      quoteSpec: `${meters}M`,
+      unit: 'EA',
+      options: { group },
+      currency: 'KRW',
+      evidence: 'review-required',
+    });
+    return cat(
+      [
+        product('HDMI-A-1', 'CS_HDMI 케이블', '1'),
+        product('HDMI-A-3', 'CS_HDMI 케이블', '3'),
+        product('HDMI-B-10', 'CS_HDMI 케이블_AOC', '10'),
+        product('HDMI-B-15', 'CS_HDMI 케이블_AOC', '15'),
+        // 배관(10M, 벌크)은 완제품 후보가 아니므로 섞이면 안 된다.
+        {
+          productId: 'CBL-CONDUIT',
+          sku: 'CBL-CONDUIT',
+          brand: '',
+          model: 'HDMI 몰드',
+          quoteName: 'HDMI 전용 몰드',
+          quoteSpec: '',
+          unit: '10M',
+          options: { group: '후렉시블' },
+          currency: 'KRW',
+          evidence: 'review-required',
+        },
+        // 선 종류와 무관한 제품은 후보에 들어오면 안 된다.
+        {
+          productId: 'AUD-1',
+          sku: 'AUD-1',
+          brand: '',
+          model: 'XLR',
+          quoteName: 'Audio Cable',
+          quoteSpec: '1M',
+          unit: 'EA',
+          options: { group: '1CH MIC CABLE' },
+          currency: 'KRW',
+          evidence: 'review-required',
+        },
+      ],
+      {},
+    );
+  }
+
+  it('cableCandidates — 선 종류 이름과 묶음·품명이 겹치는 완제품만 모은다(제조사별 종류 두 묶음)', () => {
+    const skus = cableCandidates(hdmiCatalog(), 'HDMI');
+    expect(skus).toEqual(expect.arrayContaining(['HDMI-A-1', 'HDMI-A-3', 'HDMI-B-10', 'HDMI-B-15']));
+    expect(skus).not.toContain('CBL-CONDUIT'); // 10M 벌크 제외
+    expect(skus).not.toContain('AUD-1'); // 무관한 선 종류 제외
+  });
+
+  it('무관한 선 종류는 후보가 비어 있다 — 추측하지 않는다', () => {
+    expect(cableCandidates(hdmiCatalog(), 'SDI')).toHaveLength(0);
+  });
+
+  it('카탈로그에 이름이 안 걸리는 완제품 구간은 후보와 함께 확인 경고를 낸다', () => {
+    const d = withEdges([
+      { id: 'e1', lineTypeId: 'video', rows: [{ cableType: 'ready-made', productName: 'HDMI Cable', length: '2' }] },
+    ]);
+    const { warnings } = buildCableLines(d, hdmiCatalog());
+    const w = warnings.find((x) => x.code === 'cable-item-unresolved' && x.edgeId === 'e1');
+    expect(w).toBeDefined();
+    expect(w!.candidates).toEqual(expect.arrayContaining(['HDMI-A-1', 'HDMI-A-3', 'HDMI-B-10', 'HDMI-B-15']));
+  });
+
+  it('구성도에 품목 자체가 없는 구간도 선 종류 기준 후보를 받는다', () => {
+    const d = withEdges([{ id: 'e1', lineTypeId: 'video', rows: [] }]);
+    const { warnings } = buildCableLines(d, hdmiCatalog());
+    const w = warnings.find((x) => x.code === 'cable-item-unresolved');
+    expect(w!.candidates).toEqual(expect.arrayContaining(['HDMI-A-1', 'HDMI-A-3', 'HDMI-B-10', 'HDMI-B-15']));
   });
 });

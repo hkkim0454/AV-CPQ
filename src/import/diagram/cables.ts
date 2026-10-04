@@ -138,6 +138,27 @@ function matchFor(product: CatalogProduct | undefined, catalog: Catalog): MatchR
   return { product, ...(price !== undefined ? { sellingUnitPrice: price } : {}), matchedBy: 'model-fragment' };
 }
 
+/**
+ * `lineTypeLabel`(구성도 `lineTypes[].name`, 예 `HDMI`)과 품셈 묶음
+ * (`options.group`)이나 품명이 겹치는 완제품 후보를 찾는다. 벌크
+ * 단위(`10M`)는 뺀다 — 완제품 제조사·길이 선택지만 보여준다.
+ *
+ * 사람이 직접 **제조사별 종류(묶음)·길이**를 눈으로 보고 고를 수
+ * 있게 하는 것이 목적이다 — 좁게 맞춘 한두 개만 주는 `candidates`
+ * (모호 매칭용)와 다르다.
+ */
+export function cableCandidates(catalog: Catalog, lineTypeLabel: string): readonly string[] {
+  const keyword = lineTypeLabel.trim().toLowerCase();
+  if (keyword === '') return [];
+  return catalog.products
+    .filter((p) => p.unit !== `${BULK_UNIT_METERS}M`)
+    .filter((p) => {
+      const group = (p.options['group'] ?? '').toLowerCase();
+      return group.includes(keyword) || p.quoteName.toLowerCase().includes(keyword);
+    })
+    .map((p) => p.sku);
+}
+
 export function buildCableLines(
   diagram: DiagramFile,
   catalog: Catalog,
@@ -213,6 +234,7 @@ export function buildCableLines(
           `'${label}' 연결선에 케이블 품목이 지정되지 않았다. ` +
           '행은 만들었으나 수량을 정할 수 없다.',
         edgeId: edge.id,
+        candidates: cableCandidates(catalog, label),
       });
       continue;
     }
@@ -243,6 +265,7 @@ export function buildCableLines(
       const rerouted = !bulk && routeMeters !== undefined;
       const match = rerouted ? matchFor(reroutedProduct, catalog) : originalMatch;
 
+      const label = lineTypeName.get(lineTypeId) ?? lineTypeId;
       if (rerouted && reroutedProduct === undefined) {
         warnings.push({
           code: 'cable-item-unresolved',
@@ -251,6 +274,19 @@ export function buildCableLines(
             `'${productName}' 구간의 실측 거리(${routeMeters}m → ${snapToStep(meters)}m 계단)에 맞는 ` +
             '제품을 같은 묶음에서 찾지 못했다. 품목을 다시 확인해야 한다.',
           edgeId: edge.id,
+          candidates: cableCandidates(catalog, label),
+        });
+      } else if (!rerouted && match.product === undefined) {
+        // 지금까지는 이 경우(이름은 있지만 카탈로그에 안 걸림)에 아무
+        // 경고도 세우지 않았다 — 가격 미등록 경고만 계산 단계에서
+        // 뒤늦게 나와 왜 그런지 알기 어려웠다. 사람이 제조사별 종류·
+        // 길이를 직접 보고 고를 수 있게 후보를 바로 붙인다.
+        warnings.push({
+          code: 'cable-item-unresolved',
+          blocking: true,
+          message: `'${productName}'을(를) 카탈로그에서 찾을 수 없다. 품목을 직접 선택해야 한다.`,
+          edgeId: edge.id,
+          candidates: cableCandidates(catalog, label),
         });
       }
 

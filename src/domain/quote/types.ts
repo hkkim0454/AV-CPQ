@@ -148,6 +148,12 @@ export interface QuoteRow {
    * `sourceNodeIds`가 아니라 이 값으로 정확히 그 옵션 행만 찾는다.
    */
   optionId?: string;
+  /**
+   * 케이블 행에만 있다(`cables.ts`). 구성도 연결선(edge) id들 — 같은
+   * 품목·같은 길이 계단으로 합쳐진 구간 전부. 미해결 케이블 경고를 이
+   * 행과 다시 연결할 때 쓴다.
+   */
+  sourceEdgeIds?: readonly string[];
 
   origin: RowOrigin;
   ruleInstanceId?: string;
