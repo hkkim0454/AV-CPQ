@@ -51,9 +51,72 @@
   font-size: 11px;
 }
 
+.q-cover-sheet,
 .q-quote-sheet,
 .q-indirect-panel {
   margin-top: 16px;
+}
+
+.q-cover-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.q-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--q-muted);
+}
+
+.q-field input {
+  border: 1px solid var(--q-line);
+  background: var(--q-field-fill);
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--q-ink);
+}
+
+.q-field input:focus-visible {
+  outline: none;
+  background: var(--q-field-fill-focus);
+  box-shadow: var(--q-focus-ring);
+}
+
+.q-cover-conditions ul {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.q-cover-conditions li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 10px;
+  border: 1px solid var(--q-line);
+  border-radius: var(--q-r-chip);
+  font-size: 13px;
+}
+
+.q-cover-condition-add {
+  display: flex;
+  gap: 8px;
+}
+
+.q-cover-condition-add input {
+  flex: 1;
+  border: 1px solid var(--q-line);
+  background: var(--q-field-fill);
+  padding: 8px 10px;
+  border-radius: 8px;
 }
 
 .q-quote-system + .q-quote-system {

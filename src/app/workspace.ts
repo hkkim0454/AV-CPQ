@@ -12,7 +12,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { buildGuideBasis } from '../data/catalog/guideBasis';
 import { prepareQuote, type PreparedQuote } from '../export/variants/prepare';
 import { indirectCostsFor, type IndirectProfileId } from '../export/ooxml/guideTemplate';
-import type { QuoteDocument } from '../domain/quote/types';
+import type { QuoteDocument, QuoteHeader } from '../domain/quote/types';
 import type { ImportWarning } from '../import/diagram/devices';
 import type { Resources } from './resources';
 
@@ -28,7 +28,6 @@ export type WorkspaceStatus =
       document: QuoteDocument;
       importWarnings: readonly ImportWarning[];
       prepared: PreparedQuote;
-      profileBySystem: ReadonlyMap<string, IndirectProfileId>;
     };
 
 export interface Workspace {
@@ -39,6 +38,7 @@ export interface Workspace {
   setQuantity(rowId: string, quantity: string): void;
   setDescription(rowId: string, description: string): void;
   setRemark(rowId: string, remark: string): void;
+  setHeader(patch: Partial<QuoteHeader>): void;
   setProfile(systemId: string, profile: IndirectProfileId): void;
   setIndirectRule(systemId: string, itemId: string, patch: { applied?: boolean; rate?: string }): void;
   undo(): void;
@@ -64,11 +64,33 @@ interface History {
 
 const EMPTY_HISTORY: History = { past: [], present: undefined, future: [] };
 
-function defaultProfiles(document: QuoteDocument): Map<string, IndirectProfileId> {
-  // 새 문서는 프로파일을 아직 고르지 않은 시스템들이다. 기본은 '일반' —
-  // 조용히 다른 값으로 단정하지 않는다. 사용자가 Task2 패널에서 바로
-  // 바꿀 수 있다.
-  return new Map(document.systems.map((s) => [s.systemId, 'general' as const]));
+/**
+ * 프로파일은 **문서 안에만** 둔다(`QuoteSystem.indirectProfileId`) —
+ * 별도 state로 안 둔다. 실제로 찾은 결함: `profileBySystem`을 문서와
+ * 다른 state로 두면, 프로파일을 바꾼 뒤 실행취소를 눌렀을 때 문서만
+ * 이전 상태로 돌아가고 `profileBySystem`은 그대로 남아 — 되돌아간
+ * 문서(예: 일반)를 바뀐 프로파일(예: DS)로 다시 계산하는 일이 생겼다.
+ * 문서 하나만 이력에 담으면 실행취소가 둘을 항상 같이 되돌린다.
+ */
+function profileMapOf(document: QuoteDocument): Map<string, IndirectProfileId> {
+  return new Map(
+    document.systems.map((s) => [
+      s.systemId,
+      (s.indirectProfileId as IndirectProfileId | undefined) ?? 'general',
+    ]),
+  );
+}
+
+/** 새 문서는 프로파일을 아직 고르지 않았다 — 기본 '일반'을 문서에 바로 심는다. */
+function seedDefaultProfile(document: QuoteDocument, guides: Resources['guides']): QuoteDocument {
+  return {
+    ...document,
+    systems: document.systems.map((s) => ({
+      ...s,
+      indirectProfileId: 'general',
+      indirectCosts: indirectCostsFor('general', guides),
+    })),
+  };
 }
 
 /**
@@ -94,19 +116,19 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
 
   const [history, setHistory] = useState<History>(EMPTY_HISTORY);
   const [importWarnings, setImportWarnings] = useState<readonly ImportWarning[]>([]);
-  const [profileBySystem, setProfileBySystemState] = useState<ReadonlyMap<string, IndirectProfileId>>(
-    new Map(),
-  );
 
   const prepareNow = useCallback(
-    (document: QuoteDocument, profiles: ReadonlyMap<string, IndirectProfileId>): PreparedQuote | undefined => {
+    (document: QuoteDocument): PreparedQuote | undefined => {
       if (basis === undefined || resources === undefined) return undefined;
       return prepareQuote({
         document,
         laborReference: basis.reference,
         basisVersions: basis.versions,
         guides: resources.guides,
-        profileBySystem: profiles,
+        // 문서 자신이 들고 있는 프로파일에서 그대로 끌어낸다 — 별도
+        // state가 없으니 실행취소가 문서를 되돌리면 이 맵도 같이
+        // 저절로 되돌아간다.
+        profileBySystem: profileMapOf(document),
         importWarnings,
         // 문서에 아직 기준이 안 적혀 있으면(새로 변환한 직후) 처음 적는다.
         // 그 다음부터는 같은 기준인지만 대조한다 — 조용한 재계산이 아니다.
@@ -117,8 +139,8 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
   );
 
   const prepared = useMemo(
-    () => (history.present === undefined ? undefined : prepareNow(history.present, profileBySystem)),
-    [history.present, profileBySystem, prepareNow],
+    () => (history.present === undefined ? undefined : prepareNow(history.present)),
+    [history.present, prepareNow],
   );
 
   const loadDocument = useCallback(
@@ -126,7 +148,7 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
       // 자료가 아직 준비되지 않았으면 조용히 멈춘다 — 그 사이 입구
       // 버튼은 비활성이라 화면에서는 실제로 호출되지 않는다.
       if (basis === undefined || resources === undefined) return;
-      const profiles = defaultProfiles(input.document);
+      const seeded = seedDefaultProfile(input.document, resources.guides);
       // `prepareNow`를 재사용하지 않는다 — 그건 `importWarnings` 상태를
       // 클로저로 캡처하는데, 이 함수 안의 `setImportWarnings` 호출은
       // 비동기라 이 시점엔 아직 반영 전이다(이전 문서의 경고가 섞인다).
@@ -136,16 +158,15 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
       // 삼는다 — 안 그러면 다음 렌더의 재준비가 'initialize-new'를 다시
       // 타려다 "이미 기준이 적힌 문서" 예외를 만난다.
       const first = prepareQuote({
-        document: input.document,
+        document: seeded,
         laborReference: basis.reference,
         basisVersions: basis.versions,
         guides: resources.guides,
-        profileBySystem: profiles,
+        profileBySystem: profileMapOf(seeded),
         importWarnings: input.importWarnings,
         wageMode: 'initialize-new',
       });
       setImportWarnings(input.importWarnings);
-      setProfileBySystemState(profiles);
       setHistory({ past: [], present: first.document, future: [] });
     },
     [basis, resources],
@@ -189,19 +210,22 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     [mutateRow],
   );
 
+  const setHeader = useCallback(
+    (patch: Partial<QuoteHeader>) => {
+      commit((document) => ({ ...document, header: { ...document.header, ...patch } }));
+    },
+    [commit],
+  );
+
   const setProfile = useCallback(
     (systemId: string, profile: IndirectProfileId) => {
       if (resources === undefined) return;
       const guides = resources.guides;
-      setProfileBySystemState((prev) => {
-        const next = new Map(prev);
-        next.set(systemId, profile);
-        return next;
-      });
       // 이 시스템에 **처음** 심는 프로파일이거나 실제로 바뀐 경우에만
       // 그 프로파일의 기본 간접비 규칙을 새로 심는다. 이미 이 프로파일로
       // 심어 둔 규칙이 있으면(사용자가 적용 여부·요율을 손봤을 수 있다)
-      // 조용히 덮어쓰지 않는다.
+      // 조용히 덮어쓰지 않는다. 프로파일 자체가 문서 안에 있으므로 이
+      // 한 번의 commit으로 문서와 프로파일이 항상 같이 이력에 쌓인다.
       commit((document) => ({
         ...document,
         systems: document.systems.map((s) =>
@@ -252,7 +276,7 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
   const status: WorkspaceStatus =
     history.present === undefined || prepared === undefined
       ? { kind: 'empty' }
-      : { kind: 'editing', document: history.present, importWarnings, prepared, profileBySystem };
+      : { kind: 'editing', document: history.present, importWarnings, prepared };
 
   return {
     status,
@@ -262,6 +286,7 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     setQuantity,
     setDescription,
     setRemark,
+    setHeader,
     setProfile,
     setIndirectRule,
     undo,

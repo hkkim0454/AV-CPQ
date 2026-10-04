@@ -135,6 +135,13 @@ export interface QuoteRow {
   conversionNote?: string;
   remark: string;
 
+  /**
+   * 구성도 노드 id들. 이름이 같은 노드는 한 행으로 합쳐지므로 여럿일 수
+   * 있다(`devices.ts`의 병합 규칙). 미해결 모델 경고를 이 행과 다시
+   * 연결할 때 쓴다 — 품목 직접 선택 경로의 행에는 없다.
+   */
+  sourceNodeIds?: readonly string[];
+
   origin: RowOrigin;
   ruleInstanceId?: string;
 }

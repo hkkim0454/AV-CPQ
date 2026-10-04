@@ -15,6 +15,7 @@ import { loadResources, type ResourcesResult } from './resources';
 import { useWorkspace, type LoadedDocument } from './workspace';
 import { DiagramInput } from '../features/entry/DiagramInput';
 import { ProductPicker } from '../features/entry/ProductPicker';
+import { CoverSheet } from '../features/worksheet/CoverSheet';
 import { QuoteSheet } from '../features/worksheet/QuoteSheet';
 import { IndirectPanel } from '../features/worksheet/IndirectPanel';
 import { WarningList } from '../features/worksheet/WarningList';
@@ -167,6 +168,7 @@ export function App() {
 
               {status.kind === 'editing' && (
                 <>
+                  <CoverSheet header={status.document.header} onChange={workspace.setHeader} />
                   <WarningList warnings={status.importWarnings} />
                   <QuoteSheet
                     document={status.document}

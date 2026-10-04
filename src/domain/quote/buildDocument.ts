@@ -54,6 +54,8 @@ export interface QuoteLineInput {
   /** 딸림 항목은 견적서 관행대로 품명 앞에 `- `를 붙인다. */
   isAccessory?: boolean;
   remark?: string;
+  /** 구성도 노드 id들. 미해결 모델 경고를 행과 다시 연결하는 데 쓴다. */
+  sourceNodeIds?: readonly string[];
 }
 
 export interface QuoteSystemInput {
@@ -78,7 +80,8 @@ export interface BuildQuoteDocumentInput {
   rowIdPrefix?: string;
 }
 
-function toRow(
+/** 행 하나를 만든다. 품목 추가 UI가 기존 문서에 행을 더할 때도 쓴다. */
+export function toRow(
   rowId: string,
   systemId: string,
   line: QuoteLineInput,
@@ -102,6 +105,7 @@ function toRow(
     ...(line.internalDescription !== undefined
       ? { internalDescription: line.internalDescription }
       : {}),
+    ...(line.sourceNodeIds !== undefined ? { sourceNodeIds: line.sourceNodeIds } : {}),
     ...(line.laborMappingId !== undefined
       ? { laborMode: 'mapped' as const, laborMappingId: line.laborMappingId }
       : { laborMode: 'unresolved' as const }),
