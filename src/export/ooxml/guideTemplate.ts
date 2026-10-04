@@ -22,6 +22,7 @@ import { strFromU8, unzipSync } from 'fflate';
 import type { IndirectBasis, IndirectCostRule } from '../../domain/quote/types';
 import type { Wage, WageTable, WageUnit } from '../../domain/labor/types';
 import { findChild, findChildren, parseXml } from './xml';
+import { fnv1a64 } from '../../domain/quote/fingerprint';
 
 export type GuideId = 'won' | 'pumsem' | 'ds' | 'ds-won';
 export type IndirectProfileId = 'ds' | 'general';
@@ -72,6 +73,45 @@ export interface GuideTemplate {
 }
 
 export type GuideTemplateSet = Readonly<Record<GuideId, GuideTemplate>>;
+
+/**
+ * 가이드 네 종의 **내용** 지문(계획 Task 4, 독립 검토 지적).
+ *
+ * 저장된 작업 파일의 `versions.template`과 대조하는 값이다. 날짜 문자열
+ * 상수(예전 `sanitized-2026-10-03`)는 실제 가이드 xlsx 4종이나 절사
+ * 자릿수가 바뀌어도 사람이 상수를 직접 올리지 않으면 감지하지 못했다 —
+ * 그래서 `wageContentFingerprint`와 같은 방식으로 **내용에서** 지문을
+ * 만든다. 시트 이름·인쇄 영역·절사 자릿수·열 배치·행 역할이 하나라도
+ * 바뀌면 지문이 바뀐다. `bytes`(원본 ZIP 전체)는 넣지 않는다 — 공백 한
+ * 칸만 바뀌어도 계산과 무관하게 지문이 흔들린다.
+ */
+export function guideTemplateFingerprint(guides: GuideTemplateSet): string {
+  const canonical = GUIDE_IDS.map((id) => {
+    const g = guides[id];
+    const columns = [...g.columns.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([role, index]) => `${role}=${index}`)
+      .join(',');
+    return [
+      g.id,
+      g.profile,
+      g.hasCost,
+      g.sheets.cover,
+      g.sheets.detail,
+      g.printArea.cover,
+      g.printArea.detail,
+      g.detailScale,
+      g.coverRoundingDigits,
+      g.coverRoundingLabel,
+      g.freezePane,
+      g.printTitles,
+      g.printLastColumn,
+      columns,
+      JSON.stringify(g.rows),
+    ].join('|');
+  }).join(String.fromCharCode(10));
+  return fnv1a64(canonical);
+}
 
 export class GuideTemplateError extends Error {
   constructor(

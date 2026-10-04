@@ -27,6 +27,7 @@ import {
   type BasisVersions,
 } from '../../data/catalog/guideBasis';
 import {
+  guideTemplateFingerprint,
   indirectCostsFor,
   type GuideTemplateSet,
   type IndirectProfileId,
@@ -58,6 +59,10 @@ export interface PreparedQuote {
   blocking: boolean;
 }
 
+function knownVersion(value: string): string | undefined {
+  return value === '' || value === 'unknown' ? undefined : value;
+}
+
 /**
  * 문서에 적힌 기준을 읽는다.
  *
@@ -65,16 +70,30 @@ export interface PreparedQuote {
  * 기준을 기록하기 전에 만들어진 문서다.
  */
 function recordedBasis(document: QuoteDocument): Partial<BasisVersions> | undefined {
-  const wage = document.versions.wage;
-  const labor = document.versions.labor;
-  const known = (value: string): string | undefined =>
-    value === '' || value === 'unknown' ? undefined : value;
+  const knownWage = knownVersion(document.versions.wage);
+  const knownLabor = knownVersion(document.versions.labor);
   const recorded: Partial<BasisVersions> = {};
-  const knownWage = known(wage);
-  const knownLabor = known(labor);
   if (knownWage !== undefined) recorded.wage = knownWage;
   if (knownLabor !== undefined) recorded.labor = knownLabor;
   return knownWage === undefined && knownLabor === undefined ? undefined : recorded;
+}
+
+/**
+ * 가이드 템플릿 기준도 labor/wage와 같은 규율을 따른다 — `preserve`에서
+ * 다르면 막는다(독립 검토 지적: 예전엔 가이드 내용이 바뀌어도 감지하지
+ * 못하는 날짜 문자열 상수와만 대조했다). `assertSameBasis`를 그대로
+ * 재사용하지 않는 이유는 `BasisVersions`가 `buildGuideBasis`(품셈·노임
+ * 파일 전용)의 타입이라 템플릿 지문을 더할 자리가 아니기 때문이다 — 이
+ * 파일이 가이드 묶음(`guides`)을 쥔 유일한 자리라 여기서 직접 비교한다.
+ */
+function assertSameTemplate(recorded: string | undefined, current: string): void {
+  if (recorded === undefined) return;
+  if (recorded !== current) {
+    throw new GuideBasisError(
+      `이 견적은 다른 가이드 템플릿 기준으로 계산됐다 (${recorded} → ${current}). ` +
+        '명시적으로 재계산을 골라야 바꿀 수 있다.',
+    );
+  }
 }
 
 /**
@@ -130,9 +149,11 @@ function coverRoundingOf(guides: GuideTemplateSet): number {
 
 export function prepareQuote(input: PrepareInput): PreparedQuote {
   const recorded = recordedBasis(input.document);
+  const recordedTemplate = knownVersion(input.document.versions.template);
+  const currentTemplate = guideTemplateFingerprint(input.guides);
 
   if (input.wageMode === 'preserve') {
-    if (recorded === undefined) {
+    if (recorded === undefined && recordedTemplate === undefined) {
       // 비어 있다고 최신 기준을 채워 넣으면 그게 조용한 재계산이다.
       throw new GuideBasisError(
         '이 견적에는 계산 기준이 적혀 있지 않다. ' +
@@ -141,8 +162,9 @@ export function prepareQuote(input: PrepareInput): PreparedQuote {
       );
     }
     assertSameBasis(recorded, input.basisVersions);
+    assertSameTemplate(recordedTemplate, currentTemplate);
   } else if (input.wageMode === 'initialize-new') {
-    if (recorded !== undefined) {
+    if (recorded !== undefined || recordedTemplate !== undefined) {
       // 기존 문서에 새 기준을 덮어쓰는 경로로 쓰이면 안 된다.
       throw new GuideBasisError(
         '이미 계산 기준이 적힌 문서다. 새 문서용 경로로 열 수 없다. ' +
@@ -154,21 +176,34 @@ export function prepareQuote(input: PrepareInput): PreparedQuote {
 
   // **절사 단위를 가이드에서 가져온다.** 기본값 -4(만원)는 평택 원본의 것이고
   // 가이드는 -3(천원)이다. 그대로 두면 최종 금액이 천 단위에서 틀린다.
+  //
+  // `preserve`에서는 적용하지 않는다(독립 검토 지적) — 안 그러면 가이드가
+  // 바뀌었을 때(여기 도달했다는 것은 위 `assertSameTemplate`를 통과했다는
+  // 뜻이지만, 방어적으로도) "기준 보존"을 표방하면서 절사 자릿수만 조용히
+  // 최신값으로 덮어쓰는 모순이 생긴다.
   const roundingDigits = coverRoundingOf(input.guides);
 
   const document = applyProfiles(
     {
       ...input.document,
-      rounding: { ...input.document.rounding, coverTotalDigits: roundingDigits },
+      ...(input.wageMode === 'preserve'
+        ? {}
+        : { rounding: { ...input.document.rounding, coverTotalDigits: roundingDigits } }),
       versions: {
         ...input.document.versions,
         labor: input.basisVersions.labor,
         wage: input.basisVersions.wage,
+        template: input.wageMode === 'preserve' ? input.document.versions.template : currentTemplate,
       },
     },
     input.profileBySystem,
     input.guides,
-    input.wageMode !== 'preserve',
+    // `initialize-new`일 때만 프로파일 기본값으로 다시 심는다.
+    // `explicit-recalculate`는 기준(카탈로그·노임·템플릿)을 새로 맞추는
+    // 것이지 "프로파일을 새로 고른 것"이 아니다 — 사용자가 손본 적용
+    // 여부·요율을 그대로 둔다(독립 검토 지적: `!== 'preserve'`로 묶여
+    // 있어 재계산할 때마다 수동 요율이 초기화됐었다).
+    input.wageMode === 'initialize-new',
   );
 
   const priced = priceQuote(document, input.laborReference);

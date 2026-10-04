@@ -12,7 +12,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { buildGuideBasis, GuideBasisError } from '../data/catalog/guideBasis';
 import { prepareQuote, type PreparedQuote } from '../export/variants/prepare';
 import { indirectCostsFor, type IndirectProfileId } from '../export/ooxml/guideTemplate';
-import { toRow, CURRENT_TEMPLATE_VERSION } from '../domain/quote/buildDocument';
+import { toRow, CURRENT_RULE_VERSION } from '../domain/quote/buildDocument';
 import { computeDocumentBasisConflicts, describeBasisConflicts } from '../domain/quote/basisConflict';
 import { computeActiveWarnings } from '../domain/quote/activeWarnings';
 import { withResolvedProduct } from '../domain/quote/resolveProduct';
@@ -168,6 +168,28 @@ function seedDefaultProfile(document: QuoteDocument, guides: Resources['guides']
 }
 
 /**
+ * 명시적 재계산에서만 쓴다 — 이미 품목(sku)을 고른 행을 **지금 카탈로그**
+ * 값으로 다시 찾는다(독립 검토 지적: 버전 문자열만 올리고 실제 단가는
+ * 그대로 남았었다). 카탈로그에서 사라진 sku는 건드리지 않는다 — 이번
+ * 범위에서는 "그대로 둔다"가 최선이고, 어떤 대체를 더 하는 것은 추측이다.
+ * 배관 행은 제외한다 — `resolveDevice`와 같은 경계(`isConduitSentinel`)를
+ * 지킨다. 배관은 전용 경로(`resolveConduitProduct`)로만 재해소해야
+ * 묶음(options.group) 검증이 항상 적용된다.
+ */
+function refreshResolvedRows(document: QuoteDocument, catalog: Resources['catalog']): QuoteDocument {
+  return {
+    ...document,
+    rows: document.rows.map((r) => {
+      if (r.type !== 'item' || r.sku === undefined) return r;
+      if (r.sourceNodeIds?.some(isConduitSentinel)) return r;
+      const product = catalog.products.find((p) => p.sku === r.sku);
+      if (product === undefined) return r;
+      return withResolvedProduct(r, product, catalog.prices.get(r.sku));
+    }),
+  };
+}
+
+/**
  * `resources`는 초기 자료가 준비되기 전(로딩/실패 중)에는 `undefined`다.
  * 툴바의 입구 버튼은 그 사이에도 셸 자체가 죽지 않도록 계속 보여야
  * 한다(계획 §5 Review Focus 5번) — 그래서 이 훅은 늘 같은 순서로
@@ -194,6 +216,15 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
   // 부분집합은 매번 `computeActiveWarnings(document, allImportWarnings)`로
   // 다시 계산한다(`prepareNow`).
   const [allImportWarnings, setAllImportWarnings] = useState<readonly ImportWarning[]>([]);
+  /**
+   * 이 문서가 새 입구(`loadDocument`)로 왔는지, 저장된 작업 파일을 다시
+   * 연(`openWorkFile`) 것인지(독립 검토 지적). 재열기는 **무조건**
+   * `preserve`로 다뤄야 한다 — labor/wage가 우연히 `'unknown'`이어도
+   * `initialize-new`로 새지 않게(조용한 재계산 금지) 이 구분이 필요하다.
+   * 새 문서는 반대로 labor/wage가 아직 `'unknown'`인 게 정상이라
+   * `initialize-new`를 그대로 써야 한다.
+   */
+  const [documentOrigin, setDocumentOrigin] = useState<'new' | 'reopened'>('new');
 
   type PrepareResult = { kind: 'ok'; prepared: PreparedQuote } | { kind: 'conflict'; reason: string };
 
@@ -201,12 +232,17 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     (document: QuoteDocument): PrepareResult | undefined => {
       if (basis === undefined || resources === undefined) return undefined;
 
-      // labor/wage보다 먼저 본다 — `assertSameBasis`가 다루지 않는 축이다
-      // (catalog/template). 여기서 걸리면 prepareQuote를 아예 부르지
-      // 않는다 — 어차피 명시적 재계산 전에는 의미 없는 계산이다.
-      const versionConflicts = computeDocumentBasisConflicts(document, {
-        catalogSha256: resources.catalog.sourceSha256,
-      });
+      // labor/wage/template보다 먼저 본다 — 이 둘은 `prepareQuote`의
+      // `assertSameBasis`/`assertSameTemplate`가 다루지 않는 축이다
+      // (catalog/rule). 여기서 걸리면 prepareQuote를 아예 부르지 않는다 —
+      // 어차피 명시적 재계산 전에는 의미 없는 계산이다. 재열기 문서는
+      // `'unknown'` 자체가 충돌이다 — 다섯 축을 전부 지운 파일도 걸러야
+      // 한다(독립 검토 지적).
+      const versionConflicts = computeDocumentBasisConflicts(
+        document,
+        { catalogSha256: resources.catalog.sourceSha256 },
+        { treatUnknownAsConflict: documentOrigin === 'reopened' },
+      );
       if (versionConflicts.length > 0) {
         return { kind: 'conflict', reason: describeBasisConflicts(versionConflicts) };
       }
@@ -234,20 +270,27 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
             ...computeInstallationWarnings(document, resources.catalog),
             ...computeMiscMaterialWarnings(document, resources.catalog),
           ],
-          // 문서에 아직 기준이 안 적혀 있으면(새로 변환한 직후) 처음 적는다.
-          // 그 다음부터는 같은 기준인지만 대조한다 — 조용한 재계산이 아니다.
-          wageMode: document.versions.wage === 'unknown' ? 'initialize-new' : 'preserve',
+          // 재열기 문서는 labor/wage가 우연히 'unknown'이어도 무조건
+          // preserve다(독립 검토 지적) — 'unknown'을 "아직 기준 없는 새
+          // 문서"로 오인해 initialize-new로 새면 조용한 재계산이 된다.
+          // 새 문서만 'unknown'일 때 initialize-new로 처음 기준을 적는다.
+          wageMode:
+            documentOrigin === 'reopened'
+              ? 'preserve'
+              : document.versions.wage === 'unknown'
+                ? 'initialize-new'
+                : 'preserve',
         });
         return { kind: 'ok', prepared };
       } catch (err) {
-        // 저장된 작업 파일의 labor/wage 기준이 지금과 다르면
-        // `assertSameBasis`가 이 오류를 던진다 — 화면 깨짐이 아니라
-        // 기준 충돌 화면으로 보여준다.
+        // 저장된 작업 파일의 labor/wage/템플릿 기준이 지금과 다르면
+        // `assertSameBasis`/`assertSameTemplate`가 이 오류를 던진다 —
+        // 화면 깨짐이 아니라 기준 충돌 화면으로 보여준다.
         if (err instanceof GuideBasisError) return { kind: 'conflict', reason: err.message };
         throw err;
       }
     },
-    [basis, resources, allImportWarnings],
+    [basis, resources, allImportWarnings, documentOrigin],
   );
 
   const prepareResult = useMemo(
@@ -260,7 +303,15 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
       // 자료가 아직 준비되지 않았으면 조용히 멈춘다 — 그 사이 입구
       // 버튼은 비활성이라 화면에서는 실제로 호출되지 않는다.
       if (basis === undefined || resources === undefined) return;
-      const seeded = synchronizeMiscMaterials(seedDefaultProfile(input.document, resources.guides), resources.catalog);
+      // 케이블 생성 소유 경고는 `cableWarnings`가 따로 들고 다닌다(진단
+      // 문서 쪽). 여기 `document.importWarnings`에는 그 나머지(장비·옵션
+      // 등)만 얼려 둔다 — 저장된 작업 파일을 다시 열 때도 미해결 후보
+      // 선택 UI가 복원되게 하려는 것이다(독립 검토 지적: 전에는 이
+      // 경고들이 문서가 아니라 이 훅의 state에만 있어서 재열기 후
+      // 사라졌다).
+      const nonCableWarnings = input.importWarnings.filter((w) => w.owner !== 'cable-generation');
+      const withWarnings: QuoteDocument = { ...input.document, importWarnings: nonCableWarnings };
+      const seeded = synchronizeMiscMaterials(seedDefaultProfile(withWarnings, resources.guides), resources.catalog);
       // `prepareNow`를 재사용하지 않는다 — 그건 `allImportWarnings` 상태를
       // 클로저로 캡처하는데, 이 함수 안의 `setAllImportWarnings` 호출은
       // 비동기라 이 시점엔 아직 반영 전이다(이전 문서의 경고가 섞인다).
@@ -286,6 +337,7 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
         wageMode: 'initialize-new',
       });
       setAllImportWarnings(input.importWarnings);
+      setDocumentOrigin('new');
       setHistory({ past: [], present: first.document, future: [] });
     },
     [basis, resources],
@@ -297,7 +349,13 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     // `prepareNow`가 걸러 `status.kind`를 `'basis-conflict'`로 보여준다.
     // 사용자가 `recalculateWithCurrentBasis`를 명시적으로 골라야 그때
     // 비로소 자동 보정 함수들이 돈다 — 조용한 재계산 금지.
-    setAllImportWarnings(document.cableWarnings ?? []);
+    //
+    // `document.importWarnings`(장비·옵션 등, 케이블 생성 소유 제외)를
+    // 그대로 복원한다 — 안 그러면 재열기 후 미해결 후보 선택 UI가
+    // 사라진다(독립 검토 지적). 케이블 쪽은 `importWarningsFor`가
+    // `document.cableWarnings`에서 직접 가져온다.
+    setAllImportWarnings(document.importWarnings ?? []);
+    setDocumentOrigin('reopened');
     setHistory({ past: [], present: document, future: [] });
   }, []);
 
@@ -305,13 +363,21 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     if (basis === undefined || resources === undefined) return;
     setHistory((h) => {
       if (h.present === undefined) return h;
-      const seeded = synchronizeMiscMaterials(seedDefaultProfile(h.present, resources.guides), resources.catalog);
-      // 사용자가 명시적으로 고른 시점에만 저장 당시의 낡은 카탈로그·템플릿
+      // 저장 당시 해소해 둔 품목(sku 있는 행)을 **지금 카탈로그**로 다시
+      // 찾아 단가·설명 등을 갱신한다(독립 검토 지적: 이전엔 기준
+      // 문자열만 올리고 실제 단가가 바뀌어도 화면엔 옛 값이 남았다).
+      // 배관(`isConduitSentinel`) 행은 제외한다 — 전용 경로
+      // (`resolveConduitProduct`)만 그 검증 경계를 통과할 수 있다.
+      const refreshed = refreshResolvedRows(h.present, resources.catalog);
+      const seeded = synchronizeMiscMaterials(seedDefaultProfile(refreshed, resources.guides), resources.catalog);
+      // 사용자가 명시적으로 고른 시점에만 저장 당시의 낡은 카탈로그
       // 기준표를 지금 값으로 올려 적는다 — 그래야 재계산 뒤에도 같은
-      // 충돌이 계속 보이지 않는다.
+      // 충돌이 계속 보이지 않는다. `template`은 `prepareQuote` 자신이
+      // `explicit-recalculate`일 때 올린다(중복 금지). `rule`도 여기서
+      // 올린다 — `prepareQuote`가 모르는 축이다.
       const withCurrentVersions: QuoteDocument = {
         ...seeded,
-        versions: { ...seeded.versions, catalog: resources.catalog.sourceSha256, template: CURRENT_TEMPLATE_VERSION },
+        versions: { ...seeded.versions, catalog: resources.catalog.sourceSha256, rule: CURRENT_RULE_VERSION },
       };
       const first = prepareQuote({
         document: withCurrentVersions,

@@ -28,11 +28,24 @@ import type {
 import { standardIndirectCosts } from './indirectCosts';
 
 /**
- * 지금 빌드가 전제하는 가이드 템플릿 버전표. 문서를 새로 만들 때도, 저장한
- * 작업 파일을 다시 열어 기준을 대조할 때도(`basisConflict.ts`) **이 상수
- * 하나만** 본다 — 두 곳에 각자 적으면 한쪽만 고쳐져 조용히 갈린다.
+ * 케이블·배관·잡자재 **파생 규칙**의 버전표(계획 Task 4/D8, 독립 검토 지적).
+ *
+ * 이 상수가 가리키는 것은 "어느 입구로 들어왔나"가 아니라 "그 계산을 만든
+ * 파생 규칙이 지금과 같은가"다 — 구체적으로:
+ *
+ * - 케이블 길이 계단(`snapToStep`)·커넥터 3개 규칙(`cables.ts`)
+ * - 배관 거리×줄 수 공식(`installation.ts`)
+ * - 잡자재비 LED 캐비넷 제외 규칙(`miscMaterials.ts`)
+ *
+ * **이 중 하나라도 바뀌면 이 상수도 반드시 올려야 한다.** 안 올리면
+ * 저장된 작업 파일을 다시 열었을 때 "같은 기준"으로 통과해 버리고,
+ * 케이블/배관/잡자재 파생행이 조용히 새 규칙으로 재계산된다
+ * (`basisConflict.ts`가 이 값을 `versions.rule`과 대조한다).
+ *
+ * 입구 출처(구성도/직접 선택)는 이 값과 다른 개념이다 —
+ * `QuoteDocument.entryKind`가 따로 담고, 기준 대조에는 쓰지 않는다.
  */
-export const CURRENT_TEMPLATE_VERSION = 'sanitized-2026-10-03';
+export const CURRENT_RULE_VERSION = 'quote-derivation-rules-2026-10-04';
 
 /** 어느 입구에서 왔든 이 모양이면 견적 행이 된다. */
 export interface QuoteLineInput {
@@ -92,6 +105,8 @@ export interface BuildQuoteDocumentInput {
   versions?: Partial<DocumentVersions>;
   /** 행 id 접두사. 입구를 구분해 추적하기 위한 것. */
   rowIdPrefix?: string;
+  /** 입구 출처 표식 — 계산 기준이 아니다(`QuoteDocument.entryKind` 참고). */
+  entryKind?: 'diagram' | 'picker';
 }
 
 /** 행 하나를 만든다. 품목 추가 UI가 기존 문서에 행을 더할 때도 쓴다. */
@@ -163,6 +178,7 @@ export function buildQuoteDocument(input: BuildQuoteDocumentInput): QuoteDocumen
   });
 
   return {
+    ...(input.entryKind !== undefined ? { entryKind: input.entryKind } : {}),
     schemaVersion: 1,
     documentId: input.documentId ?? `quote-${input.header.quoteNumber}`,
     mode: 'material-and-labor',
@@ -184,8 +200,11 @@ export function buildQuoteDocument(input: BuildQuoteDocumentInput): QuoteDocumen
       catalog: input.versions?.catalog ?? 'unknown',
       labor: input.versions?.labor ?? 'unknown',
       wage: input.versions?.wage ?? 'unknown',
-      template: input.versions?.template ?? CURRENT_TEMPLATE_VERSION,
-      rule: input.versions?.rule ?? 'manual',
+      // labor/wage와 같은 이유로 'unknown'이 기본값이다 — 실제 가이드
+      // 템플릿 지문(`guideTemplateFingerprint`)은 `prepareQuote`만 안다
+      // (이 함수는 순수 도메인 함수라 가이드 묶음을 받지 않는다).
+      template: input.versions?.template ?? 'unknown',
+      rule: input.versions?.rule ?? CURRENT_RULE_VERSION,
     },
     equipment: [],
     connections: [],

@@ -107,3 +107,41 @@ test('케이블 거리 수정이 적용 대기 중이면 작업 파일 저장을
   await page.getByRole('button', { name: '재산출 취소' }).click();
   await expect(page.getByRole('button', { name: '작업 파일로 저장' })).toBeEnabled();
 });
+
+test('저장 당시 미해결이던 장비 경고도 재열기 후 해소 UI가 그대로 복원된다(독립 검토 지적)', async ({ page }) => {
+  await mockResources(page);
+  await page.goto('/');
+  const diagram = {
+    version: '1',
+    nodes: [{ id: 'unknown-1', data: { model: 'NOPE-MODEL-XYZ', name: '알 수 없는 장비', systemName: '시스템1' } }],
+    edges: [],
+    lineTypes: [],
+  };
+  await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
+  await page.locator('.q-card input[type="file"]').setInputFiles({
+    name: 'diagram.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(diagram)),
+  });
+
+  const warningPanel = page.getByRole('alert').filter({ hasText: '확인이 필요합니다' });
+  await expect(warningPanel).toContainText('NOPE-MODEL-XYZ');
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: '작업 파일로 저장' }).click(),
+  ]);
+  const savedText = readFileSync((await download.path())!, 'utf8');
+
+  await page.goto('/');
+  await page.getByLabel('작업 파일 선택').setInputFiles({
+    name: 'saved.avcpq.json', mimeType: 'application/json', buffer: Buffer.from(savedText),
+  });
+
+  const reopenedWarningPanel = page.getByRole('alert').filter({ hasText: '확인이 필요합니다' });
+  await expect(reopenedWarningPanel).toContainText('NOPE-MODEL-XYZ');
+
+  await page.getByLabel('unknown-1 연결할 품목 검색').fill('합성 테스트 품목');
+  await page.getByRole('button', { name: '연결' }).click();
+
+  await expect(reopenedWarningPanel).toHaveCount(0);
+  await expect(page.locator('.q-quote-table tbody tr', { hasText: '합성 테스트 품목' })).toBeVisible();
+});

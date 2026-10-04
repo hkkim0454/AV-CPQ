@@ -133,13 +133,14 @@ export function pickedItemsToQuote(
       : {}),
     documentId: `picked-${options.header.quoteNumber}`,
     rowIdPrefix: 'pk',
+    entryKind: 'picker',
     // 품셈·노임 기준은 **여기서 알 수 없다.** 카탈로그 해시는 제품·단가의
     // 출처지 노임표의 출처가 아니다. 그걸 적어 두면 문서가 쓰지도 않은 기준을
     // 주장하게 되고, 다시 열 때 "같은 기준"으로 통과한다.
-    // `prepareQuote` 가 실제로 쓴 기준을 적는다.
+    // `prepareQuote` 가 실제로 쓴 기준을 적는다. `rule`(계산 규칙 버전)은
+    // 입구와 무관하게 `CURRENT_RULE_VERSION` 기본값을 그대로 쓴다.
     versions: {
       catalog: catalog.sourceSha256,
-      rule: 'manual-pick',
     },
   });
 

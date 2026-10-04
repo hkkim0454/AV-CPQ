@@ -35,6 +35,7 @@
 import { buildLaborReference, type LaborReference } from './load';
 import type { WageTable } from '../../domain/labor/types';
 import type { GuideTemplate } from '../../export/ooxml/guideTemplate';
+import { fnv1a64 } from '../../domain/quote/fingerprint';
 
 export class GuideBasisError extends Error {
   constructor(message: string) {
@@ -108,14 +109,7 @@ export function wageContentFingerprint(table: WageTable): string {
       }),
   ].join(String.fromCharCode(10));
 
-  // FNV-1a 64비트. 결정적이고 플랫폼에 의존하지 않는다.
-  let hash = 0xcbf29ce484222325n;
-  const prime = 0x100000001b3n;
-  const mask = 0xffffffffffffffffn;
-  for (let i = 0; i < canonical.length; i += 1) {
-    hash = ((hash ^ BigInt(canonical.charCodeAt(i))) * prime) & mask;
-  }
-  return hash.toString(16).padStart(16, '0');
+  return fnv1a64(canonical);
 }
 
 function wageVersion(table: WageTable): string {

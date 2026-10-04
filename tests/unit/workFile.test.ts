@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { decodeWorkFile, encodeWorkFile, WORK_FILE_SCHEMA_VERSION } from '@/services/files/workFile';
 import { makeDocument, itemRow, system } from '../fixtures/document';
-import type { QuoteDocument } from '@/domain/quote/types';
+import type { QuoteDocument, SheetRow } from '@/domain/quote/types';
 
 /** 계획 2026-10-04-quote-workspace-ui Task 4. */
 
@@ -140,5 +140,86 @@ describe('decodeWorkFile — 손상·형식 오류를 작업 중단 없이 사�
 
   it('현재 지원 버전은 1이다', () => {
     expect(WORK_FILE_SCHEMA_VERSION).toBe(1);
+  });
+});
+
+describe('구조적 관계 검증 — 모양은 맞아도 참조가 깨진 문서는 거부한다(독립 검토 지적)', () => {
+  it('행 ID가 중복되면 저장도 열기도 거부한다', () => {
+    const doc = baseDoc();
+    const duplicated: QuoteDocument = { ...doc, rows: [...doc.rows, { ...doc.rows[0]! }] };
+    expect(() => encodeWorkFile(duplicated)).toThrow(/중복/);
+    const result = decodeWorkFile(JSON.stringify(duplicated));
+    expect(result.ok).toBe(false);
+  });
+
+  it('행이 없는 systemId를 가리키면 거부한다 — orphan 행은 합계에서 조용히 사라질 수 있다', () => {
+    const doc = baseDoc();
+    const orphaned: QuoteDocument = {
+      ...doc,
+      rows: [...doc.rows, { ...(doc.rows[0] as Extract<SheetRow, { type: 'item' }>), rowId: 'r2', systemId: '없는시스템' }],
+    };
+    expect(() => encodeWorkFile(orphaned)).toThrow(/시스템/);
+  });
+
+  it('수량이 음수면 거부한다 — 화면은 애초에 음수 입력을 막는다', () => {
+    const doc = baseDoc();
+    const negative: QuoteDocument = {
+      ...doc,
+      rows: doc.rows.map((r) => (r.rowId === 'r1' ? { ...r, quantity: '-1' } : r)),
+    };
+    expect(() => encodeWorkFile(negative)).toThrow(/음수/);
+  });
+
+  it('파생행의 sourceRowId가 없는 행을 가리키면 거부한다', () => {
+    const doc = baseDoc();
+    const broken: QuoteDocument = {
+      ...doc,
+      derivedRows: [
+        {
+          rowId: 'd1', systemId: 'S1', name: '파생', specification: '', unit: '식', quantity: '1',
+          laborMode: 'not-applicable', remark: '', origin: 'rule', rate: '1',
+          derived: { kind: 'single-row-material', sourceRowId: '없는행' },
+        },
+      ],
+    };
+    expect(() => encodeWorkFile(broken)).toThrow(/sourceRowId/);
+  });
+
+  it('잡자재비 제외 행 목록이 없는 행을 가리키면 거부한다', () => {
+    const doc = baseDoc();
+    const broken: QuoteDocument = {
+      ...doc,
+      derivedRows: [
+        {
+          rowId: 'd1', systemId: 'S1', name: '잡자재비', specification: '', unit: '식', quantity: '1',
+          laborMode: 'not-applicable', remark: '', origin: 'rule', rate: '0.02',
+          derived: { kind: 'material-sum-to-here', excludedRowIds: ['없는행'] },
+        },
+      ],
+    };
+    expect(() => encodeWorkFile(broken)).toThrow(/제외 행/);
+  });
+
+  it('케이블 경로가 구성도에 없는 edge를 가리키면 거부한다', () => {
+    const doc: QuoteDocument = {
+      ...baseDoc(),
+      cableSource: { version: '1', nodes: [], lineTypes: [], edges: [] },
+      cableRoutes: [{ edgeId: '없는edge', systemId: 'S1', source: 'measured-route', horizontalMeters: '10' }],
+    };
+    expect(() => encodeWorkFile(doc)).toThrow(/edge/);
+  });
+
+  it('미완성 케이블 경로(일부 구간 빈 문자열)는 정상적으로 저장·복원된다 — 빈 값은 "아직 못 정함"이지 오류가 아니다', () => {
+    const doc: QuoteDocument = {
+      ...baseDoc(),
+      cableSource: {
+        version: '1', nodes: [], lineTypes: [],
+        edges: [{ id: 'e1', source: 'n1', target: 'n2', data: { bomRows: [] } }],
+      },
+      cableRoutes: [{ edgeId: 'e1', systemId: 'S1', source: 'measured-route', horizontalMeters: '10', riseMeters: '', dropMeters: '' }],
+    };
+    const result = decodeWorkFile(encodeWorkFile(doc));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.document.cableRoutes).toEqual(doc.cableRoutes);
   });
 });

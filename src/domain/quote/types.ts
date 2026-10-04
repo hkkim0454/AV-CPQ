@@ -369,6 +369,23 @@ export interface QuoteDocument {
   cableBaseline?: readonly SheetRow[];
   cableRoutes?: readonly RouteInput[];
   cableWarnings?: readonly ImportWarning[];
+  /**
+   * 입구 출처(구성도/직접 선택) 표식이다 — **계산 기준이 아니다.**
+   * `versions.rule`(계산 규칙 버전)과 섞지 않는다. 저장된 작업 파일을
+   * 다시 열 때 이 값은 대조하지 않는다 — 값이 다르다고 "기준이
+   * 바뀌었다"고 보지 않는다(독립 검토 지적: 두 개념을 하나의 필드에
+   * 같이 담으면 출처가 다른 문서가 전부 "규칙이 다르다"는 거짓 충돌을
+   * 내거나, 반대로 규칙이 실제로 바뀐 걸 감지하지 못하게 된다).
+   */
+  entryKind?: 'diagram' | 'picker';
+  /**
+   * 변환 시점에 나온 **원본 수입 경고**(장비·옵션 등, 케이블 생성
+   * 소유 경고는 `cableWarnings`가 따로 들고 다닌다) — 저장된 작업
+   * 파일을 다시 열 때도 미해결 후보 선택 UI가 그대로 복원되도록
+   * 문서 자체에 둔다(독립 검토 지적: 이 값이 없으면 재열기 후 장비/
+   * 옵션 미해결 경고의 해소 UI가 사라진다).
+   */
+  importWarnings?: readonly ImportWarning[];
   schemaVersion: 1;
   documentId: string;
   mode: QuoteMode;

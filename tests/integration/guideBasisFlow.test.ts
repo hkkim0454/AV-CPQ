@@ -10,6 +10,7 @@ import {
 } from '@/data/catalog/guideBasis';
 import {
   GUIDE_IDS,
+  guideTemplateFingerprint,
   readGuideTemplate,
   type GuideId,
   type GuideManifest,
@@ -210,6 +211,51 @@ describe('prepareQuote — 기존 기준을 조용히 최신화하지 않는다'
     expect(prepared.document.versions.wage).toMatch(/^WAGE-26년 하반기:/);
   });
 
+  it('가이드 템플릿 지문도 initialize-new 때 적힌다(독립 검토 지적: 날짜 문자열 상수가 아니라 실제 내용 지문)', () => {
+    const prepared = prepare(ordinaryQuote(), 'initialize-new');
+    expect(prepared.document.versions.template).not.toBe('unknown');
+    expect(prepared.document.versions.template).toBe(guideTemplateFingerprint(allGuides()));
+  });
+
+  it('가이드 템플릿 지문이 저장 당시와 다르면 preserve 가 막는다', () => {
+    const first = prepare(ordinaryQuote(), 'initialize-new');
+    const stale: QuoteDocument = {
+      ...first.document,
+      versions: { ...first.document.versions, template: '예전-다른-지문' },
+    };
+    expect(() => prepare(stale, 'preserve')).toThrow(/가이드 템플릿 기준으로 계산됐다/);
+  });
+
+  it('explicit-recalculate 는 템플릿 지문도 지금 값으로 다시 적는다', () => {
+    const first = prepare(ordinaryQuote(), 'initialize-new');
+    const stale: QuoteDocument = {
+      ...first.document,
+      versions: { ...first.document.versions, template: '예전-다른-지문' },
+    };
+    const prepared = prepare(stale, 'explicit-recalculate');
+    expect(prepared.document.versions.template).toBe(guideTemplateFingerprint(allGuides()));
+  });
+
+  it('preserve 에서는 절사 자릿수를 현재 가이드값으로 덮어쓰지 않는다(독립 검토 지적)', () => {
+    const first = prepare(ordinaryQuote(), 'initialize-new');
+    const withStaleRounding: QuoteDocument = {
+      ...first.document,
+      rounding: { coverTotalDigits: -1 },
+    };
+    const prepared = prepare(withStaleRounding, 'preserve');
+    expect(prepared.document.rounding.coverTotalDigits).toBe(-1);
+  });
+
+  it('explicit-recalculate 에서는 절사 자릿수를 현재 가이드값으로 다시 맞춘다', () => {
+    const first = prepare(ordinaryQuote(), 'initialize-new');
+    const withStaleRounding: QuoteDocument = {
+      ...first.document,
+      rounding: { coverTotalDigits: -1 },
+    };
+    const prepared = prepare(withStaleRounding, 'explicit-recalculate');
+    expect(prepared.document.rounding.coverTotalDigits).not.toBe(-1);
+  });
+
   it('입력 문서를 건드리지 않는다', () => {
     const document = ordinaryQuote();
     const before = JSON.stringify(document);
@@ -251,6 +297,21 @@ describe('prepareQuote — 간접비 프로파일', () => {
     };
     const again = prepare(edited, 'preserve');
     expect(again.document.systems[0]!.indirectCosts[0]!.rate).toBe('0.07');
+  });
+
+  it('explicit-recalculate(저장 파일 기준 재계산)도 같은 프로파일이면 사용자가 고친 요율을 되돌리지 않는다(독립 검토 지적)', () => {
+    const first = prepare(ordinaryQuote(), 'initialize-new');
+    const edited: QuoteDocument = {
+      ...first.document,
+      systems: first.document.systems.map((s) => ({
+        ...s,
+        indirectCosts: s.indirectCosts.map((rule, index) =>
+          index === 0 ? { ...rule, rate: '0.07', applied: true } : rule,
+        ),
+      })),
+    };
+    const recalculated = prepare(edited, 'explicit-recalculate');
+    expect(recalculated.document.systems[0]!.indirectCosts[0]!.rate).toBe('0.07');
   });
 });
 

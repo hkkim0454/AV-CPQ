@@ -42,7 +42,12 @@ export function App() {
   const [outputGrade, setOutputGrade] = useState<OutputGrade>('2');
   const [pendingCableEdit, setPendingCableEdit] = useState(false);
   const [workFileOpenError, setWorkFileOpenError] = useState<string | undefined>(undefined);
+  const [workFileSaveError, setWorkFileSaveError] = useState<string | undefined>(undefined);
   const workFileInputRef = useRef<HTMLInputElement>(null);
+  // 파일을 고를 때마다 늘어난다 — 먼저 고른 파일의 비동기 읽기가 나중에
+  // 고른 파일보다 늦게 끝나도 그 늦은 결과로 최신 선택을 덮지 않는다
+  // (`DiagramInput`과 같은 패턴. 독립 검토 지적: 전엔 이 토큰이 없었다).
+  const workFileRequestRef = useRef(0);
 
   const resources = state.kind === 'ready' ? state.resources : undefined;
   const workspace = useWorkspace(resources);
@@ -50,25 +55,39 @@ export function App() {
 
   function handleSaveWorkFile(): void {
     if (status.kind !== 'editing') return;
-    const text = encodeWorkFile(status.document);
-    downloadTextFile(`견적-${status.document.header.quoteNumber || status.document.documentId}.avcpq.json`, text);
+    try {
+      const text = encodeWorkFile(status.document);
+      downloadTextFile(`견적-${status.document.header.quoteNumber || status.document.documentId}.avcpq.json`, text);
+      setWorkFileSaveError(undefined);
+    } catch (err) {
+      // 저장 직전 스키마 검증이 막은 경우(원가 비슷한 칸, 구조 불일치
+      // 등) 던지는 대로 두면 UI가 이유 없이 멈춘다 — 사유를 보여준다
+      // (독립 검토 지적).
+      setWorkFileSaveError(err instanceof Error ? err.message : '작업 파일을 저장하지 못했다.');
+    }
   }
 
-  function handleOpenWorkFileSelected(file: File): void {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const text = typeof reader.result === 'string' ? reader.result : '';
-      const result = decodeWorkFile(text);
-      if (!result.ok) {
-        setWorkFileOpenError(`${file.name} — ${result.reason}`);
-        return;
+  async function handleOpenWorkFileSelected(file: File): Promise<void> {
+    const requestId = ++workFileRequestRef.current;
+    let text: string;
+    try {
+      text = await file.text();
+    } catch {
+      if (requestId === workFileRequestRef.current) {
+        setWorkFileOpenError(`${file.name} — 파일을 읽지 못했습니다.`);
       }
-      setWorkFileOpenError(undefined);
-      workspace.openWorkFile(result.document);
-      setEntry(null);
-    };
-    reader.onerror = () => setWorkFileOpenError(`${file.name} — 파일을 읽지 못했습니다.`);
-    reader.readAsText(file);
+      return;
+    }
+    if (requestId !== workFileRequestRef.current) return; // 그 사이 다른 파일을 골랐다 — 이 결과는 버린다.
+
+    const result = decodeWorkFile(text);
+    if (!result.ok) {
+      setWorkFileOpenError(`${file.name} — ${result.reason}`);
+      return;
+    }
+    setWorkFileOpenError(undefined);
+    workspace.openWorkFile(result.document);
+    setEntry(null);
   }
 
   useEffect(() => {
@@ -166,7 +185,7 @@ export function App() {
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 event.target.value = '';
-                if (file !== undefined) handleOpenWorkFileSelected(file);
+                if (file !== undefined) void handleOpenWorkFileSelected(file);
               }}
             />
           </div>
@@ -219,6 +238,11 @@ export function App() {
               {workFileOpenError !== undefined && (
                 <p role="alert" className="q-notice q-notice-error">
                   작업 파일을 열지 못했습니다 — {workFileOpenError}
+                </p>
+              )}
+              {workFileSaveError !== undefined && (
+                <p role="alert" className="q-notice q-notice-error">
+                  작업 파일을 저장하지 못했습니다 — {workFileSaveError}
                 </p>
               )}
 

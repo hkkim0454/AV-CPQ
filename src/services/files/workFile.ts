@@ -20,6 +20,17 @@ import type { QuoteDocument } from '../../domain/quote/types';
 
 const decimalText = z.string().regex(/^-?\d+(\.\d+)?$/, '10진수 문자열이어야 한다');
 
+/**
+ * 케이블 구간 거리 입력 전용 — 빈 문자열도 허용한다(독립 검토 지적).
+ *
+ * `RouteInput`의 수평/입상/입하 칸은 **한 구간만 입력하고 나머지는 비워
+ * 두는 중간 상태**를 그대로 저장할 수 있어야 한다(`CableRoutePanel`의
+ * "입력하지 않은 구간은 원본 유지" 문구가 그 상태다). `calcRouteMeters`도
+ * 빈 문자열을 "아직 못 정함"으로 다루지 "0"으로 다루지 않는다 — 스키마가
+ * 더 엄격하게 굴어 미완성 작업을 저장 자체에서 막으면 안 된다.
+ */
+const routeMeters = z.union([decimalText, z.literal('')]).optional();
+
 // ---------------------------------------------------------------------------
 // 구성도 원본 — captureCableSource가 만드는 좁은 모양만 허용한다. 전체
 // DiagramFile(알 수 없는 확장 필드 포함)을 그대로 받지 않는다.
@@ -72,10 +83,10 @@ const routeInputSchema = z
     edgeId: z.string(),
     systemId: z.string(),
     source: z.enum(['measured-route', 'confirmed-total']),
-    horizontalMeters: decimalText.optional(),
-    riseMeters: decimalText.optional(),
-    dropMeters: decimalText.optional(),
-    confirmedTotalMeters: decimalText.optional(),
+    horizontalMeters: routeMeters,
+    riseMeters: routeMeters,
+    dropMeters: routeMeters,
+    confirmedTotalMeters: routeMeters,
   })
   .strict();
 
@@ -324,6 +335,8 @@ export const quoteDocumentSchema = z
     cableBaseline: z.array(sheetRowSchema).optional(),
     cableRoutes: z.array(routeInputSchema).optional(),
     cableWarnings: z.array(importWarningSchema).optional(),
+    entryKind: z.enum(['diagram', 'picker']).optional(),
+    importWarnings: z.array(importWarningSchema).optional(),
     schemaVersion: z.literal(1),
     documentId: z.string(),
     mode: z.enum(['material-and-labor', 'labor-only']),
@@ -348,12 +361,96 @@ export type DecodeWorkFileResult =
   | { ok: false; reason: string };
 
 /**
+ * `.strict()`는 **칸의 모양**만 본다 — 같은 ID가 두 번 나오거나, 행이
+ * 없는 systemId를 가리키거나, 수량이 음수인 것은 구조적으로 전부
+ * "유효한 모양"이라 그냥 통과한다(독립 검토 지적). 화면의 실제 UI는
+ * 애초에 이런 상태를 만들 수 없다 —
+ * `validateQuantityInput`(`domain/quote/validateInput.ts`)이 음수 입력을
+ * 막고, 행은 항상 이미 있는 systemId로만 만들어진다. 작업 파일이
+ * (손상되었든 변조되었든) 이 불변식을 어기면 그 불변식에 기대는 계산
+ * (예: 시스템별 합계)이 조용히 틀어진다 — orphan 행은 어느 시스템
+ * 합계에도 안 잡혀 합계에서 사라질 수 있다.
+ *
+ * 전부는 아니다 — `sourceCableMembers`/`sourceCableKey`처럼 더 깊은
+ * 케이블 식별 관계까지는 이번 범위에서 보지 않는다(그 불변식은 아직
+ * 이 파일 밖 코드만 알고 있다). 아래가 보는 것은 ID 유일성·소속 시스템
+ * 참조·음수 금지·파생행의 source/exclusion 참조·케이블 경로가 가리키는
+ * edge·케이블 기준 행의 존재뿐이다.
+ */
+function structuralIssues(document: QuoteDocument): string[] {
+  const issues: string[] = [];
+  const systemIds = new Set(document.systems.map((s) => s.systemId));
+  const rowIds = new Set<string>();
+
+  const checkRowId = (id: string, label: string) => {
+    if (rowIds.has(id)) issues.push(`${label} ID가 중복됐다: ${id}`);
+    rowIds.add(id);
+  };
+  const checkSystemRef = (systemId: string, label: string) => {
+    if (!systemIds.has(systemId)) issues.push(`${label}의 systemId(${systemId})가 없는 시스템을 가리킨다.`);
+  };
+
+  for (const row of document.rows) {
+    checkRowId(row.rowId, '행');
+    checkSystemRef(row.systemId, `행 ${row.rowId}`);
+    if (row.type === 'item' && row.quantity.trim().startsWith('-')) {
+      issues.push(`행 ${row.rowId}의 수량이 음수다(${row.quantity}).`);
+    }
+  }
+
+  for (const row of document.derivedRows) {
+    checkRowId(row.rowId, '파생행');
+    checkSystemRef(row.systemId, `파생행 ${row.rowId}`);
+    const derived = row.derived;
+    if (derived.kind === 'single-row-material') {
+      const sourceRowId = derived.sourceRowId;
+      if (!document.rows.some((r) => r.rowId === sourceRowId)) {
+        issues.push(`파생행 ${row.rowId}의 sourceRowId(${sourceRowId})가 없는 행을 가리킨다.`);
+      }
+    } else {
+      for (const excludedId of derived.excludedRowIds ?? []) {
+        if (!document.rows.some((r) => r.rowId === excludedId)) {
+          issues.push(`파생행 ${row.rowId}의 제외 행(${excludedId})이 없는 행을 가리킨다.`);
+        }
+      }
+    }
+  }
+
+  for (const group of document.coverGroups) {
+    for (const systemId of group.systemIds) {
+      checkSystemRef(systemId, `갑지 그룹 ${group.groupId}`);
+    }
+  }
+
+  if (document.cableSource !== undefined) {
+    const edgeIds = new Set(document.cableSource.edges.map((e) => e.id));
+    for (const route of document.cableRoutes ?? []) {
+      if (!edgeIds.has(route.edgeId)) {
+        issues.push(`케이블 경로가 구성도에 없는 edge(${route.edgeId})를 가리킨다.`);
+      }
+    }
+  }
+  for (const row of document.cableBaseline ?? []) {
+    if (!rowIds.has(row.rowId)) {
+      issues.push(`케이블 기준 행(${row.rowId})이 실제 rows에 없다.`);
+    }
+  }
+
+  return issues;
+}
+
+/**
  * 저장 직전에도 같은 스키마로 다시 검증한다 — 메모리의 문서가 어떤
  * 경로로 만들어졌든(미래의 실수 포함) 허용 목록 밖의 칸이 있으면
- * 저장 자체를 거부한다.
+ * 저장 자체를 거부한다. 구조적 관계(`structuralIssues`)도 저장
+ * 시점에 먼저 본다 — 내부 버그라면 저장 때 바로 드러나는 편이 낫다.
  */
 export function encodeWorkFile(document: QuoteDocument): string {
   const parsed = quoteDocumentSchema.parse(document);
+  const issues = structuralIssues(parsed as unknown as QuoteDocument);
+  if (issues.length > 0) {
+    throw new Error(`작업 파일로 저장할 수 없다 — 문서 내부 상태가 일관되지 않는다: ${issues.join('; ')}`);
+  }
   return JSON.stringify(parsed);
 }
 
@@ -381,5 +478,10 @@ export function decodeWorkFile(text: string): DecodeWorkFileResult {
   if (!result.success) {
     return { ok: false, reason: `작업 파일 내용이 올바르지 않다: ${result.error.message}` };
   }
-  return { ok: true, document: result.data as unknown as QuoteDocument };
+  const document = result.data as unknown as QuoteDocument;
+  const issues = structuralIssues(document);
+  if (issues.length > 0) {
+    return { ok: false, reason: `작업 파일 내용이 일관되지 않는다: ${issues.join('; ')}` };
+  }
+  return { ok: true, document };
 }
