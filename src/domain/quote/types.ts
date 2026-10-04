@@ -120,6 +120,19 @@ export interface QuoteRow {
 
   location?: string;
   /** 견적서 K열. */
+  /**
+   * 제품 설명 (가이드 D열). **사람 비고와 다른 칸이다.**
+   *
+   * 2단계(고객용)에서 지운다. 비고는 남는다.
+   */
+  internalDescription?: string;
+  /**
+   * 변환 메모 — 구성도에서 자동으로 만든 설명.
+   *
+   * `remark`(사람 칸)와 섞지 않는다. 섞으면 사람이 쓴 글을 지우거나
+   * 기계가 쓴 글을 고객에게 보내게 된다.
+   */
+  conversionNote?: string;
   remark: string;
 
   origin: RowOrigin;

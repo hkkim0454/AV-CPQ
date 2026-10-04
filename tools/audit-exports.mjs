@@ -26,6 +26,10 @@ const COST_FREE_PREFIXES = [
   'src/export/customer',
   'src/export/ooxml',
   'src/services/files',
+  // 공유용(1단계)과 준비 단계는 **원가를 받지 않는다**.
+  // 받는 곳은 src/export/internal 뿐이다.
+  'src/export/shared',
+  'src/export/variants',
 ];
 
 /** 원가 모듈로 간주하는 경로. */
@@ -172,6 +176,8 @@ for (const file of files) {
 const SIGNATURE_RULES = [
   ['src/domain/calculation/calculate.ts', 'calculateQuote'],
   ['src/export/customer/projection.ts', 'buildCustomerProjection'],
+  ['src/export/shared/projection.ts', 'buildSharedProjection'],
+  ['src/export/variants/prepare.ts', 'prepareQuote'],
 ];
 for (const [relPath, fn] of SIGNATURE_RULES) {
   const source = readFileSync(join(ROOT, relPath), 'utf8');
