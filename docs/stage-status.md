@@ -78,6 +78,69 @@ Task 5~7 원가 파일 올리기 · 출력 3종 내려받기 · 전체 흐름 �
 
 ---
 
+## 결정-코드 대조 검증 (2026-10-05, 커밋 `cb3d29c` 기준)
+
+구현 세션이 작성한 코드가 결정 기록과 어긋나는지 **계획 세션이 독립적으로** 대조했다.
+새 계획은 쓰지 않았고, 코드도 고치지 않았다. **읽고 맞춰 보기만 했다.**
+
+### 확인한 것 — 전부 일치했다
+
+| 결정 | 코드 위치 | 확인 내용 |
+|---|---|---|
+| D22-1 배관 판정 | `installation.ts:163` `isConduitGroup` | 품명 문자열이 아니라 `options.group` 값으로 가린다 |
+| D22-2 비율 | `installation.ts:128` | 후렉시블 `20` · CD관 `40` · 트레이 `30` |
+| D22-2 비율 출처 | `InstallationPanel.tsx:138` | 화면에 출처 문구를 띄운다. 트레이는 "품셈 근거 아님"으로 적힌다 |
+| D22-2 트레이 단위 | `installation.ts:142` `TRAY_BULK_UNIT`·`'EA'` | 트레이만 3M·`EA`. 후렉시블·CD관의 `10M`과 섞지 않는다 |
+| D8 배관 수량 | `installation.ts:204` | `가장 먼 거리 × 줄 수`. `×2`도 `×1.3`도 붙이지 않는다 |
+| D8 `×1.3` | `installation.ts:71` `CABLE_ROUTE_SLACK_FACTOR` | 케이블 경로에만 쓰고 배관에는 쓰지 않는다 |
+| D19 잡자재비 | `miscMaterials.ts:45` | `LED 캐비넷 제외 재료비의 2%` |
+| D19 묶음 미상 | `miscMaterials.ts:18` | 품셈 묶음이 없으면 `blocking: true`로 막는다. 0으로 때우지 않는다 |
+| D19 갑지 G13 | `guideWorkbook.ts:254` | DS 프로파일만 원가측을 계산한다 |
+| D12 간접비 기본 | `workspace.ts:162`·`IndirectPanel.tsx:114` | 기본값이 `'ds'`다 |
+| D12 요율 표기 | `IndirectPanel.tsx:32` | `%`·소수 3자리. 표시 자릿수 때문에 원본이 깎이지 않도록 따로 막아 두었다 |
+| D1 노임 단위 | `buildLabor.ts:118`·`calculateLabor.ts:82` | `M/D`와 `M/M`을 섞지 않는다. 자동 환산도 하지 않는다 |
+
+### 비율이 수식까지 따라가는지 — 따로 확인했다
+
+`guideFormulas.ts:49`의 주석과 `guideLayout.ts:8`의 설명이 `40%`를 예시로 들고 있어서,
+**비율이 코드에 고정돼 있는 것이 아닌지** 의심하고 호출 경로를 끝까지 따라갔다.
+
+```
+installation.ts:402   rate = conduitMaterialRate / 100     (사용자가 고른 배관 종류)
+guideWorkbook.ts:238  percent = ratePercent(row.rate)
+guideFormulas.ts:52   derivedFromRow(..., ratePercent)     ← 인자로 받는다
+```
+
+**고정돼 있지 않다.** 주석의 `40%`는 실측한 원본 예시일 뿐이다.
+
+### 앞서 열어 두었던 지적 2건 — 둘 다 문제가 아니었다
+
+- `verify_in_excel.ps1`의 **전체 EXCEL 종료**는 이미 제거됐다. 10행에 남은 문구는
+  "이전 판은 이렇게 했고 그래서 제거했다"는 **설명**이고, 실제 코드는 631행에서
+  자기가 만든 Application 하나만 `Quit()` 한다.
+- `guideDsConditions.test.ts:135`와 `guideMultiSystem.test.ts:259`가 `allowedCells`에
+  `writtenCells` 전체를 넘기는 것을 **검사가 죽은 것으로 의심했다가 철회했다.**
+  `allowedCells`는 `cost-value` 판정에만 작용하는데(`costLeakScan.ts:158`),
+  그 두 시험은 `costValues: []`로 두고 `forbidden-word`·`forbidden-part`만 본다.
+  허용 목록이 넓어도 그 단언에는 영향이 없다.
+
+### 시험
+
+```
+npx vitest run     54개 파일 · 972건 전부 통과 (6.21s)
+```
+
+### 확인하지 않은 것
+
+위 표에 적은 항목만 봤다. **다음은 이번 대조 범위가 아니었다.**
+
+- E2E(Playwright) 실행 — 단위 시험만 돌렸다
+- 실제 Excel 열기 검증(`verify_in_excel.ps1`) — 실행하지 않았다
+- D17 가이드 서식이 산출물에서 그대로 보존되는지 — 눈으로 보지 않았다
+- Task 5(내 PC 원가 파일 불러오기) — 아직 진행 중이라 대조하지 않았다
+
+---
+
 ## 출력 단계 인수 기록 (커밋 `ab4876e`, 2026-10-04)
 
 가이드 템플릿 기반 출력 3단계 × 2프로파일의 검증 결과다.
