@@ -220,7 +220,7 @@ const quoteSystemSchema = z
     indirectCosts: z.array(indirectCostRuleSchema),
     farthestDeviceMeters: decimalText.optional(),
     conduitRuns: decimalText.optional(),
-    conduitType: z.enum(['flexible', 'cd']).optional(),
+    conduitType: z.enum(['flexible', 'cd', 'tray']).optional(),
     conduitMaterialRate: decimalText.optional(),
     conduitMaterialRateManual: z.boolean().optional(),
   })

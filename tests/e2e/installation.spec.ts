@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
 import { mockResources } from './fixtures';
 
@@ -269,4 +270,29 @@ test('케이블 트레이 — 기본값 30%는 품셈이 아니라 사용자 구
   // 7m × 1줄 = 7m → 3M 단위 올림 = 3EA
   await expect(trayRow).toContainText('3');
   await expect(trayRow).toContainText('EA');
+  // 트레이도 다른 배관 종류와 동일하게 작업 파일로 저장하고 다시 열 수
+  // 있어야 한다 — conduitType이 저장 스키마에 없으면 저장 자체가
+  // 예외로 막힌다(독립 검토 지적).
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: '작업 파일로 저장' }).click(),
+  ]);
+  const path = await download.path();
+  expect(path).not.toBeNull();
+  const savedText = readFileSync(path!, 'utf8');
+
+  await page.goto('/');
+  await page.getByLabel('작업 파일 선택').setInputFiles({
+    name: 'saved.avcpq.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(savedText),
+  });
+
+  await expect(page.getByRole('alert').filter({ hasText: '계산 기준이 바뀌었습니다' })).toHaveCount(0);
+  await expect(page.getByRole('radio', { name: '케이블 트레이' })).toBeChecked();
+  await expect(page.getByRole('radio', { name: /기본값 사용 \(30%\)/ })).toBeChecked();
+  await expect(page.getByText('사용자 구술 지정')).toBeVisible();
+  const reopenedTrayRow = page.locator('.q-quote-table tbody tr', { hasText: 'E2E 케이블 트레이' });
+  await expect(reopenedTrayRow).toContainText('3');
+  await expect(reopenedTrayRow).toContainText('EA');
 });
