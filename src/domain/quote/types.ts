@@ -113,6 +113,20 @@ export interface QuoteRow {
 
   unit: string;
   quantity: DecimalText;
+  /**
+   * 수량이 **실제로 확인된 값이 아니라 자리표시자**라는 뜻이다
+   * (`buildDocument.ts`의 `toRow` — 구성도에 BOM 자체가 없어 몇 개가
+   * 필요한지 알 수 없는 케이블 행에서 생긴다). `quantity`는 그래도
+   * `'1'`을 담아 둔다 — `0`은 계산 엔진이 유효한 확정값으로 보고
+   * 금액을 0원으로 만들어 버리기 때문이다(설계서 §5.6).
+   *
+   * 품목(SKU)을 골랐다는 사실만으로 이 행을 "해소됨"으로 보면 안
+   * 된다 — 사람이 실제 수량을 직접 입력해야 비로소 확정이다. 수량을
+   * 명시로 고치면(`workspace.setQuantity`) 이 표식을 지운다 — 그
+   * 시점부터 `'1'`도 더 이상 자리표시자가 아니라 사람이 확인한 값이기
+   * 때문이다.
+   */
+  quantityUnresolved?: boolean;
   sellingUnitPrice?: DecimalText;
 
   laborMode: LaborMode;

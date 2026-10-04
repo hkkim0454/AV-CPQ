@@ -106,6 +106,11 @@ export function toRow(
     // 수량 미정 행도 `0`을 넣지 않는다. `0`은 계산 엔진이 유효한 값으로 보고
     // 금액을 0원으로 만든다. `1`을 넣고 호출부의 경고로 확정을 막는다.
     quantity: line.quantity ?? '1',
+    // 방금 넣은 `'1'`이 자리표시자라는 표식 — 품목(SKU)만 골랐다고
+    // 이 행이 해소된 것으로 보면 안 된다(독립 검토 지적: BOM 없는
+    // 케이블 구간은 품목을 골라도 실제 수량은 아직 아무도 확인한 적이
+    // 없다). 사람이 수량을 직접 입력해야 지워진다(`workspace.setQuantity`).
+    ...(line.quantity === undefined ? { quantityUnresolved: true as const } : {}),
     ...(line.sellingUnitPrice !== undefined
       ? { sellingUnitPrice: line.sellingUnitPrice }
       : {}),

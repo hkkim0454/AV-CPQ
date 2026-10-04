@@ -36,7 +36,15 @@ export type WarningCode =
   | 'nego-negative-input'
   | 'derived-source-missing'
   | 'indirect-basis-missing'
-  | 'empty-system';
+  | 'empty-system'
+  /**
+   * `row.quantityUnresolved`가 `true`인 행 — 품목(SKU)은 골랐어도
+   * 실제 수량은 아직 아무도 확인하지 않았다(독립 검토 지적). import
+   * 경고 레이어가 어떤 이유로든 누락되더라도 계산 엔진이 한 번 더
+   * 막는다(이중 방어) — 이 경고는 별도 state 없이 문서 자신의
+   * 표식만 보고 매번 새로 나오므로 실행취소와 항상 맞는다.
+   */
+  | 'quantity-unresolved';
 
 export interface CalculationWarning {
   code: WarningCode;
@@ -260,6 +268,16 @@ function calculateItemRow(
   warnings: CalculationWarning[],
 ): RowCalculation {
   const quantity = dec(row.quantity);
+
+  if (row.quantityUnresolved === true) {
+    warnings.push({
+      code: 'quantity-unresolved',
+      blocking: true,
+      message: `행 ${row.name || row.rowId}: 수량이 아직 확인되지 않았다(자리표시자 값이다).`,
+      systemId: row.systemId,
+      rowId: row.rowId,
+    });
+  }
 
   // 설계서 §5.6: 단가 미등록을 0원으로 표시해 견적을 완성시키지 않는다.
   const materialUnitPrice = laborOnly ? undefined : decOrUndefined(row.sellingUnitPrice);

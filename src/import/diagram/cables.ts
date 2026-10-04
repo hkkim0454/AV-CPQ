@@ -269,7 +269,8 @@ export function buildCableLines(
         blocking: true,
         message:
           `'${label}' 연결선에 케이블 품목이 지정되지 않았다. ` +
-          '행은 만들었으나 수량을 정할 수 없다.',
+          '행은 만들었으나 수량을 정할 수 없다 — 품목을 고른 뒤에도 ' +
+          '실제 수량을 직접 입력해야 확정된다.',
         edgeId: edge.id,
         candidates: cableCandidates(catalog, label),
         sourceCableKey: key,

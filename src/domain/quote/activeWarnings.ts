@@ -19,7 +19,16 @@ import type { QuoteDocument, SheetRow } from './types';
 type ItemRow = Extract<SheetRow, { type: 'item' }>;
 
 function isFilled(row: ItemRow | undefined): boolean {
-  return row !== undefined && row.sku !== undefined && row.sellingUnitPrice !== undefined;
+  return (
+    row !== undefined &&
+    row.sku !== undefined &&
+    row.sellingUnitPrice !== undefined &&
+    // 품목만 고르고 실제 수량은 아직 아무도 확인하지 않은 행이면
+    // "해소됨"으로 보지 않는다(독립 검토 지적) — BOM 없는 케이블
+    // 구간이 대표 사례다. 장비·옵션 행은 이 표식이 생기지 않으므로
+    // 영향이 없다.
+    row.quantityUnresolved !== true
+  );
 }
 
 /**

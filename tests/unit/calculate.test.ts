@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { calculateQuote } from '@/domain/calculation/calculate';
 import { makeDocument, itemRow, system } from '../fixtures/document';
+import type { SheetRow } from '@/domain/quote/types';
 
 /**
  * 설계서 §5.6 합성 검증 예제. 아래 값은 회사 가격이 아닌 테스트 값이다.
@@ -87,6 +88,27 @@ describe('calculateQuote — 미등록 단가 (설계서 §5.6 마지막 행)', 
     expect(row.materialAmount?.toFixed()).toBe('0');
     expect(snap.warnings.some((w) => w.code === 'price-not-registered')).toBe(false);
     expect(snap.blocking).toBe(false);
+  });
+});
+
+describe('calculateQuote — 수량 자리표시자 (독립 검토 지적: BOM 없는 케이블 구간)', () => {
+  it('quantityUnresolved가 true면 단가·수량이 채워져 있어도 확정을 차단한다', () => {
+    const doc = makeDocument({
+      systems: [system('S1', { indirect: [] })],
+      rows: [{ ...(itemRow('r1', 'S1', { quantity: '1', price: '1000' }) as Extract<SheetRow, { type: 'item' }>), quantityUnresolved: true }],
+    });
+    const snap = calculateQuote(doc);
+    expect(snap.blocking).toBe(true);
+    expect(snap.warnings.some((w) => w.code === 'quantity-unresolved' && w.rowId === 'r1')).toBe(true);
+  });
+
+  it('quantityUnresolved가 없으면(사람이 수량을 확인한 뒤) 이 경고가 없다', () => {
+    const doc = makeDocument({
+      systems: [system('S1', { indirect: [] })],
+      rows: [itemRow('r1', 'S1', { quantity: '1', price: '1000' })],
+    });
+    const snap = calculateQuote(doc);
+    expect(snap.warnings.some((w) => w.code === 'quantity-unresolved')).toBe(false);
   });
 });
 

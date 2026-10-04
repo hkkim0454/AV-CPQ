@@ -283,7 +283,14 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
 
   const setQuantity = useCallback(
     (rowId: string, quantity: string) => {
-      mutateRow(rowId, (r) => (r.type === 'item' ? { ...r, quantity } : r));
+      mutateRow(rowId, (r) => {
+        if (r.type !== 'item') return r;
+        // 사람이 수량을 직접 입력했다 — 자리표시자 표식을 지운다(독립
+        // 검토 지적). 이제부터는 이 값이 무엇이든(우연히 '1'이어도)
+        // 사람이 확인한 수량이지 자동으로 채운 임시값이 아니다.
+        const { quantityUnresolved: _quantityUnresolved, ...rest } = r;
+        return { ...rest, quantity };
+      });
     },
     [mutateRow],
   );

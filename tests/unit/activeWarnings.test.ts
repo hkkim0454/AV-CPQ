@@ -170,4 +170,45 @@ describe('computeActiveWarnings', () => {
     ];
     expect(computeActiveWarnings(document, warnings)).toEqual([warnings[1]]);
   });
+
+  it('품목(SKU)만 고르고 수량은 아직 자리표시자면 경고가 사라지지 않는다(독립 검토 지적)', () => {
+    // BOM 없는 케이블 구간 — toRow가 quantity '1'을 자리표시자로
+    // 채우고 quantityUnresolved: true를 남긴다. SKU·가격을 채워도
+    // 이 표식이 남아 있으면 "해소됨"이 아니다.
+    const document = {
+      ...baseDocument(),
+      rows: [
+        itemRow({
+          rowId: 'r1',
+          systemId: 'S1',
+          sourceEdgeIds: ['e1'],
+          sku: 'X',
+          sellingUnitPrice: '100',
+          quantity: '1',
+          quantityUnresolved: true,
+        }),
+      ],
+    };
+    const warnings: ImportWarning[] = [{ code: 'cable-item-unresolved', blocking: true, message: 'x', edgeId: 'e1' }];
+    expect(computeActiveWarnings(document, warnings)).toEqual(warnings);
+  });
+
+  it('사람이 수량을 실제로 확인한 뒤(quantityUnresolved 없음)에는 해소된다', () => {
+    const document = {
+      ...baseDocument(),
+      rows: [
+        itemRow({
+          rowId: 'r1',
+          systemId: 'S1',
+          sourceEdgeIds: ['e1'],
+          sku: 'X',
+          sellingUnitPrice: '100',
+          quantity: '1',
+          // quantityUnresolved 없음 — workspace.setQuantity가 지운 상태를 흉내낸다.
+        }),
+      ],
+    };
+    const warnings: ImportWarning[] = [{ code: 'cable-item-unresolved', blocking: true, message: 'x', edgeId: 'e1' }];
+    expect(computeActiveWarnings(document, warnings)).toEqual([]);
+  });
 });

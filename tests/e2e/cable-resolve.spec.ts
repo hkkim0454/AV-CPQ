@@ -242,3 +242,60 @@ test('병합된 케이블 행 — 한 구간만 해소해도 합쳐진 다른 �
   await page.getByRole('button', { name: '실행 취소' }).click();
   await expect(warnings.locator('li', { hasText: 'HDMI 케이블(미지정)' })).toHaveCount(2);
 });
+
+/**
+ * 연결선에 BOM 자체가 없으면(`bomRows: []`) 몇 개가 필요한지 **아무도
+ * 모른다** — `toRow`가 수량 '1'을 자리표시자로 채우고
+ * `quantityUnresolved: true`를 남긴다. 품목(SKU)만 고르고 실제 수량은
+ * 확인하지 않은 채 경고가 사라지면, 자리표시자 '1'이 조용히 "확정
+ * 수량"으로 둔갑한다 — 독립 검토가 짚은 지점이라 실제 화면으로
+ * 못박는다.
+ */
+test('BOM 없는 구간 — 품목만 골라서는 해소되지 않는다. 수량을 직접 확인해야 한다', async ({ page }) => {
+  await setupCatalog(page);
+  await page.goto('/');
+
+  const diagram = {
+    version: '1',
+    nodes: [
+      { id: 'n1', data: { model: '', name: '소스', systemName: '시스템1' } },
+      { id: 'n2', data: { model: '', name: '싱크', systemName: '시스템1' } },
+    ],
+    edges: [{ id: 'e1', source: 'n1', target: 'n2', data: { lineTypeId: 'video', bomRows: [] } }],
+    lineTypes: [{ id: 'video', name: 'HDMI', color: '#ef4444' }],
+  };
+
+  await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'no-bom.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(diagram)),
+  });
+
+  // 노드(n1/n2)는 모델이 없어 별도의 미해결 장비 경고도 같이 뜬다 —
+  // 이 시험은 케이블 경고 하나만 짚는다.
+  const warnings = page.getByRole('alert').filter({ hasText: '확인이 필요합니다' });
+  const cableWarning = warnings.locator('li', { hasText: '품목을 고른 뒤에도' });
+  await expect(cableWarning).toHaveCount(1);
+
+  const groups = cableWarning.locator('.q-resolve-candidate-group');
+  await groups.filter({ hasText: 'CS_HDMI 케이블' }).first().getByRole('listitem').filter({ hasText: '1M' })
+    .getByRole('button', { name: '선택' }).click();
+
+  // 품목은 들어왔지만(이름·가격이 보인다) 경고는 그대로 남는다 —
+  // 수량을 아직 아무도 확인하지 않았기 때문이다(경고 문구는
+  // computeActiveWarnings가 걸러줄 뿐 바꾸지 않으므로 그대로다).
+  const row = page.locator('.q-quote-table tbody tr', { hasText: 'HDMI Cable' });
+  await expect(row).toContainText('15000');
+  await expect(cableWarning).toHaveCount(1);
+
+  // 사람이 실제 수량을 입력하면 비로소 해소된다.
+  await row.getByLabel(/수량/).fill('4');
+  await row.getByLabel(/수량/).blur();
+  await expect(cableWarning).toHaveCount(0);
+
+  // 실행취소 — 수량 확정이 먼저 되돌아간다(경고가 다시 뜬다).
+  await page.getByRole('button', { name: '실행 취소' }).click();
+  await expect(cableWarning).toHaveCount(1);
+  await expect(row.getByLabel(/수량/)).toHaveValue('1');
+});
