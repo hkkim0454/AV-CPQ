@@ -24,9 +24,18 @@ import {
 import { prepareQuote } from '../src/export/variants/prepare';
 import { buildCustomerProjection } from '../src/export/customer/projection';
 import { buildCustomerGuideWorkbook } from '../src/export/customer/guideWorkbook';
+import { buildSharedProjection } from '../src/export/shared/projection';
+import { buildSharedGuideWorkbook } from '../src/export/shared/workbook';
+import { buildSalesGuideWorkbook } from '../src/export/internal/guideWorkbook';
+import { createSession } from '../src/services/private-cost/session';
+import { parsePrivatePrices } from '../src/services/private-cost/parse';
+import { readTable } from '../src/services/private-cost/readTable';
+import { internalLines } from '../src/services/private-cost/calculate';
+import { strToU8 } from 'fflate';
 import { quoteFileName, type OutputLevel } from '../src/export/variants/fileName';
 import { pickedItemsToQuote } from '../src/import/picker/toQuote';
 
+const NEWLINE = String.fromCharCode(10);
 const ROOT = resolve(__dirname, '..');
 const OUT = resolve(ROOT, '.local/out/variants');
 
@@ -59,6 +68,49 @@ function pickProducts(count: number): string[] {
       p.sku !== matrix.sku && catalog.prices.has(p.sku) && p.laborMappingId !== undefined,
   );
   return [matrix.sku, ...rest.slice(0, count - 1).map((p) => p.sku)];
+}
+
+/**
+ * **합성** 원가를 만든다. 실제 원가 파일은 쓰지 않는다 (설계서 §8.4).
+ *
+ * 판매단가의 80% 를 매입단가로 둔 가짜 표다. 구조를 확인하려는 것이지
+ * 금액을 확인하려는 것이 아니다.
+ */
+function syntheticCost(
+  prepared: ReturnType<typeof prepareQuote>,
+  firstRowId: string,
+) {
+  const items = prepared.document.rows.filter((r) => r.type === 'item');
+  const header = '품명,규격,매입단가,통화,단위';
+  const lines = items.map((row, index) => {
+    const unitPrice = prepared.priced.calculation.systems[0]!.rows.find(
+      (r) => r.rowId === row.rowId,
+    )?.materialUnitPrice;
+    const cost = unitPrice === undefined ? 1000 : Math.round(unitPrice.toNumber() * 0.8);
+    return `합성품목${index + 1},MODEL-${index + 1},${cost},KRW,EA`;
+  });
+  const parsed = parsePrivatePrices(
+    readTable(strToU8([header, ...lines].join(NEWLINE) + NEWLINE), 'csv'),
+    { model: '규격', name: '품명', purchaseUnitPrice: '매입단가', currency: '통화', unit: '단위' },
+  );
+  const session = createSession(parsed.entries);
+  const entryIds = items.map((_, index) =>
+    session.candidatesByModel(`MODEL-${index + 1}`)[0]?.entryId,
+  );
+  const lines2 = internalLines(
+    items.map((row, index) => ({
+      rowId: row.rowId,
+      ...(entryIds[index] !== undefined ? { costEntryId: entryIds[index]! } : {}),
+      quantity: row.quantity,
+    })),
+    session,
+  );
+  return {
+    lines: lines2,
+    aiNotesByRow: new Map([[firstRowId, '구성도 — 카탈로그 조회 2건 걸림. 확인 필요']]),
+    supplierByRow: new Map([[firstRowId, '합성 거래처']]),
+    salesRemarkByRow: new Map([[firstRowId, '합성 영업메모']]),
+  };
 }
 
 const SITE = '합성 현장 A동';
@@ -108,24 +160,43 @@ function build(profile: IndirectProfileId, level: OutputLevel, itemCount: number
 
   const tag = `${profile}-${level}`;
 
-  if (level !== 2) {
-    // 0·1단계 exporter 는 아직 없다. **빈 파일을 만들지 않는다** —
-    // 파일이 있으면 검증이 통과한 것처럼 보인다.
-    writeFileSync(
-      resolve(OUT, `${tag}.skipped.json`),
-      JSON.stringify(
-        { profile, level, reason: 'exporter-not-implemented' },
-        null,
-        2,
-      ) + '\n',
-      'utf8',
-    );
-    console.log(`${tag}  미구현 — 파일을 만들지 않았다`);
-    return;
-  }
+  const projection = buildCustomerProjection(
+    prepared.document,
+    prepared.priced.calculation,
+  );
 
-  const projection = buildCustomerProjection(prepared.document, prepared.priced.calculation);
-  const result = buildCustomerGuideWorkbook(projection, guide);
+  // 설명과 거래처는 합성이다. 실제 자료는 화면이 채운다.
+  const firstRowId = prepared.document.rows.find((r) => r.type === 'item')!.rowId;
+  const sharedExport = () =>
+    buildSharedProjection(
+            {
+              ...prepared,
+              document: {
+                ...prepared.document,
+                rows: prepared.document.rows.map((r) =>
+                  r.type === 'item'
+                    ? { ...r, internalDescription: `설명: ${r.name}` }
+                    : r,
+                ),
+              },
+            },
+      {
+        supplierByRow: new Map([[firstRowId, '합성 거래처']]),
+        salesRemarkByRow: new Map([[firstRowId, '합성 영업메모']]),
+      },
+    );
+
+  const result =
+    level === 0
+      ? buildSalesGuideWorkbook({
+          shared: sharedExport(),
+          extras: syntheticCost(prepared, firstRowId),
+          guide,
+          baseGuide: selectGuide(guides, profile, false),
+        })
+      : level === 1
+        ? buildSharedGuideWorkbook({ shared: sharedExport(), guide })
+        : buildCustomerGuideWorkbook(projection, guide);
 
   const fileName = quoteFileName(SITE, DATE, level);
   writeFileSync(resolve(OUT, `${tag}.xlsx`), result.bytes);

@@ -218,6 +218,22 @@ def measure(zf: zipfile.ZipFile, guide_id: str) -> dict:
             columns["standardUnitPrice"] = column_name(index)
             trade_start = index + 1
 
+    # --- 품셈 코드 열 ---
+    # 2행에 머리글이 **없다.** 원본 구조상 `노무비(메모) / 품셈코드 / 품목별요율%`
+    # 순서라 메모 바로 다음 칸이다. 추론이므로 **확인을 붙인다** —
+    # 메모 다음 칸이 요율 칸 바로 앞이 아니면 구조가 달라진 것이고, 그때는
+    # 엉뚱한 칸에 품셈 코드를 쓰게 된다.
+    if "laborNote" in columns and "itemRate" in columns:
+        note_index = column_index(columns["laborNote"])
+        rate_index = column_index(columns["itemRate"])
+        if rate_index - note_index != 2:
+            raise SystemExit(
+                f"{guide_id}: 노무비 메모({columns['laborNote']})와 "
+                f"품목별 요율({columns['itemRate']}) 사이가 한 칸이 아니다. "
+                "품셈 코드 열을 추론할 수 없다."
+            )
+        columns["pumsemCode"] = column_name(note_index + 1)
+
     # --- 직종과 노임 (3행) ---
     trades = []
     wages = {}
