@@ -28,7 +28,7 @@ const labor = buildLaborReference(
   read('data/approved/labor-mappings.json'),
 );
 
-const diagram = parseDiagram(read('.local/samples/av-diagram.json'));
+const diagram = parseDiagram(read(process.argv[2] ?? '.local/samples/av-diagram.json'));
 
 const result = diagramToQuote(diagram, catalog, {
   header: {

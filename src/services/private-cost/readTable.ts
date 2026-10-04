@@ -1,8 +1,14 @@
 /**
  * 원가표 파일을 표로 읽는다 (설계서 §8.3).
  *
- * 허용: CSV, 값 전용 XLSX.
- * 거부: 수식 셀, 매크로, 외부 링크, 암호화, 제한 초과.
+ * 허용: CSV, XLSX.
+ * 거부: 매크로, 외부 링크, 암호화, 제한 초과.
+ *
+ * **수식은 파일 단위로 거부하지 않는다.** 품셈 파일은 수식투성이고 그 대부분은
+ * 원가와 무관하다. 수식이 있던 자리를 `formulaColumns`로 기록해 넘기고,
+ * **읽는 가격 열에 수식이 있을 때만** 막는다 (`parsePrivatePrices`).
+ * 설계서 §8.3의 취지는 "수식이 만든 가격을 믿지 말자"지 "수식 있는 파일을
+ * 거부하자"가 아니다.
  *
  * 설계서 §8.3의 금지 사항은 **구현으로** 지킨다.
  *   - JS 파일 실행 금지 → 이 모듈은 파일 내용을 데이터로만 읽는다
@@ -30,6 +36,12 @@ export class TableReadError extends Error {
 export interface Table {
   header: string[];
   rows: string[][];
+  /**
+   * 데이터 행별로 **수식이 들어 있던 열 번호**. `rows`와 같은 순서·길이다.
+   *
+   * 값이 아니라 자리만 담는다 — 이 구조는 원가를 싣지 않는다 (설계서 §8.4).
+   */
+  formulaColumns: ReadonlySet<number>[];
 }
 
 export type TableFormat = 'csv' | 'xlsx';
@@ -137,7 +149,13 @@ function columnOf(ref: string): number {
   return out;
 }
 
-function parseXlsx(bytes: Uint8Array, limits: InputLimits): string[][] {
+interface RawSheet {
+  rows: string[][];
+  /** 행마다 수식이 있던 열 번호. `rows`와 같은 길이다. */
+  formulas: Set<number>[];
+}
+
+function parseXlsx(bytes: Uint8Array, limits: InputLimits): RawSheet {
   assertOoxml(bytes);
   const files = unzipSync(bytes);
   const names = Object.keys(files);
@@ -201,11 +219,13 @@ function parseXlsx(bytes: Uint8Array, limits: InputLimits): string[][] {
 
   const worksheet = parseXml(strFromU8(files[sheetName]!)).root;
   const sheetData = findChild(worksheet, 'sheetData');
-  if (sheetData === undefined) return [];
+  if (sheetData === undefined) return { rows: [], formulas: [] };
 
   const rows: string[][] = [];
+  const formulas: Set<number>[] = [];
   for (const rowEl of findChildren(sheetData, 'row')) {
     const values: string[] = [];
+    const formulaAt = new Set<number>();
     for (const cellEl of findChildren(rowEl, 'c')) {
       const ref = cellEl.attrs['r'] ?? '';
       const column = columnOf(ref);
@@ -216,14 +236,10 @@ function parseXlsx(bytes: Uint8Array, limits: InputLimits): string[][] {
         );
       }
 
-      // 설계서 §8.3: 수식 가격 셀은 초기 버전에서 거부한다.
-      // 캐시된 수식 결과를 원가 값으로 조용히 신뢰하지 않는다.
-      if (findChild(cellEl, 'f') !== undefined) {
-        throw new TableReadError(
-          `셀 ${ref}에 수식이 있다. 값으로 붙여넣은 파일만 읽는다.`,
-          'formula-cell',
-        );
-      }
+      // 설계서 §8.3: 캐시된 수식 결과를 원가 값으로 조용히 신뢰하지 않는다.
+      // 다만 **여기서 막지 않는다.** 품셈 파일은 수식투성이고 대부분 원가와
+      // 무관하다. 자리만 적어 두고, 가격 열에 걸렸을 때 호출부가 막는다.
+      if (findChild(cellEl, 'f') !== undefined) formulaAt.add(column - 1);
 
       const type = cellEl.attrs['t'];
       let value = '';
@@ -241,11 +257,12 @@ function parseXlsx(bytes: Uint8Array, limits: InputLimits): string[][] {
       values[column - 1] = value;
     }
     rows.push(values);
+    formulas.push(formulaAt);
     if (rows.length > limits.maxRows + 1) {
       throw new TableReadError(`행이 ${limits.maxRows}개를 넘는다.`, 'too-many-rows');
     }
   }
-  return rows;
+  return { rows, formulas };
 }
 
 // ---------------------------------------------------------------------------
@@ -260,20 +277,30 @@ export function readTable(
   }
 
   const started = Date.now();
-  const raw =
+  const sheet: RawSheet =
     format === 'csv'
-      ? parseCsv(strFromU8(bytes).replace(/^﻿/, ''), limits)
+      ? { rows: parseCsv(strFromU8(bytes).replace(/^﻿/, ''), limits), formulas: [] }
       : parseXlsx(bytes, limits);
 
   if (Date.now() - started > limits.maxParseMs) {
     throw new TableReadError('파싱 시간이 제한을 넘었다.', 'parse-timeout');
   }
 
-  const nonEmpty = raw.filter((row) => row.some((cell) => cell.trim() !== ''));
-  if (nonEmpty.length === 0) {
+  // 빈 행을 거를 때 **수식 자리도 같이 걸러야** 행 번호가 어긋나지 않는다.
+  // 어긋나면 멀쩡한 행이 막히고 수식 가격이 통과한다.
+  const kept: Array<{ values: string[]; formulas: ReadonlySet<number> }> = [];
+  sheet.rows.forEach((row, index) => {
+    if (!row.some((cell) => cell.trim() !== '')) return;
+    kept.push({ values: row, formulas: sheet.formulas[index] ?? new Set<number>() });
+  });
+  if (kept.length === 0) {
     throw new TableReadError('빈 파일이다.', 'empty-file');
   }
 
-  const [header, ...rows] = nonEmpty;
-  return { header: header!.map((c) => c.trim()), rows };
+  const [header, ...rest] = kept;
+  return {
+    header: header!.values.map((c) => c.trim()),
+    rows: rest.map((r) => r.values),
+    formulaColumns: rest.map((r) => r.formulas),
+  };
 }

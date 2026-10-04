@@ -140,7 +140,26 @@ describe('readTable — XLSX (설계서 §8.3)', () => {
     expect(table.rows[0]).toEqual(['A-1', '1000', 'KRW', 'EA']);
   });
 
-  it('수식이 든 셀을 거부한다 — 캐시된 결과를 원가로 신뢰하지 않는다', () => {
+  /**
+   * B1 — 품셈 파일은 **수식투성이**다. 원가와 무관한 셀의 수식 때문에
+   * 파일 전체가 거부되면 사용자가 원가를 못 올린다.
+   *
+   * 설계서 §8.3의 취지는 *"수식이 만든 가격을 그대로 믿지 말자"*지
+   * *"수식 있는 파일을 거부하자"*가 아니다. 검사는 **읽는 가격 열에만** 건다.
+   */
+  it('가격과 무관한 열의 수식 때문에 파일이 거부되지 않는다', () => {
+    const bytes = makeXlsx(
+      [
+        ['SKU', '매입단가', '통화', '단위', '품셈계산'],
+        ['A-1', '2000', 'KRW', 'EA', '42'],
+      ],
+      { formulaAt: [1, 4] },
+    );
+    const table = readTable(bytes, 'xlsx');
+    expect(table.rows[0]![1]).toBe('2000');
+  });
+
+  it('수식이 있던 자리를 행·열로 알려준다', () => {
     const bytes = makeXlsx(
       [
         ['SKU', '매입단가'],
@@ -148,7 +167,14 @@ describe('readTable — XLSX (설계서 §8.3)', () => {
       ],
       { formulaAt: [1, 1] },
     );
-    expect(() => readTable(bytes, 'xlsx')).toThrow(/수식/);
+    const table = readTable(bytes, 'xlsx');
+    expect(table.formulaColumns[0]!.has(1)).toBe(true);
+    expect(table.formulaColumns[0]!.has(0)).toBe(false);
+  });
+
+  it('CSV에는 수식 자리가 없다', () => {
+    const table = readTable(csv('SKU,매입단가\nA-1,1000\n'), 'csv');
+    expect(table.formulaColumns[0]!.size).toBe(0);
   });
 
   it('매크로 통합문서를 거부한다', () => {
@@ -181,6 +207,49 @@ describe('readTable — XLSX (설계서 §8.3)', () => {
     expect(() => readTable(big, 'xlsx', { ...DEFAULT_LIMITS, maxUnzippedBytes: 10 })).toThrow(
       TableReadError,
     );
+  });
+});
+
+describe('parsePrivatePrices — 가격 열 수식 (B1)', () => {
+  it('매입단가 열에 수식이 있으면 그 행만 막는다', () => {
+    const bytes = makeXlsx(
+      [
+        ['SKU', '매입단가', '통화', '단위'],
+        ['A-1', '2000', 'KRW', 'EA'],
+        ['A-2', '3000', 'KRW', 'EA'],
+      ],
+      { formulaAt: [1, 1] },
+    );
+    const result = parsePrivatePrices(readTable(bytes, 'xlsx'), MAPPING);
+    expect(result.errors.map((e) => e.code)).toEqual(['price-formula']);
+    expect(result.errors[0]!.row).toBe(1);
+    // 나머지 행은 살아 있다 — 파일 전체를 버리지 않는다.
+    expect(result.entries.map((e) => e.sku)).toEqual(['A-2']);
+  });
+
+  it('오류 메시지에 값을 담지 않는다 (설계서 §8.4)', () => {
+    const bytes = makeXlsx(
+      [
+        ['SKU', '매입단가', '통화', '단위'],
+        ['A-1', '123456789', 'KRW', 'EA'],
+      ],
+      { formulaAt: [1, 1] },
+    );
+    const result = parsePrivatePrices(readTable(bytes, 'xlsx'), MAPPING);
+    expect(result.errors[0]!.message).not.toContain('123456789');
+  });
+
+  it('가격 아닌 열의 수식은 통과시킨다', () => {
+    const bytes = makeXlsx(
+      [
+        ['SKU', '매입단가', '통화', '단위', '품셈계산'],
+        ['A-1', '2000', 'KRW', 'EA', '42'],
+      ],
+      { formulaAt: [1, 4] },
+    );
+    const result = parsePrivatePrices(readTable(bytes, 'xlsx'), MAPPING);
+    expect(result.errors).toEqual([]);
+    expect(result.entries).toHaveLength(1);
   });
 });
 

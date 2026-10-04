@@ -27,6 +27,7 @@ export type PriceErrorCode =
   | 'sku-empty'
   | 'duplicate-sku'
   | 'price-empty'
+  | 'price-formula'
   | 'price-not-numeric'
   | 'price-negative'
   | 'currency-empty'
@@ -135,6 +136,24 @@ export function parsePrivatePrices(table: Table, mapping: ColumnMapping): ParseR
         row: rowNumber,
         column: mapping.sku,
         message: `${rowNumber}행: SKU '${sku}'가 ${previous}행과 중복이다.`,
+      });
+      return;
+    }
+
+    // 설계서 §8.3: 수식이 만든 가격을 그대로 믿지 않는다.
+    // 검사는 **이 열에만** 건다 — 품셈 파일의 다른 수식은 원가와 무관하다.
+    const priceColumn = columnIndex['purchaseUnitPrice'];
+    if (
+      priceColumn !== undefined &&
+      table.formulaColumns[index]?.has(priceColumn) === true
+    ) {
+      errors.push({
+        code: 'price-formula',
+        row: rowNumber,
+        column: mapping.purchaseUnitPrice,
+        message:
+          `${rowNumber}행: 매입단가가 수식 결과다. ` +
+          '값으로 붙여넣어야 원가로 읽는다.',
       });
       return;
     }
