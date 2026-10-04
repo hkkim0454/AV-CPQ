@@ -16,8 +16,12 @@ import {
 } from '@/export/ooxml/guideTemplate';
 import { prepareQuote } from '@/export/variants/prepare';
 import { buildCustomerProjection } from '@/export/customer/projection';
-import { buildMultiSystemGuideBase } from '@/export/customer/guideMultiSystem';
+import {
+  buildMultiSystemGuideBase,
+  buildMultiSystemCustomerGuideWorkbook,
+} from '@/export/customer/guideMultiSystem';
 import { pickedItemsToQuote } from '@/import/picker/toQuote';
+import { scanCostLeak } from '../../tools/costLeakScan';
 
 /**
  * 다중/혼합 시스템 (독립 검토 P1-5 우선순위 1).
@@ -208,6 +212,53 @@ describe('다중 시스템 — 혼합 프로파일 (일반 + DS)', () => {
     const dir = resolve(ROOT, '.local/out/multi-system');
     mkdirSync(dir, { recursive: true });
     writeFileSync(resolve(dir, 'general-ds-mixed.xlsx'), result.bytes);
+    expect(result.bytes.byteLength).toBeGreaterThan(0);
+  });
+});
+
+describe('다중 시스템 — 고객용(2단계), 금지 열 삭제', () => {
+  it.each([
+    ['general', 'general'],
+    ['ds', 'ds'],
+    ['general', 'ds'],
+  ] as const)('%s+%s: 두 세부내역 시트 모두 금지 열이 지워진다', (p1, p2) => {
+    const { projection, guideBySystemId } = build([p1, p2]);
+    const result = buildMultiSystemCustomerGuideWorkbook({ exported: projection, guideBySystemId });
+    expect(result.systems).toHaveLength(2);
+
+    for (const sys of result.systems) {
+      const sheet = detailOf(result.bytes, sys.partPath);
+      for (const header of ['제조사/구매처', '영업비고', '설   명']) {
+        expect(sheet, `${sys.sheetName} / ${header}`).not.toContain(header);
+      }
+      // 지워진 열 역할을 물으면 던진다 — 조용히 엉뚱한 칸을 주지 않는다.
+      expect(() => sys.layout.column('supplier')).toThrow(/지워졌다/);
+    }
+
+    // 갑지가 두 시트 모두를, 지워진 뒤의 새 주소로 가리킨다.
+    const cover = detailOf(result.bytes, 'xl/worksheets/sheet1.xml');
+    expect(cellOf(cover, 'G11')).toContain(`'${result.systems[0]!.sheetName}'!`);
+    expect(cellOf(cover, 'G12')).toContain(`'${result.systems[1]!.sheetName}'!`);
+  });
+
+  it('B2 — 다중 시스템 고객용에도 금지 단어·금지 파트가 없다', () => {
+    const { projection, guideBySystemId } = build(['general', 'ds']);
+    const result = buildMultiSystemCustomerGuideWorkbook({ exported: projection, guideBySystemId });
+    const found = scanCostLeak(result.bytes, {
+      costValues: [],
+      allowedCells: result.writtenCells,
+    });
+    expect(found.filter((f) => f.kind === 'forbidden-word' || f.kind === 'forbidden-part')).toEqual(
+      [],
+    );
+  });
+
+  it('고객용 혼합 산출물을 .local 에 써서 Excel 로 직접 확인할 수 있게 한다', () => {
+    const { projection, guideBySystemId } = build(['general', 'ds']);
+    const result = buildMultiSystemCustomerGuideWorkbook({ exported: projection, guideBySystemId });
+    const dir = resolve(ROOT, '.local/out/multi-system');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(resolve(dir, 'general-ds-mixed-level2.xlsx'), result.bytes);
     expect(result.bytes.byteLength).toBeGreaterThan(0);
   });
 });

@@ -38,9 +38,16 @@ import type { GuideTemplate } from '../ooxml/guideTemplate';
 import {
   buildSystemSheetContent,
   GuideWorkbookError,
+  remapCrossSheetRefs,
 } from './guideWorkbook';
 import type { GuideSheetLayout } from '../ooxml/guideLayout';
 import { fillGuideSheet } from '../ooxml/guideSheet';
+import {
+  columnIndex,
+  columnName,
+  deleteSheetColumns,
+  pruneSharedStrings,
+} from '../ooxml/guideColumns';
 import { fillCoverMultiSystem, type CoverSystemEntry } from '../ooxml/guideCoverMulti';
 import { mergeSharedStrings, mergeStylesheets, remapWorksheetIndices } from '../ooxml/guideStyleMerge';
 import {
@@ -363,6 +370,127 @@ export function buildMultiSystemGuideBase(
       partPath: d.partPath,
       layout: d.layout,
     })),
+    writtenCells: written,
+  };
+}
+
+/**
+ * 다중 시스템 — **고객용(2단계), 금지 열을 실제로 지운다.**
+ *
+ * 단일 시스템의 `stripInternalColumns`(`guideWorkbook.ts`)와 같은 일을
+ * 세부내역 시트마다 되풀이한다 — 시스템마다 프로파일이 다를 수 있어서
+ * (혼합) `supplier`·`description` 열 위치도 시트마다 다를 수 있다. 공유
+ * 문자열 정리(`pruneSharedStrings`)는 이미 `xl/worksheets/sheet\d+.xml`
+ * 전부를 훑으므로 손대지 않았다.
+ */
+export function buildMultiSystemCustomerGuideWorkbook(
+  input: MultiSystemGuideInput,
+): MultiSystemGuideWorkbookResult {
+  const base = buildMultiSystemGuideBase(input);
+  const files = unzipSync(base.bytes);
+
+  const patched: Record<string, Uint8Array> = {};
+  for (const [name, bytes] of Object.entries(files)) patched[name] = bytes;
+
+  let workbookXml = strFromU8(files['xl/workbook.xml']!);
+  let coverXml = strFromU8(files['xl/worksheets/sheet1.xml']!);
+  const written = new Set<string>();
+  const newSystems: SystemSheetInfo[] = [];
+
+  base.systems.forEach((sys, index) => {
+    const layout = sys.layout;
+    const sheetXml = strFromU8(files[sys.partPath]!);
+    const dimension = /<dimension ref="A1:([A-Z]+)\d+"\/>/.exec(sheetXml)?.[1];
+    const maxColumn = Math.max(columnIndex(dimension ?? 'BZ'), columnIndex('BZ'));
+
+    const supplier = columnIndex(layout.column('supplier'));
+    const description = columnIndex(layout.column('description'));
+    const deleted = new Set<number>([description]);
+    for (let col = supplier; col <= maxColumn; col += 1) deleted.add(col);
+
+    const stripped = deleteSheetColumns({
+      sheetXml,
+      deleted,
+      maxColumn,
+      lastRow: layout.grandTotalRow,
+    });
+    patched[sys.partPath] = strToU8(stripped.sheetXml);
+
+    // 갑지의 이 시트에 대한 참조도 당겨진 열로 옮긴다.
+    coverXml = remapCrossSheetRefs(coverXml, sys.sheetName, stripped.map);
+
+    // 이 시트의 인쇄 영역(localSheetId = 시트 순서, 갑지가 0)도 당긴다.
+    const lastColumn = columnName(stripped.lastColumn);
+    const quoted = /[\s']/.test(sys.sheetName)
+      ? `'${sys.sheetName.replace(/'/g, "''")}'`
+      : sys.sheetName;
+    workbookXml = workbookXml.replace(
+      new RegExp(
+        `<definedName name="_xlnm\\.Print_Area" localSheetId="${index + 1}">[^<]*</definedName>`,
+      ),
+      `<definedName name="_xlnm.Print_Area" localSheetId="${index + 1}">` +
+        `${quoted}!$A$1:$${lastColumn}$${layout.grandTotalRow}</definedName>`,
+    );
+
+    const remappedColumn = (role: string): string => {
+      const before = columnIndex(layout.column(role));
+      const after = stripped.map.get(before);
+      if (after === undefined) {
+        throw new GuideWorkbookError(`'${role}' 열은 고객용에서 지워졌다. 그 열을 쓰려 하면 안 된다.`);
+      }
+      return columnName(after);
+    };
+
+    newSystems.push({
+      systemId: sys.systemId,
+      sheetName: sys.sheetName,
+      partPath: sys.partPath,
+      layout: {
+        ...layout,
+        printArea: `A1:${lastColumn}${layout.grandTotalRow}`,
+        column: remappedColumn,
+      },
+    });
+
+    for (const cell of base.writtenCells) {
+      const [part, ref] = cell.split('!') as [string, string];
+      if (part !== sys.partPath) continue;
+      const column = ref.replace(/\d+$/, '');
+      const row = ref.slice(column.length);
+      const moved = stripped.map.get(columnIndex(column));
+      if (moved === undefined) continue; // 지워진 칸
+      written.add(`${part}!${columnName(moved)}${row}`);
+    }
+  });
+
+  // 갑지 자신의 쓴 칸(part === 세부내역이 아닌 것)은 그대로 옮긴다.
+  for (const cell of base.writtenCells) {
+    const part = cell.split('!')[0]!;
+    if (part === 'xl/worksheets/sheet1.xml') written.add(cell);
+  }
+
+  patched['xl/worksheets/sheet1.xml'] = strToU8(coverXml);
+  patched['xl/workbook.xml'] = strToU8(workbookXml);
+
+  const asText: Record<string, string> = {};
+  for (const [name, bytes] of Object.entries(patched)) {
+    if (name.endsWith('.xml')) asText[name] = strFromU8(bytes);
+  }
+  for (const [name, xml] of Object.entries(pruneSharedStrings(asText))) {
+    patched[name] = strToU8(xml);
+  }
+
+  const ordered: Record<string, Uint8Array> = {
+    '[Content_Types].xml': patched['[Content_Types].xml']!,
+  };
+  for (const [name, bytes] of Object.entries(patched)) {
+    if (name !== '[Content_Types].xml') ordered[name] = bytes;
+  }
+
+  return {
+    bytes: zipSync(ordered),
+    sheetNames: base.sheetNames,
+    systems: newSystems,
     writtenCells: written,
   };
 }
