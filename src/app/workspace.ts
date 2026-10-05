@@ -60,6 +60,33 @@ export type WorkspaceStatus =
       reason: string;
     };
 
+export type ExportGateResult =
+  | { allowed: true }
+  | { allowed: false; reason: string };
+
+/**
+ * 0/1/2단계 Excel 출력을 지금 내보내도 되는지 — **버튼 disabled 속성과
+ * 다운로드 핸들러가 똑같은 판단 하나를 공유**한다(D23, 2026-10-05 독립
+ * 검토 지적: 핸들러가 `status.kind`만 보고 `prepared.blocking`·
+ * `pendingCableEdit`는 버튼에만 있어, 핸들러 자신은 "출력 경계에서
+ * 재확인"을 실제로 하지 않았다 — 버튼이 비활성인 이유로 클릭이 막힌
+ * 것과 핸들러가 막은 것은 다른 사실인데 섞여 있었다).
+ *
+ * 이 함수 하나로 가른다 — 호출부가 각자 조건을 다시 나열하지 않는다.
+ */
+export function exportGate(status: WorkspaceStatus, pendingCableEdit: boolean): ExportGateResult {
+  if (status.kind !== 'editing') {
+    return { allowed: false, reason: '문서가 아직 없거나 계산 기준이 바뀌어 적용을 기다리고 있다.' };
+  }
+  if (status.prepared.blocking) {
+    return { allowed: false, reason: '해결되지 않은 구성도/품셈/계산 경고가 있다.' };
+  }
+  if (pendingCableEdit) {
+    return { allowed: false, reason: '케이블 거리 수정이 아직 견적에 반영되지 않았다.' };
+  }
+  return { allowed: true };
+}
+
 export interface Workspace {
   status: WorkspaceStatus;
   canUndo: boolean;

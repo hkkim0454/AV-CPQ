@@ -11,7 +11,7 @@
  */
 import type { PreparedQuote } from '../variants/prepare';
 import { quoteFileName } from '../variants/fileName';
-import { assertSingleCompleteGroup, guideBySystemOf, type ExportFile } from '../variants/download';
+import { assertExportAllowed, assertSingleCompleteGroup, guideBySystemOf, type ExportFile } from '../variants/download';
 import { buildSharedProjection, type SharedNotes } from '../shared/projection';
 import { buildMultiSystemSalesGuideWorkbook, type MultiSystemSalesExtras } from './guideWorkbookMulti';
 import type { GuideTemplateSet } from '../ooxml/guideTemplate';
@@ -25,6 +25,7 @@ export function buildSalesDownload(
   lines: readonly InternalLine[],
   aiNotesByRow: ReadonlyMap<string, string>,
 ): ExportFile {
+  assertExportAllowed(prepared);
   assertSingleCompleteGroup(prepared.document);
   const shared = buildSharedProjection(prepared, notes);
   const guideBySystemId = guideBySystemOf(prepared.document, guides, true);

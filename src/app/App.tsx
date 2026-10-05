@@ -12,7 +12,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { loadResources, type ResourcesResult } from './resources';
-import { useWorkspace, type LoadedDocument } from './workspace';
+import { useWorkspace, exportGate, type LoadedDocument } from './workspace';
 import { DiagramInput } from '../features/entry/DiagramInput';
 import { ProductPicker } from '../features/entry/ProductPicker';
 import { ReferenceDocs } from '../features/entry/ReferenceDocs';
@@ -107,7 +107,12 @@ export function App() {
     // 버튼이 비활성이어도 핸들러 자신이 다시 확인한다 — 최신 기준인지는
     // 버튼 disabled 하나로만 보장하지 않는다(D23, 2026-10-04 사용자
     // 지적: "handler/출력 경계에서 재확인, 버튼만 차단하지 않기").
-    if (status.kind !== 'editing' || resources === undefined) return;
+    // `exportGate`는 버튼의 disabled 조건과 **같은 함수**다 — 전엔
+    // 핸들러가 `status.kind`만 보고 `prepared.blocking`·`pendingCableEdit`는
+    // 버튼에만 있어, 버튼이 비활성인 이유로 클릭이 막힌 것과 핸들러가
+    // 직접 막은 것이 실제로는 구분되지 않았다(2026-10-05 독립 검토 지적).
+    if (resources === undefined || !exportGate(status, pendingCableEdit).allowed) return;
+    if (status.kind !== 'editing') return; // 위 gate와 같은 결론이지만, 아래 타입 좁히기에 필요하다.
     try {
       const notes = notesOf(status.document);
       const file =
@@ -264,10 +269,7 @@ export function App() {
               type="button"
               className="q-button q-primary"
               onClick={handleExcelDownload}
-              disabled={
-                status.kind !== 'editing' || pendingCableEdit || resources === undefined ||
-                status.prepared.blocking
-              }
+              disabled={resources === undefined || !exportGate(status, pendingCableEdit).allowed}
             >
               Excel 다운로드
             </button>

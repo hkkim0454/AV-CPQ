@@ -54,6 +54,18 @@ export function guideBySystemOf(
 }
 
 /**
+ * 공통 출력 경계의 단일 게이트 — `prepared.blocking`이면 등급과 무관하게
+ * 전부 거부한다(2026-10-05 독립 검토 지적: 전엔 화면 버튼의 disabled
+ * 속성만이 유일한 방어선이었다 — 이 세 함수를 UI 없이 직접 불러도
+ * blocking인 `prepared`로는 바이트를 만들 수 없어야 한다).
+ */
+export function assertExportAllowed(prepared: PreparedQuote): void {
+  if (prepared.blocking) {
+    throw new ExportBlockedError('해결되지 않은 구성도/품셈/계산 경고가 있어 출력할 수 없다.');
+  }
+}
+
+/**
  * 그룹이 하나이고 그 그룹에 모든 시스템이 들어 있는지 확인한다.
  *
  * 여러 그룹이나 일부 시스템만 묶인 그룹은 지금 출력이 지원하지
@@ -78,6 +90,7 @@ export function assertSingleCompleteGroup(document: QuoteDocument): void {
 
 /** 고객용(2단계) — 원가 없음, 설명/품셈 없음. */
 export function buildCustomerDownload(prepared: PreparedQuote, guides: GuideTemplateSet): ExportFile {
+  assertExportAllowed(prepared);
   assertSingleCompleteGroup(prepared.document);
   const exported = buildCustomerProjection(prepared.document, prepared.priced.calculation);
   const guideBySystemId = guideBySystemOf(prepared.document, guides, false);
@@ -94,6 +107,7 @@ export function buildSharedDownload(
   guides: GuideTemplateSet,
   notes: SharedNotes,
 ): ExportFile {
+  assertExportAllowed(prepared);
   assertSingleCompleteGroup(prepared.document);
   const shared = buildSharedProjection(prepared, notes);
   const guideBySystemId = guideBySystemOf(prepared.document, guides, false);

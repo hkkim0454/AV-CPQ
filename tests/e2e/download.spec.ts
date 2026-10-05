@@ -177,16 +177,16 @@ test('D23 — 옛 기준은 고른 등급과 무관하게 0/1/2 세 등급 전�
   await expect(page.getByRole('alert').filter({ hasText: '계산 기준이 바뀌었습니다' })).toBeVisible();
   const excelButton = page.getByRole('button', { name: 'Excel 다운로드' });
 
+  // 비활성 버튼에 force:true로 클릭해 download 이벤트가 없음을 보는 것은
+  // "핸들러 자신이 막았다"는 증거가 아니다 — 네이티브 disabled 자체가
+  // 클릭을 막아서 핸들러가 아예 실행되지 않았을 수도 있다(2026-10-05
+  // 독립 검토 지적). 핸들러/공통 출력 경계가 실제로 막는지는 UI 없이
+  // 직접 호출하는 `tests/unit/exportGate.test.ts`·
+  // `tests/integration/exportGateBoundary.test.ts`가 증명한다. 여기서는
+  // 세 등급 전부에서 버튼이 실제로 비활성인지(화면 상태)만 본다.
   for (const grade of ['0 영업팀용', '1 공유용', '2 고객용'] as const) {
     await page.getByRole('radio', { name: grade }).check();
     await expect(excelButton, grade).toBeDisabled();
-    let gotDownload = false;
-    page.once('download', () => {
-      gotDownload = true;
-    });
-    await excelButton.click({ force: true }).catch(() => {});
-    await page.waitForTimeout(200);
-    expect(gotDownload, grade).toBe(false);
   }
 });
 
@@ -206,12 +206,13 @@ test('D23 — 노임 기준이 옛것이면 다시 계산해 적용할 때까지
   await reopen(page, document);
   await expect(page.getByRole('alert').filter({ hasText: '계산 기준이 바뀌었습니다' })).toBeVisible();
   const excelButton = page.getByRole('button', { name: 'Excel 다운로드' });
+  // 버튼이 비활성인 것은 화면 상태 확인이다 — 핸들러/공통 출력 경계가
+  // 실제로 막는지는 `tests/unit/exportGate.test.ts`·
+  // `tests/integration/exportGateBoundary.test.ts`가 UI 없이 직접 증명한다
+  // (2026-10-05 독립 검토 지적: force:true 클릭 뒤 download 이벤트가
+  // 없다는 것만으로는 네이티브 disabled가 막은 것과 핸들러가 막은 것을
+  // 구분하지 못한다).
   await expect(excelButton).toBeDisabled();
-  let gotDownload = false;
-  page.once('download', () => { gotDownload = true; });
-  await excelButton.click({ force: true }).catch(() => {});
-  await page.waitForTimeout(300);
-  expect(gotDownload).toBe(false);
 
   // 3) 현재 기준으로 재계산해 적용하면 출력 가능해진다.
   await page.getByRole('button', { name: '현재 기준으로 다시 계산 — 미리보기' }).click();
