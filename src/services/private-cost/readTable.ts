@@ -67,6 +67,19 @@ export interface ReadTableOptions {
    */
   headerRowIndex?: number;
   /**
+   * 품목 데이터가 **시작하는** 행의 자리(0부터, 원본 행 그대로).
+   * 비우면 `headerRowIndex + 1`(머리글 바로 다음 행)을 쓴다 — 머리글
+   * 행 하나로 끝나는 단순한 파일의 기본값이다.
+   *
+   * 실제 가이드류 파일은 머리글이 **여러 행에 걸쳐**(부제목·노임
+   * 설명 등) 있고, 그 뒤에 빈 줄을 하나 더 두고서야 품목이 시작할 수
+   * 있다. 이때 "머리글 바로 다음 행부터가 데이터"라고 가정하면 그
+   * 부제목·설명 행까지 품목으로 잘못 읽는다(독립 검토 지적
+   * 2026-10-05) — 그래서 머리글 행과 별개로 데이터 시작 행도 사람이
+   * 직접 고를 수 있어야 한다.
+   */
+  dataStartRowIndex?: number;
+  /**
    * 품목 데이터가 **끝나는** 행의 자리(0부터, 원본 행 그대로, 포함).
    * 비우면 시트 끝까지 전부 데이터로 본다. 실제 가이드류 파일은 품목
    * 표 아래에 잡자재비·합계 같은 집계 행이 있을 수 있는데, 그 행을
@@ -303,9 +316,31 @@ function parseXlsxSheet(files: Record<string, Uint8Array>, sheetPath: string, li
   const sheetData = findChild(worksheet, 'sheetData');
   if (sheetData === undefined) return { rows: [], formulas: [] };
 
+  // XLSX는 완전히 빈 행의 `<row>` 태그 자체를 생략한다(희소 표현) —
+  // `r` 속성이 2, 6, 8처럼 듬성듬성 나올 수 있다. 그걸 배열에 그냥
+  // 순서대로 push하면 배열 인덱스가 실제 시트 행 번호와 어긋난다
+  // (독립 검토 지적 2026-10-05: "1,2,3행"으로 보여준 미리보기가 실제
+  // 로는 2,6,8행이었다 — 사람이 실제 파일을 보고 고른 행 번호와
+  // 어긋나면 엉뚱한 행을 머리글/데이터로 고르게 된다). 그래서 `r`
+  // 속성을 그대로 배열 인덱스(0부터)로 쓰고, 생략된 행은 빈 행으로
+  // 채워 **배열 인덱스 i가 항상 시트의 (i+1)행**이 되게 한다 — 그
+  // 뒤의 모든 로직(헤더/데이터 시작·끝 선택, 빈 행 거르기)은 안 바뀐다.
   const rows: string[][] = [];
   const formulas: Set<number>[] = [];
   for (const rowEl of findChildren(sheetData, 'row')) {
+    const rAttr = rowEl.attrs['r'];
+    const rowNumber = rAttr !== undefined ? Number.parseInt(rAttr, 10) : rows.length + 1;
+    if (!Number.isFinite(rowNumber) || rowNumber < 1) {
+      throw new TableReadError('시트의 행 번호(r 속성)를 읽을 수 없다.', 'invalid-row-number');
+    }
+    if (rowNumber > limits.maxRows + 1) {
+      throw new TableReadError(`행이 ${limits.maxRows}개를 넘는다.`, 'too-many-rows');
+    }
+    while (rows.length < rowNumber - 1) {
+      rows.push([]);
+      formulas.push(new Set<number>());
+    }
+
     const values: string[] = [];
     const formulaAt = new Set<number>();
     for (const cellEl of findChildren(rowEl, 'c')) {
@@ -335,11 +370,8 @@ function parseXlsxSheet(files: Record<string, Uint8Array>, sheetPath: string, li
       while (values.length < column - 1) values.push('');
       values[column - 1] = value;
     }
-    rows.push(values);
-    formulas.push(formulaAt);
-    if (rows.length > limits.maxRows + 1) {
-      throw new TableReadError(`행이 ${limits.maxRows}개를 넘는다.`, 'too-many-rows');
-    }
+    rows[rowNumber - 1] = values;
+    formulas[rowNumber - 1] = formulaAt;
   }
   return { rows, formulas };
 }
@@ -397,8 +429,19 @@ export function readTable(
     if (headerRowIndex < 0 || headerRowIndex >= sheet.rows.length) {
       throw new TableReadError('머리글 행 번호가 범위를 벗어났다.', 'header-row-out-of-range');
     }
-    if (options.dataEndRowIndex !== undefined && options.dataEndRowIndex <= headerRowIndex) {
-      throw new TableReadError('데이터 끝 행이 머리글 행보다 앞에 있다.', 'data-end-before-header');
+    // 데이터 시작은 비우면 머리글 바로 다음 행이다 — 단순한(머리글
+    // 한 행짜리) 파일의 기본값이다. 실제 가이드류처럼 머리글이 여러
+    // 행에 걸쳐 있으면 사람이 직접 더 뒤의 행을 데이터 시작으로
+    // 지정한다(모듈 설명 `dataStartRowIndex` 참고).
+    const dataStartRowIndex = options.dataStartRowIndex ?? headerRowIndex + 1;
+    if (dataStartRowIndex <= headerRowIndex) {
+      throw new TableReadError('데이터 시작 행이 머리글 행보다 앞에 있거나 같다.', 'data-start-before-header');
+    }
+    if (dataStartRowIndex >= sheet.rows.length) {
+      throw new TableReadError('데이터 시작 행 번호가 범위를 벗어났다.', 'data-start-out-of-range');
+    }
+    if (options.dataEndRowIndex !== undefined && options.dataEndRowIndex < dataStartRowIndex) {
+      throw new TableReadError('데이터 끝 행이 데이터 시작 행보다 앞에 있다.', 'data-end-before-start');
     }
     if (options.dataEndRowIndex !== undefined && options.dataEndRowIndex >= sheet.rows.length) {
       throw new TableReadError('데이터 끝 행 번호가 범위를 벗어났다.', 'data-end-out-of-range');
@@ -410,8 +453,8 @@ export function readTable(
     // 직접 끝을 지정해야 한다(모듈 설명 `dataEndRowIndex` 참고).
     const dataEndExclusive =
       options.dataEndRowIndex === undefined ? undefined : options.dataEndRowIndex + 1;
-    const dataRows = sheet.rows.slice(headerRowIndex + 1, dataEndExclusive);
-    const dataFormulas = sheet.formulas.slice(headerRowIndex + 1, dataEndExclusive);
+    const dataRows = sheet.rows.slice(dataStartRowIndex, dataEndExclusive);
+    const dataFormulas = sheet.formulas.slice(dataStartRowIndex, dataEndExclusive);
     // 빈 행을 거를 때 수식 자리도 같이 걸러야 행 번호가 어긋나지 않는다.
     const kept: Array<{ values: string[]; formulas: ReadonlySet<number> }> = [];
     dataRows.forEach((row, index) => {

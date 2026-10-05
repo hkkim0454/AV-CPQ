@@ -221,6 +221,45 @@ function XlsxWizardView({ wizard, controller }: { wizard: XlsxWizard; controller
     );
   }
 
+  if (wizard.step === 'choosing-data-start') {
+    return (
+      <div role="alert" className="q-field-error">
+        <p>
+          {wizard.fileName} — {wizard.sheetName} 시트. 품목이 어디서 시작하는지 고르세요 — 머리글이 여러 행에
+          걸쳐 있거나(부제목·노임 설명 등) 빈 줄이 있으면, 진짜 첫 품목 행에서 "여기서 품목 시작"을
+          누르세요. 머리글 바로 다음 행부터가 품목이면 아래 버튼으로 기본값을 쓰세요.
+        </p>
+        <button type="button" className="q-button" onClick={() => controller.chooseDataStart()}>
+          기본값 사용(머리글 다음 행부터)
+        </button>
+        <table className="q-quote-table">
+          <tbody>
+            {wizard.rowsAfterHeader.map(({ rowIndex, cells }) => (
+              <tr key={rowIndex}>
+                <td>
+                  <button
+                    type="button"
+                    className="q-button"
+                    onClick={() => controller.chooseDataStart(rowIndex)}
+                    aria-label={`${rowIndex + 1}행에서 품목 시작으로 선택`}
+                  >
+                    여기서 품목 시작
+                  </button>
+                </td>
+                {cells.map((cell, cellIndex) => (
+                  <td key={cellIndex}>{cell}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <button type="button" className="q-button" onClick={() => controller.cancelWizard()}>
+          취소
+        </button>
+      </div>
+    );
+  }
+
   if (wizard.step === 'choosing-data-end') {
     return (
       <div role="alert" className="q-field-error">
@@ -234,7 +273,7 @@ function XlsxWizardView({ wizard, controller }: { wizard: XlsxWizard; controller
         </button>
         <table className="q-quote-table">
           <tbody>
-            {wizard.rowsAfterHeader.map(({ rowIndex, cells }) => (
+            {wizard.rowsFromDataStart.map(({ rowIndex, cells }) => (
               <tr key={rowIndex}>
                 <td>
                   <button

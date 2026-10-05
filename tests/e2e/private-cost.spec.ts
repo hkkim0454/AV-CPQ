@@ -377,26 +377,26 @@ function singleSheetXlsx(sheetName: string, rows: Uint8Array): Buffer {
 }
 
 /**
- * 실제 가이드류 입력 모양: 1~5행은 설명/병합 제목 영역, 6행이 진짜
- * 머리글, 7~8행이 품목, 9~10행은 잡자재비·합계(수식)다. "헤더행+1부터
- * 끝까지 전부 데이터"라고 가정하면 9~10행의 수식 집계값이 품목 가격
- * 자리로 섞여 들어가거나(수식은 price-formula로 막히지만 그 전까지는
- * 파일 전체가 막힌 걸로 보인다), 데이터 끝을 사람이 직접 골라 제외할
- * 수 있어야 한다(독립 검토 지적 2026-10-05, 신규 원가 실파일 없이
- * 합성으로만 검증한다).
+ * 실제 가이드류 입력 모양(독립 검토가 지정한 정확한 구조, 2026-10-05):
+ * 2행이 머리글, 3행이 부헤더, 4행이 노임 설명, 5행이 빈 행(XML에
+ * `<row>` 자체가 없다 — 희소 행 번호 보존을 같이 검증한다), 6~8행이
+ * 품목, 9행이 합계(수식)다.
+ *
+ * 3·4행은 **수식도 빈 칸도 아니라 조용히 파싱되는 값**을 일부러
+ * 넣는다 — "머리글 바로 다음 행부터가 데이터"라고 가정하면(데이터
+ * 시작을 사람이 고르지 않으면) 이 두 행이 오류 없이 품목으로
+ * 섞여 들어간다. 데이터 시작을 6행으로 직접 고를 때만 제외된다.
+ * 9행(합계)은 수식이라 포함하면 price-formula로 걸린다(기존 안전망).
  */
 function guideLikeXlsx(): Buffer {
   const sheet = sheetXml(
-    `<row r="1">${inlineCell('A1', '2026년 정보통신공사 원가표')}</row>` +
-      `<row r="2">${inlineCell('A2', '담당: 홍길동')}</row>` +
-      `<row r="3">${inlineCell('A3', '작성일: 2026-10-05')}</row>` +
-      `<row r="4"></row>` +
-      `<row r="5">${inlineCell('A5', '(단위: 원)')}</row>` +
-      `<row r="6">${inlineCell('B6', '품명')}${inlineCell('C6', '규격')}${inlineCell('G6', '매입단가')}${inlineCell('H6', '총액')}</row>` +
-      `<row r="7">${inlineCell('B7', 'PTZ 카메라')}${inlineCell('C7', 'FIX-SPEC')}${numberCell('G7', '1234567')}${numberCell('H7', '1234567')}</row>` +
-      `<row r="8">${inlineCell('B8', 'NVR')}${inlineCell('C8', 'NVR-16')}${numberCell('G8', '800000')}${numberCell('H8', '800000')}</row>` +
-      `<row r="9">${inlineCell('B9', '잡자재비')}${inlineCell('C9', '-집계9-')}${formulaCell('G9', '(G7+G8)*0.02', '40731')}${formulaCell('H9', '(H7+H8)*0.02', '40731')}</row>` +
-      `<row r="10">${inlineCell('B10', '합계')}${inlineCell('C10', '-집계10-')}${formulaCell('G10', 'SUM(G7:G9)', '2075298')}${formulaCell('H10', 'SUM(H7:H9)', '2075298')}</row>`,
+    `<row r="2">${inlineCell('B2', '품명')}${inlineCell('C2', '규격')}${inlineCell('G2', '매입단가')}${inlineCell('H2', '총액')}</row>` +
+      `<row r="3">${inlineCell('B3', '소계참고')}${inlineCell('C3', 'REF-1')}${numberCell('G3', '999')}</row>` +
+      `<row r="4">${inlineCell('B4', '노임단가안내')}${inlineCell('C4', 'REF-2')}${numberCell('G4', '111')}</row>` +
+      `<row r="6">${inlineCell('B6', 'PTZ 카메라')}${inlineCell('C6', 'FIX-SPEC')}${numberCell('G6', '1234567')}${numberCell('H6', '1234567')}</row>` +
+      `<row r="7">${inlineCell('B7', 'NVR')}${inlineCell('C7', 'NVR-16')}${numberCell('G7', '800000')}${numberCell('H7', '800000')}</row>` +
+      `<row r="8">${inlineCell('B8', '스위치')}${inlineCell('C8', 'SW-24')}${numberCell('G8', '150000')}${numberCell('H8', '150000')}</row>` +
+      `<row r="9">${inlineCell('B9', '합계')}${inlineCell('C9', '-합계-')}${formulaCell('G9', 'SUM(G6:G8)', '2184567')}${formulaCell('H9', 'SUM(H6:H8)', '2184567')}</row>`,
   );
   return singleSheetXlsx('원가입력', sheet);
 }
@@ -456,6 +456,7 @@ test('독립 검토: 같은 단가 머리글이 둘이어도 선택한 G열을 �
   await selectCostFile(page, 'duplicate-header.xlsx', realShapeXlsx(true));
   await page.getByText('원가입력', { exact: true }).locator('..').getByRole('button', { name: '이 시트 선택' }).click();
   await page.getByRole('button', { name: '2행을 머리글로 선택' }).click();
+  await page.getByRole('button', { name: '기본값 사용(머리글 다음 행부터)' }).click();
   await page.getByRole('button', { name: '전체 포함(끝까지)' }).click();
   await page.getByLabel('열 매핑 — 매입단가').selectOption('6');
   await page.getByRole('alert').filter({ hasText: '열 매핑을 확인하세요' }).getByRole('button', { name: '확인', exact: true }).click();
@@ -486,6 +487,7 @@ test('실제 모양 XLSX(갑지+다단 헤더) — 시트·헤더행·열매핑�
   await expect(headerStep).toBeVisible();
   await expect(headerStep.getByText('2026년 하반기 원가표')).toBeVisible(); // 1행 — 머리글이 아니다
   await headerStep.getByRole('button', { name: '2행을 머리글로 선택' }).click();
+  await page.getByRole('button', { name: '기본값 사용(머리글 다음 행부터)' }).click();
   await page.getByRole('button', { name: '전체 포함(끝까지)' }).click();
 
   // 3) 열 매핑 확인 — B/C/G는 자동 추정되어 있어야 하고, H(총액)는 어떤
@@ -526,6 +528,7 @@ test('시트/헤더행/열매핑을 바꾸려고 파일을 다시 고르면 이�
     .getByRole('button', { name: '이 시트 선택' })
     .click();
   await page.getByRole('button', { name: '2행을 머리글로 선택' }).click();
+  await page.getByRole('button', { name: '기본값 사용(머리글 다음 행부터)' }).click();
   await page.getByRole('button', { name: '전체 포함(끝까지)' }).click();
   await page.getByRole('alert').filter({ hasText: '열 매핑을 확인하세요' }).getByRole('button', { name: '확인', exact: true }).click();
   await page.getByLabel('원가 파일 통화 확인').fill('KRW');
@@ -544,7 +547,7 @@ test('시트/헤더행/열매핑을 바꾸려고 파일을 다시 고르면 이�
   await expect(page.getByRole('alert').filter({ hasText: '어느 시트를 읽을지' })).toBeVisible();
 });
 
-test('실제 가이드류 구조(병합 제목 1~5행, 품목 6행부터, 잡자재비·합계 수식 9~10행) — 데이터 끝을 직접 골라 집계 행을 제외한다', async ({
+test('실제 가이드류 구조(헤더2·부헤더3·노임4·빈5·품목6~8·합계9) — 데이터 시작/끝을 직접 골라 비품목 행을 전부 제외한다', async ({
   page,
 }) => {
   await mockResources(page);
@@ -553,13 +556,23 @@ test('실제 가이드류 구조(병합 제목 1~5행, 품목 6행부터, 잡자
   await selectCostFile(page, 'guide-like.xlsx', guideLikeXlsx());
   // 시트가 1개뿐이라 시트 선택은 건너뛰고 바로 머리글 행 선택으로 간다.
   await expect(page.getByRole('alert').filter({ hasText: '어느 행이 머리글' })).toBeVisible();
-  await page.getByRole('button', { name: '6행을 머리글로 선택' }).click();
+  await page.getByRole('button', { name: '2행을 머리글로 선택' }).click();
+
+  // 데이터 시작 선택 — 머리글(2행) 바로 다음은 3행(부헤더)이다.
+  // "기본값"을 그대로 쓰면 3·4행(부헤더·노임)이 품목으로 섞인다 —
+  // 6행에서 "여기서 품목 시작"을 직접 눌러야 한다.
+  const dataStartStep = page.getByRole('alert').filter({ hasText: '품목이 어디서 시작하는지' });
+  await expect(dataStartStep).toBeVisible();
+  await expect(dataStartStep.getByRole('cell', { name: '소계참고' })).toBeVisible();
+  await expect(dataStartStep.getByRole('cell', { name: '노임단가안내' })).toBeVisible();
+  await dataStartStep.getByRole('button', { name: '6행에서 품목 시작으로 선택' }).click();
 
   // 데이터 끝 선택 — 8행(품목 마지막 줄)에서 "여기까지 품목"을 눌러
-  // 9~10행(잡자재비·합계)을 데이터에서 아예 제외한다.
+  // 9행(합계)을 데이터에서 아예 제외한다. 목록에는 3·4행(부헤더·노임)
+  // 이 더는 보이지 않는다 — 데이터 시작보다 앞이기 때문이다.
   const dataEndStep = page.getByRole('alert').filter({ hasText: '품목이 어디서 끝나는지' });
   await expect(dataEndStep).toBeVisible();
-  await expect(dataEndStep.getByRole('cell', { name: '잡자재비' })).toBeVisible();
+  await expect(dataEndStep.getByRole('cell', { name: '소계참고' })).toHaveCount(0);
   await expect(dataEndStep.getByRole('cell', { name: '합계', exact: true })).toBeVisible();
   await dataEndStep.getByRole('button', { name: '8행까지 품목으로 선택' }).click();
 
@@ -568,35 +581,56 @@ test('실제 가이드류 구조(병합 제목 1~5행, 품목 6행부터, 잡자
   await page.getByLabel('원가 파일 단위 확인').fill('EA');
   await page.getByRole('button', { name: '확인' }).click();
 
-  // 품목 2줄만 인식된다 — 잡자재비·합계는 아예 데이터가 아니었다.
-  await expect(page.getByRole('status').filter({ hasText: '2줄 인식됨' })).toBeVisible();
+  // 품목 3줄만 인식된다 — 부헤더(REF-1)·노임(REF-2)·합계는 데이터가 아니었다.
+  await expect(page.getByRole('status').filter({ hasText: '3줄 인식됨' })).toBeVisible();
 
   const row = page.locator('.q-private-cost tbody tr', { hasText: '합성 테스트 품목' });
   await row.getByRole('button', { name: '연결' }).click();
   await expect(row.getByText(/원가 1234567/)).toBeVisible();
-  // 잡자재비·합계의 수식 캐시값은 어디에도 나타나지 않는다.
-  await expect(page.getByText('40731')).toHaveCount(0);
-  await expect(page.getByText('2075298')).toHaveCount(0);
+  // 부헤더·노임·합계의 값은 어디에도 나타나지 않는다.
+  await expect(page.getByText('999')).toHaveCount(0);
+  await expect(page.getByText('2184567')).toHaveCount(0);
 });
 
-test('데이터 끝을 "전체 포함"으로 두면 잡자재비 수식이 걸려 파일 전체가 막힌다 — 수식값을 품목 가격으로 조용히 읽지 않는다', async ({
+test('데이터 시작을 기본값(머리글 다음 행)으로 두면 부헤더·노임 행까지 품목으로 잘못 섞여 들어간다', async ({ page }) => {
+  // 독립 검토 지적 2026-10-05: 데이터 끝만 지정해도, 데이터 시작이
+  // 틀리면(머리글 바로 다음 행을 데이터 시작으로 가정) 수식도 빈 칸도
+  // 아니라 조용히 파싱되는 부헤더·노임 행이 품목으로 섞여 들어간다 —
+  // 오류 없이 "5줄 인식됨"이 되어 버린다. 데이터 시작도 직접 골라야
+  // 하는 이유를 보여준다.
+  await mockResources(page);
+  await createDocument(page);
+
+  await selectCostFile(page, 'guide-like.xlsx', guideLikeXlsx());
+  await page.getByRole('button', { name: '2행을 머리글로 선택' }).click();
+  await page.getByRole('button', { name: '기본값 사용(머리글 다음 행부터)' }).click();
+  await page.getByRole('alert').filter({ hasText: '품목이 어디서 끝나는지' }).getByRole('button', { name: '8행까지 품목으로 선택' }).click();
+  await page.getByRole('alert').filter({ hasText: '열 매핑을 확인하세요' }).getByRole('button', { name: '확인', exact: true }).click();
+  await page.getByLabel('원가 파일 통화 확인').fill('KRW');
+  await page.getByLabel('원가 파일 단위 확인').fill('EA');
+  await page.getByRole('button', { name: '확인' }).click();
+
+  // 부헤더(REF-1)·노임(REF-2) 2줄이 실제 품목 3줄에 섞여 "5줄 인식됨"이 된다.
+  await expect(page.getByRole('status').filter({ hasText: '5줄 인식됨' })).toBeVisible();
+});
+
+test('데이터 시작/끝을 전부 "전체 포함"으로 두면 합계 행의 수식이 걸려 파일 전체가 막힌다 — 수식값을 품목 가격으로 조용히 읽지 않는다', async ({
   page,
 }) => {
   await mockResources(page);
   await createDocument(page);
 
   await selectCostFile(page, 'guide-like.xlsx', guideLikeXlsx());
-  await page.getByRole('button', { name: '6행을 머리글로 선택' }).click();
+  await page.getByRole('button', { name: '2행을 머리글로 선택' }).click();
+  await page.getByRole('button', { name: '기본값 사용(머리글 다음 행부터)' }).click();
   await page.getByRole('button', { name: '전체 포함(끝까지)' }).click();
   await page.getByRole('alert').filter({ hasText: '열 매핑을 확인하세요' }).getByRole('button', { name: '확인', exact: true }).click();
 
-  // 잡자재비(9행)의 수식이 걸려 바로 오류로 막힌다 — 통화/단위 확인
+  // 합계(9행)의 수식이 걸려 바로 오류로 막힌다 — 통화/단위 확인
   // 단계로도 안 넘어간다(price-formula가 currency/unit과 무관한
-  // "다른 오류"라 needs-defaults 분기를 타지 않는다).
-
-  // 잡자재비 행(9행)의 수식이 걸려 오류로 막힌다 — 조용히 통과해
-  // "2줄 인식됨"이 되거나 수식값(40731)을 품목 가격으로 읽지 않는다.
+  // "다른 오류"라 needs-defaults 분기를 타지 않는다). 조용히 통과해
+  // "N줄 인식됨"이 되거나 수식값(2184567)을 품목 가격으로 읽지 않는다.
   await expect(page.getByRole('status').filter({ hasText: '인식됨' })).toHaveCount(0);
   await expect(page.getByRole('alert').filter({ hasText: '수식' })).toBeVisible();
-  await expect(page.getByText('40731')).toHaveCount(0);
+  await expect(page.getByText('2184567')).toHaveCount(0);
 });

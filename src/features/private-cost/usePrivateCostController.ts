@@ -70,7 +70,7 @@ export type XlsxWizard =
       preview: readonly string[][];
     }
   | {
-      step: 'choosing-data-end';
+      step: 'choosing-data-start';
       requestId: number;
       fileName: string;
       sheetName: string;
@@ -78,6 +78,17 @@ export type XlsxWizard =
       header: readonly string[];
       /** 머리글 다음 행부터 시트 끝까지, 원본 행 번호(0부터) 그대로. */
       rowsAfterHeader: readonly { rowIndex: number; cells: readonly string[] }[];
+    }
+  | {
+      step: 'choosing-data-end';
+      requestId: number;
+      fileName: string;
+      sheetName: string;
+      headerRowIndex: number;
+      dataStartRowIndex: number;
+      header: readonly string[];
+      /** 데이터 시작 행부터 시트 끝까지, 원본 행 번호(0부터) 그대로. */
+      rowsFromDataStart: readonly { rowIndex: number; cells: readonly string[] }[];
     }
   | {
       step: 'confirming-mapping';
@@ -100,6 +111,13 @@ export interface PrivateCostController {
   chooseSheet(sheetPath: string): void;
   /** 마법사 — 머리글 행을 고른다(`wizard.step === 'choosing-header-row'`일 때만 뜻이 있다). */
   chooseHeaderRow(rowIndex: number): void;
+  /**
+   * 마법사 — 품목 데이터가 시작하는 행을 고른다(`wizard.step ===
+   * 'choosing-data-start'`일 때만 뜻이 있다). `rowIndex`를 생략하면
+   * "머리글 바로 다음 행부터"(기본값)다. 머리글이 여러 행에 걸친
+   * 실제 가이드류 파일은 사람이 더 뒤의 행을 직접 골라야 한다.
+   */
+  chooseDataStart(rowIndex?: number): void;
   /**
    * 마법사 — 품목 데이터가 끝나는 행을 고른다(`wizard.step ===
    * 'choosing-data-end'`일 때만 뜻이 있다). `rowIndex`를 생략하면
@@ -136,11 +154,12 @@ interface XlsxSession {
   bytes: Uint8Array;
   sheetPath?: string;
   headerRowIndex?: number;
+  dataStartRowIndex?: number;
   dataEndRowIndex?: number;
 }
 
-/** 데이터 끝 선택 화면에서 트레일링 행(잡자재비·합계 등)까지 보이도록 넉넉히 가져온다. */
-const DATA_END_PREVIEW_ROWS = 500;
+/** 데이터 시작/끝 선택 화면에서 트레일링 행(잡자재비·합계 등)까지 보이도록 넉넉히 가져온다. */
+const DATA_RANGE_PREVIEW_ROWS = 500;
 
 function itemRowsOf(document: QuoteDocument | undefined): QuoteRow[] {
   if (document === undefined) return [];
@@ -345,17 +364,19 @@ export function usePrivateCostController(
     const xlsx = xlsxRef.current;
     if (xlsx === undefined) return;
     xlsxRef.current = { ...xlsx, headerRowIndex: rowIndex };
-    // 트레일링 행(잡자재비·합계 등)까지 보이도록 미리보기를 넉넉히 다시
-    // 가져온다 — 머리글 선택 때 쓴 짧은 미리보기로는 시트 끝이 안 보일
-    // 수 있다(독립 검토 지적 2026-10-05: 시트 끝까지가 데이터라고
-    // 멋대로 가정하면 집계 행이 섞이거나 품목이 빠질 수 있다).
+    // 트레일링 행(잡자재비·합계 등)과 머리글 아래 다른 설명 행까지
+    // 보이도록 미리보기를 넉넉히 다시 가져온다 — 머리글 선택 때 쓴
+    // 짧은 미리보기로는 시트 끝이 안 보일 수 있다(독립 검토 지적
+    // 2026-10-05: 머리글 바로 다음 행부터가 데이터라고 멋대로
+    // 가정하면, 머리글이 여러 행에 걸친 실제 가이드류 파일에서 부제목·
+    // 노임 설명 행까지 품목으로 잘못 읽는다).
     try {
-      const full = previewXlsxRows(xlsx.bytes, xlsx.sheetPath!, DATA_END_PREVIEW_ROWS);
+      const full = previewXlsxRows(xlsx.bytes, xlsx.sheetPath!, DATA_RANGE_PREVIEW_ROWS);
       const rowsAfterHeader = full
         .slice(rowIndex + 1)
         .map((cells, i) => ({ rowIndex: rowIndex + 1 + i, cells }));
       setWizard({
-        step: 'choosing-data-end',
+        step: 'choosing-data-start',
         requestId: wizard.requestId,
         fileName: wizard.fileName,
         sheetName: wizard.sheetName,
@@ -371,6 +392,29 @@ export function usePrivateCostController(
         message: err instanceof TableReadError ? err.message : '시트를 읽지 못했다.',
       });
     }
+  }
+
+  function chooseDataStart(rowIndex?: number): void {
+    if (wizard === undefined || wizard.step !== 'choosing-data-start') return;
+    if (wizard.requestId !== stateRef.current.requestSeq) {
+      setWizard(undefined);
+      return;
+    }
+    const xlsx = xlsxRef.current;
+    if (xlsx === undefined) return;
+    const dataStartRowIndex = rowIndex ?? wizard.headerRowIndex + 1;
+    xlsxRef.current = { ...xlsx, dataStartRowIndex };
+    const rowsFromDataStart = wizard.rowsAfterHeader.filter((r) => r.rowIndex >= dataStartRowIndex);
+    setWizard({
+      step: 'choosing-data-end',
+      requestId: wizard.requestId,
+      fileName: wizard.fileName,
+      sheetName: wizard.sheetName,
+      headerRowIndex: wizard.headerRowIndex,
+      dataStartRowIndex,
+      header: wizard.header,
+      rowsFromDataStart,
+    });
   }
 
   function chooseDataEnd(rowIndex?: number): void {
@@ -407,6 +451,7 @@ export function usePrivateCostController(
       const table = readTable(xlsx.bytes, 'xlsx', undefined, {
         sheetPath: xlsx.sheetPath,
         headerRowIndex: xlsx.headerRowIndex,
+        ...(xlsx.dataStartRowIndex !== undefined ? { dataStartRowIndex: xlsx.dataStartRowIndex } : {}),
         ...(xlsx.dataEndRowIndex !== undefined ? { dataEndRowIndex: xlsx.dataEndRowIndex } : {}),
       });
       attemptParse(table, mapping, requestId, fileName, documentGeneration);
@@ -537,6 +582,7 @@ export function usePrivateCostController(
     loadFile,
     chooseSheet,
     chooseHeaderRow,
+    chooseDataStart,
     chooseDataEnd,
     confirmMapping,
     cancelWizard,

@@ -188,3 +188,58 @@ describe('headerRowIndex를 거쳐도 수식 가격 차단은 그대로 산다',
     expect(result.entries[0]!.model).toBe('NVR-16'); // 수식 없는 둘째 줄은 그대로 읽힌다.
   });
 });
+
+describe('희소 row 태그 — 완전히 빈 행은 XML에서 <row> 자체가 생략된다 (독립 검토 지적 2026-10-05)', () => {
+  /**
+   * 실제 XLSX는 완전히 빈 행의 `<row>` 태그를 아예 안 쓴다. 이 합성
+   * 시트는 2·6·8행에만 `<row r="...">`가 있고 1·3·4·5·7행은 XML에
+   * 전혀 없다. 배열에 순서대로 push하면 "1,2,3번째 행"이 실제로는
+   * 2,6,8행이 되어 버린다 — 사람이 실제 파일을 보고 고른 행 번호
+   * (헤더=6행 등)와 내부 배열 인덱스가 어긋난다.
+   */
+  function sparseSheetXlsx(): Uint8Array {
+    const sheet = sheetXml(
+      `<row r="2">${inlineCell('A2', '설명')}</row>` +
+        `<row r="6">${inlineCell('B6', '품명')}${inlineCell('C6', '규격')}${inlineCell('G6', '매입단가')}</row>` +
+        `<row r="8">${inlineCell('B8', 'PTZ 카메라')}${inlineCell('C8', 'FIX-SPEC')}${numberCell('G8', '1234567')}</row>`,
+    );
+    return zipSync({
+      '[Content_Types].xml': strToU8('<Types/>'),
+      'xl/workbook.xml': strToU8(
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+          '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' +
+          'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+          '<sheets><sheet name="원가" sheetId="1" r:id="rId1"/></sheets></workbook>',
+      ),
+      'xl/_rels/workbook.xml.rels': strToU8(
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+          '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+          '<Relationship Id="rId1" Type="worksheet" Target="worksheets/sheet1.xml"/>' +
+          '</Relationships>',
+      ),
+      'xl/worksheets/sheet1.xml': sheet,
+    });
+  }
+
+  it('previewXlsxRows의 배열 인덱스가 실제 시트 행 번호(0부터)와 일치한다 — 생략된 행은 빈 행으로 채운다', () => {
+    const bytes = sparseSheetXlsx();
+    const sheets = listXlsxSheets(bytes);
+    const preview = previewXlsxRows(bytes, sheets[0]!.sheetPath, 10);
+    expect(preview[0]).toEqual([]); // 1행 — XML에 없었다, 빈 행으로 채워진다.
+    expect(preview[1]).toContain('설명'); // 2행
+    expect(preview[4]).toEqual([]); // 5행 — 없었다.
+    expect(preview[5]).toContain('품명'); // 6행 — 진짜 머리글.
+    expect(preview[6]).toEqual([]); // 7행 — 없었다.
+    expect(preview[7]).toContain('PTZ 카메라'); // 8행 — 진짜 데이터.
+  });
+
+  it('headerRowIndex로 6행(인덱스5)을 고르면, 배열이 압축되지 않았으므로 정확히 6행을 머리글로 쓴다', () => {
+    const bytes = sparseSheetXlsx();
+    const sheets = listXlsxSheets(bytes);
+    const table = readTable(bytes, 'xlsx', undefined, { sheetPath: sheets[0]!.sheetPath, headerRowIndex: 5 });
+    expect(table.header).toEqual(['', '품명', '규격', '', '', '', '매입단가']);
+    // 7행(빈 행)은 데이터에서 자동으로 걸러지고, 8행만 데이터로 남는다.
+    expect(table.rows).toHaveLength(1);
+    expect(table.rows[0]).toContain('PTZ 카메라');
+  });
+});
