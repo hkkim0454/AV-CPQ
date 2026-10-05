@@ -7,13 +7,20 @@
  * 고른 큰 파일이 나중에 고른 작은 파일보다 늦게 끝난다" 같은 경쟁
  * 상황을 실제 타이머 없이 **액션 호출 순서만으로** 재현하고 검증할
  * 수 있다.
+ *
+ * 문서 식별은 문서 **객체 참조**가 아니라 호출부가 넘기는
+ * `documentGeneration`(정수)로 한다 — 참조는 같은 문서를 편집만 해도
+ * 매번 바뀌므로, 참조로 가르면 수량 한 번만 고쳐도 "다른 문서"로
+ * 오인해 세션을 지워 버린다(독립 검토 지적 2026-10-05). 문서가
+ * **통째로 교체**될 때만(새 견적, 작업 파일 열기) 호출부가 이 번호를
+ * 올린다(`workspace.ts`의 `documentGeneration`).
  */
 import type { PriceEntry, PriceError } from './parse';
 import { clearSession, createSession, type PrivateCostSession } from './session';
 
-export interface PinnedSession<Doc> {
+export interface PinnedSession {
   readonly session: PrivateCostSession;
-  readonly sourceDocument: Doc;
+  readonly documentGeneration: number;
   readonly fileName: string;
 }
 
@@ -29,20 +36,34 @@ export type CostLoadStatus =
    */
   | { kind: 'needs-defaults'; fileName: string; missing: { currency: boolean; unit: boolean } };
 
-export interface CostControllerState<Doc> {
+export interface CostControllerState {
   readonly requestSeq: number;
-  readonly pinned: PinnedSession<Doc> | undefined;
+  readonly pinned: PinnedSession | undefined;
   readonly status: CostLoadStatus;
 }
 
-export function initialCostControllerState<Doc>(): CostControllerState<Doc> {
+export function initialCostControllerState(): CostControllerState {
   return { requestSeq: 0, pinned: undefined, status: { kind: 'idle' } };
 }
 
-/** 파일을 고를 때마다 부른다. 반환된 번호를 비동기 읽기 끝에서 그대로 들고 온다. */
-export function beginCostLoad<Doc>(state: CostControllerState<Doc>): [CostControllerState<Doc>, number] {
+/**
+ * 파일을 고를 때마다(확장자를 지원하든 안 하든) 부른다. **선택한
+ * 순간** 옛 세션을 즉시 폐기한다 — 결과가 아직 안 왔다고 복구하지
+ * 않는다. 이 뒤에 읽기 실패·지원하지 않는 형식·파싱 오류·통화/단위
+ * 확인 대기 중 무엇이 오더라도 옛 원가는 돌아오지 않는다(독립 검토
+ * 지적 2026-10-05: "다른 파일을 고른다"는 행동 자체가 이전 연결의
+ * 유효성을 무효화하는 신호다 — 실패해도 되살리지 않는다).
+ */
+export function beginCostLoad(state: CostControllerState): [CostControllerState, number] {
+  if (state.pinned !== undefined) clearSession(state.pinned.session);
   const requestSeq = state.requestSeq + 1;
-  return [{ ...state, requestSeq }, requestSeq];
+  return [{ requestSeq, pinned: undefined, status: { kind: 'idle' } }, requestSeq];
+}
+
+/** "원가 비우기" 버튼 — 다음 파일을 고르지 않아도 지금 세션을 바로 지운다. */
+export function clearCostLoad(state: CostControllerState): CostControllerState {
+  if (state.pinned !== undefined) clearSession(state.pinned.session);
+  return { requestSeq: state.requestSeq + 1, pinned: undefined, status: { kind: 'idle' } };
 }
 
 interface FinishBase {
@@ -50,21 +71,18 @@ interface FinishBase {
   fileName: string;
 }
 
-export type CostLoadResult<Doc> =
+export type CostLoadResult =
   | ({ kind: 'read-error'; message: string } & FinishBase)
   | ({ kind: 'parse-errors'; errors: readonly PriceError[] } & FinishBase)
   | ({ kind: 'needs-defaults'; missing: { currency: boolean; unit: boolean } } & FinishBase)
-  | ({ kind: 'parsed'; entries: readonly PriceEntry[]; document: Doc } & FinishBase);
+  | ({ kind: 'parsed'; entries: readonly PriceEntry[]; documentGeneration: number } & FinishBase);
 
 /**
  * 비동기 읽기/파싱이 끝났을 때 부른다. `requestId`가 지금 최신 번호와
- * 다르면(그 사이 다른 파일을 골랐다) **조용히 버린다** — 늦게 끝난
- * 이전 결과가 최신 선택을 덮지 않는다.
+ * 다르면(그 사이 다른 파일을 골랐거나 문서가 통째로 교체됐다) **조용히
+ * 버린다** — 늦게 끝난 이전 결과가 최신 상태를 덮지 않는다.
  */
-export function finishCostLoad<Doc>(
-  state: CostControllerState<Doc>,
-  result: CostLoadResult<Doc>,
-): CostControllerState<Doc> {
+export function finishCostLoad(state: CostControllerState, result: CostLoadResult): CostControllerState {
   if (result.requestId !== state.requestSeq) return state; // 늦게 끝난 이전 선택 — 버린다
 
   if (result.kind === 'read-error') {
@@ -77,48 +95,41 @@ export function finishCostLoad<Doc>(
     return { ...state, status: { kind: 'needs-defaults', fileName: result.fileName, missing: result.missing } };
   }
 
-  // 새 세션으로 완전히 교체한다 — 옛 세션은 지운다(참조를 끊는다).
-  // 옛 세션에서 사람이 확인해 연결한 자리표(entryId)는 새 세션의
-  // sessionId를 품지 않으므로 더는 붙지 않는다(session.ts의
-  // ownsEntryId) — 화면은 "미등록"이 아니라 "다시 연결하세요"를 띄운다.
-  if (state.pinned !== undefined) clearSession(state.pinned.session);
+  // beginCostLoad가 이미 옛 세션을 지워 뒀다 — 여기서는 새 세션만 만든다.
   const session = createSession(result.entries);
   return {
     ...state,
-    pinned: { session, sourceDocument: result.document, fileName: result.fileName },
+    pinned: { session, documentGeneration: result.documentGeneration, fileName: result.fileName },
     status: { kind: 'loaded', fileName: result.fileName, count: result.entries.length },
   };
 }
 
 /**
- * 지금 문서에 유효한 세션만 돌려준다 — 문서가 바뀌면(새 문서를 열거나
- * 작업 파일을 새로 열거나 undo/redo로 다른 문서가 되면) `undefined`다.
+ * 지금 문서 세대에 유효한 세션만 돌려준다 — 문서가 통째로 교체되면
+ * (새 견적, 작업 파일 열기) `undefined`다. 같은 문서를 편집만 하면
+ * (수량·설명·요율 등) `documentGeneration`이 그대로라 세션이 유지된다.
  *
  * 세션을 지우는 액션을 문서를 바꾸는 모든 자리에서 일일이 부르는 대신,
- * 노출 시점에 참조 동일성(`===`)으로 매번 다시 확인한다 —
- * `workspace.ts`의 `recalcPreview`/`sourceDocument`와 같은 설계다.
- * 문서를 바꾸는 새 경로가 생겨도 이 비교 하나로 전부 막힌다.
+ * 노출 시점에 세대 번호 비교로 매번 다시 확인한다 — 문서를 바꾸는 새
+ * 경로가 생겨도 이 비교 하나로 전부 막힌다.
  */
-export function effectiveCostSession<Doc>(
-  state: CostControllerState<Doc>,
-  currentDocument: Doc | undefined,
+export function effectiveCostSession(
+  state: CostControllerState,
+  currentGeneration: number,
 ): PrivateCostSession | undefined {
   if (state.pinned === undefined) return undefined;
-  return state.pinned.sourceDocument === currentDocument ? state.pinned.session : undefined;
+  return state.pinned.documentGeneration === currentGeneration ? state.pinned.session : undefined;
 }
 
 /**
- * 문서가 바뀌어 세션이 더는 유효하지 않으면 물리적으로 치운다(참조를
- * 끊는다 — `clearSession`은 완전한 소거를 보장하지 않는다는 것이 기존
- * 설계의 명시적 전제다). `effectiveCostSession`은 이 호출 없이도 이미
- * 올바른 값을 반환하지만, 더 이상 쓸모없는 세션을 계속 메모리에 들고
- * 있을 이유가 없어 능동적으로도 치운다.
+ * 문서가 통째로 교체됐을 때(호출부의 `documentGeneration`이 바뀌었을
+ * 때)만 부른다 — 호출됐다는 사실 자체가 "교체됐다"는 뜻이므로 세대를
+ * 다시 비교하지 않고 무조건 지운다. 진행 중이던 요청(아직 끝나지 않은
+ * needs-defaults/parsed 포함)도 `requestSeq`를 올려 전부 무효화한다 —
+ * 그래야 교체 전에 시작한 파싱이 뒤늦게 도착해 새 세대에 잘못 붙는
+ * 일이 없다.
  */
-export function discardIfStale<Doc>(
-  state: CostControllerState<Doc>,
-  currentDocument: Doc | undefined,
-): CostControllerState<Doc> {
-  if (state.pinned === undefined || state.pinned.sourceDocument === currentDocument) return state;
-  clearSession(state.pinned.session);
-  return { ...state, pinned: undefined, status: { kind: 'idle' } };
+export function discardForNewGeneration(state: CostControllerState): CostControllerState {
+  if (state.pinned !== undefined) clearSession(state.pinned.session);
+  return { requestSeq: state.requestSeq + 1, pinned: undefined, status: { kind: 'idle' } };
 }

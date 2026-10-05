@@ -64,6 +64,15 @@ export interface Workspace {
   status: WorkspaceStatus;
   canUndo: boolean;
   canRedo: boolean;
+  /**
+   * 문서가 **통째로 교체**될 때만(`loadDocument`/`openWorkFile`) 올라간다.
+   * 같은 문서를 편집하는 일반 액션(`setQuantity` 등)은 `history.present`
+   * 참조는 바뀌어도 이 번호는 그대로다 — "편집"과 "다른 문서로 교체"를
+   * 구분해야 하는 소비자(원가 세션 등)가 문서 객체 참조 동일성 대신
+   * 이 번호로 유효성을 가른다(독립 검토 지적 2026-10-05: 참조 동일성만
+   * 쓰면 수량 한 번만 고쳐도 다른 문서로 오인한다).
+   */
+  documentGeneration: number;
   loadDocument(input: LoadedDocument): void;
   /**
    * 저장된 작업 파일을 연다 — `loadDocument`와 달리 새 견적 입구가
@@ -392,6 +401,9 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
    * `initialize-new`를 그대로 써야 한다.
    */
   const [documentOrigin, setDocumentOrigin] = useState<'new' | 'reopened'>('new');
+  // `loadDocument`/`openWorkFile`에서만 올린다 — Workspace 인터페이스의
+  // `documentGeneration` 설명을 그대로 따른다.
+  const [documentGeneration, setDocumentGeneration] = useState(0);
 
   type PrepareResult = { kind: 'ok'; prepared: PreparedQuote } | { kind: 'conflict'; reason: string };
 
@@ -509,6 +521,7 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
       });
       setAllImportWarnings(input.importWarnings);
       setDocumentOrigin('new');
+      setDocumentGeneration((g) => g + 1);
       setHistory({ past: [], present: first.document, future: [] });
     },
     [basis, resources],
@@ -527,6 +540,7 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     // `document.cableWarnings`에서 직접 가져온다.
     setAllImportWarnings(document.importWarnings ?? []);
     setDocumentOrigin('reopened');
+    setDocumentGeneration((g) => g + 1);
     setHistory({ past: [], present: document, future: [] });
   }, []);
 
@@ -952,6 +966,7 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     status,
     canUndo: history.past.length > 0,
     canRedo: history.future.length > 0,
+    documentGeneration,
     loadDocument,
     openWorkFile,
     previewRecalculateWithCurrentBasis,

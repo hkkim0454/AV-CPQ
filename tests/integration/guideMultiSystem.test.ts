@@ -281,6 +281,7 @@ const emptySession = {
   byEntryId: () => undefined,
   ownsEntryId: () => false,
   candidatesByModel: () => [],
+  matchesModel: () => false,
   knownSkus: () => [],
   knownModels: () => [],
 };

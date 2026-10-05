@@ -183,6 +183,7 @@ function build(profile: IndirectProfileId, level: 0 | 1 | 2, excludeFirst = fals
     byEntryId: () => undefined,
     ownsEntryId: () => false,
     candidatesByModel: () => [],
+    matchesModel: () => false,
     knownSkus: () => [],
     knownModels: () => [],
   });

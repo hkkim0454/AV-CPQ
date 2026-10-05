@@ -48,6 +48,13 @@ export interface PrivateCostSession {
    * 붙는다. 어느 줄인지는 사람이 정한다.
    */
   candidatesByModel(model: string): PriceEntry[];
+  /**
+   * 이 자리표가 가리키는 줄의 모델명이 주어진 모델명과 같은가(정규화
+   * 비교). 견적 행의 제품·SKU·모델이 바뀌면 그 행에 전에 확인해 둔
+   * 연결이 더는 맞지 않을 수 있다 — 화면이 이 메서드로 매 렌더 다시
+   * 검증해, 모델이 바뀐 행은 "다시 연결하세요"로 돌아가게 한다.
+   */
+  matchesModel(entryId: string, model: string): boolean;
   /** 등록된 SKU 목록 — 매칭 현황 표시용. 원가 값은 주지 않는다. */
   knownSkus(): string[];
   /** 등록된 모델명 목록 — 연결 화면이 고를 거리. 원가 값은 주지 않는다. */
@@ -124,6 +131,12 @@ class Session implements PrivateCostSession {
 
   candidatesByModel(model: string): PriceEntry[] {
     return [...(this.#byModel.get(normalizeModel(model)) ?? [])];
+  }
+
+  matchesModel(entryId: string, model: string): boolean {
+    const entry = this.byEntryId(entryId);
+    if (entry?.model === undefined) return false;
+    return normalizeModel(entry.model) === normalizeModel(model);
   }
 
   knownSkus(): string[] {

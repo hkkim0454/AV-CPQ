@@ -16,6 +16,30 @@ const COST_CSV_HEADER = '품명,규격,매입단가,통화,단위';
 const COST_PRICE_A = '1234567';
 const COST_PRICE_B = '7654321';
 
+test('독립 검토: 손상된 새 원가 파일을 골라도 이전 원가 연결은 즉시 폐기된다', async ({ page }) => {
+  await mockResources(page);
+  await createDocument(page);
+  await selectCostFile(page, 'old.csv', Buffer.from('품명,규격,매입단가,통화,단위\n장비,FIX-SPEC,1234567,KRW,EA\n'));
+  const panel = page.locator('.q-private-cost');
+  await panel.getByRole('button', { name: '연결', exact: true }).click();
+  await expect(panel.getByText(/원가 1234567/)).toBeVisible();
+  await selectCostFile(page, 'invalid.csv', Buffer.from('wrong\ninvalid\n'));
+  await expect(panel.getByRole('alert')).toBeVisible();
+  await expect(panel.getByText(/원가 1234567/)).toHaveCount(0);
+});
+
+test('독립 검토: 견적 수량 편집은 같은 문서의 원가 연결을 지우지 않는다', async ({ page }) => {
+  await mockResources(page);
+  await createDocument(page);
+  await selectCostFile(page, 'cost.csv', Buffer.from('품명,규격,매입단가,통화,단위\n장비,FIX-SPEC,1234567,KRW,EA\n'));
+  const panel = page.locator('.q-private-cost');
+  await panel.getByRole('button', { name: '연결', exact: true }).click();
+  await expect(panel.getByText(/원가 1234567/)).toBeVisible();
+  await page.getByLabel('합성 테스트 품목 수량', { exact: true }).fill('2');
+  await page.getByLabel('합성 테스트 품목 수량', { exact: true }).blur();
+  await expect(panel.getByText(/원가 1234567/)).toBeVisible();
+});
+
 function costCsv(price: string): Buffer {
   return Buffer.from(`${COST_CSV_HEADER}\nPTZ 카메라,FIX,${price},KRW,EA\n`, 'utf8');
 }
@@ -104,7 +128,7 @@ test('통화/단위 열이 없는 원가 파일 — 추측하지 않고 확인 �
   await createDocument(page);
   await selectCostFile(page, 'no-currency-unit.csv', costCsvNoCurrencyUnit(COST_PRICE_A));
 
-  const confirm = page.getByRole('alert').filter({ hasText: '통화·단위 열이 없다' });
+  const confirm = page.getByRole('alert').filter({ hasText: '통화·단위 확인이 필요하다' });
   await expect(confirm).toBeVisible();
   // 확인 전에는 아직 인식되지 않는다 — 추측해서 채우지 않는다.
   await expect(page.getByRole('status').filter({ hasText: '인식됨' })).toHaveCount(0);
@@ -136,20 +160,67 @@ test('모델 후보 연결 — SKU가 없는 행은 모델명 후보 중 사람�
   await expect(row.getByText(/원가 1234567/)).toBeVisible();
 });
 
-test('감사 — 오프라인에서도 원가 선택·연결·저장이 되고, 요청·콘솔·저장소·작업 파일 어디에도 원가가 새지 않는다', async ({
+test('단위가 다른 원가는 임의로 비교·변환해 계산하지 않고 차단한다', async ({ page }) => {
+  await mockResources(page);
+  await createDocument(page); // 합성 테스트 품목의 단위는 EA다.
+  const csv = Buffer.from('품명,규격,매입단가,통화,단위\nPTZ 카메라,FIX-SPEC,1234567,KRW,M\n', 'utf8');
+  await selectCostFile(page, 'cost-unit-mismatch.csv', csv);
+
+  const row = page.locator('.q-private-cost tbody tr', { hasText: '합성 테스트 품목' });
+  await row.getByRole('button', { name: '연결' }).click();
+
+  await expect(row.getByText('단위가 다르다')).toBeVisible();
+  await expect(row.getByText(/원가 1234567/)).toHaveCount(0);
+});
+
+test('지원하지 않는 확장자를 선택해도 이전 원가 연결은 즉시 폐기된다', async ({ page }) => {
+  await mockResources(page);
+  await createDocument(page);
+  await selectCostFile(page, 'old.csv', Buffer.from('품명,규격,매입단가,통화,단위\n장비,FIX-SPEC,1234567,KRW,EA\n'));
+  const panel = page.locator('.q-private-cost');
+  await panel.getByRole('button', { name: '연결', exact: true }).click();
+  await expect(panel.getByText(/원가 1234567/)).toBeVisible();
+
+  await selectCostFile(page, 'not-supported.txt', Buffer.from('아무 내용'));
+  await expect(panel.getByRole('alert').filter({ hasText: '지원하지 않는 파일 형식' })).toBeVisible();
+  await expect(panel.getByText(/원가 1234567/)).toHaveCount(0);
+});
+
+test('원가 비우기 — 다음 파일을 고르지 않아도 바로 연결이 사라진다', async ({ page }) => {
+  await mockResources(page);
+  await createDocument(page);
+  await selectCostFile(page, 'cost.csv', Buffer.from('품명,규격,매입단가,통화,단위\n장비,FIX-SPEC,1234567,KRW,EA\n'));
+  const panel = page.locator('.q-private-cost');
+  await panel.getByRole('button', { name: '연결', exact: true }).click();
+  await expect(panel.getByText(/원가 1234567/)).toBeVisible();
+
+  await panel.getByRole('button', { name: '원가 비우기' }).click();
+  await expect(panel.getByText(/원가 1234567/)).toHaveCount(0);
+  await expect(page.getByRole('status').filter({ hasText: '연결된 원가' })).toHaveCount(0);
+});
+
+test('감사 — 오프라인에서도 선택·연결·편집·저장 전체가 되고, 요청 전체 내용·웹소켓·저장소·IndexedDB/Cache·콘솔·작업 파일 어디에도 원가가 새지 않는다', async ({
   page,
   context,
 }) => {
   await mockResources(page);
   await createDocument(page);
 
-  const requests: string[] = [];
-  page.on('request', (req) => requests.push(req.url()));
+  // URL뿐 아니라 요청 본문·헤더까지 전부 모은다 — URL만 보면 POST
+  // 본문에 실어 보내는 유출은 못 잡는다(독립 검토 지적 2026-10-05).
+  const requestDumps: string[] = [];
+  page.on('request', (req) => {
+    const headers = req.headers();
+    const postData = req.postData();
+    requestDumps.push(`${req.url()}|${JSON.stringify(headers)}|${postData ?? ''}`);
+  });
+  const webSockets: string[] = [];
+  page.on('websocket', (ws) => webSockets.push(ws.url()));
   const consoleMessages: string[] = [];
   page.on('console', (msg) => consoleMessages.push(msg.text()));
 
   // 초기 자산 로딩이 끝난 뒤 오프라인으로 전환한다 — 이 지점부터는
-  // 네트워크가 전혀 없어도 원가 선택·연결·저장이 전부 돼야 한다.
+  // 네트워크가 전혀 없어도 원가 선택·연결·편집·저장이 전부 돼야 한다.
   await context.setOffline(true);
 
   const secretPrice = '919191917';
@@ -162,6 +233,11 @@ test('감사 — 오프라인에서도 원가 선택·연결·저장이 되고, 
   await row.getByRole('button', { name: '연결' }).click();
   await expect(row.getByText(new RegExp(`원가 ${secretPrice}`))).toBeVisible();
 
+  // 편집 — 수량을 바꿔도(같은 문서) 원가 연결은 유지된 채로 흐름이 이어진다.
+  await page.getByLabel('합성 테스트 품목 수량', { exact: true }).fill('3');
+  await page.getByLabel('합성 테스트 품목 수량', { exact: true }).blur();
+  await expect(row.getByText(new RegExp(`원가 ${secretPrice}`))).toBeVisible();
+
   const [download] = await Promise.all([
     page.waitForEvent('download'),
     page.getByRole('button', { name: '작업 파일로 저장' }).click(),
@@ -170,23 +246,36 @@ test('감사 — 오프라인에서도 원가 선택·연결·저장이 되고, 
 
   await context.setOffline(false);
 
-  // 네트워크 — 이 흐름 전체에서 어떤 요청도 비밀 가격·원가 파일명을 담지 않는다.
-  expect(requests.some((url) => url.includes(secretPrice))).toBe(false);
-  expect(requests.some((url) => url.includes(secretFileName))).toBe(false);
+  // 네트워크 — 이 흐름 전체에서 어떤 요청도(URL·헤더·본문 어디에도)
+  // 비밀 가격·원가 파일명을 담지 않는다.
+  expect(requestDumps.some((dump) => dump.includes(secretPrice))).toBe(false);
+  expect(requestDumps.some((dump) => dump.includes(secretFileName))).toBe(false);
+
+  // 웹소켓 — 아예 열지 않는다.
+  expect(webSockets).toEqual([]);
 
   // 콘솔 — 어디에도 비밀 가격을 찍지 않는다.
   expect(consoleMessages.some((text) => text.includes(secretPrice))).toBe(false);
 
-  // 저장소 — localStorage/sessionStorage 어디에도 없다.
-  const storages = await page.evaluate(() => {
+  // 저장소 — localStorage/sessionStorage/IndexedDB/Cache 어디에도 없다.
+  const storages = await page.evaluate(async () => {
     const dump = (storage: Storage): string =>
       Array.from({ length: storage.length }, (_, i) => storage.key(i))
         .map((key) => `${key}=${storage.getItem(key ?? '')}`)
         .join(';');
-    return { local: dump(window.localStorage), session: dump(window.sessionStorage) };
+    const idbNames = (await indexedDB.databases()).map((d) => d.name ?? '').join(';');
+    const cacheNames = ('caches' in window ? await caches.keys() : []).join(';');
+    return {
+      local: dump(window.localStorage),
+      session: dump(window.sessionStorage),
+      idbNames,
+      cacheNames,
+    };
   });
   expect(storages.local).not.toContain(secretPrice);
   expect(storages.session).not.toContain(secretPrice);
+  expect(storages.idbNames).not.toContain(secretPrice);
+  expect(storages.cacheNames).not.toContain(secretPrice);
 
   // 작업 파일 — 저장된 JSON에도 없다.
   expect(savedText).not.toContain(secretPrice);

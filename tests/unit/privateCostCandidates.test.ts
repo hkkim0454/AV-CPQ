@@ -65,6 +65,15 @@ describe('unresolvedCandidates', () => {
     expect(result[0]!.candidates.map((c) => c.model)).toEqual(['SRG-A40']);
   });
 
+  it('같은 세션 안에서도 행의 규격이 바뀌면(제품 교체) 연결이 다시 후보 목록에 나온다', () => {
+    const session = createSession([entry('row-1', 'SRG-A40'), entry('row-2', 'OTHER-MODEL')]);
+    const rows = [row({ rowId: 'r1', specification: 'OTHER-MODEL' })]; // 행의 제품이 바뀌었다
+    const entryId = session.candidatesByModel('SRG-A40')[0]!.entryId; // 옛 연결은 SRG-A40 것
+    const result = unresolvedCandidates(rows, session, { r1: entryId });
+    expect(result).toHaveLength(1);
+    expect(result[0]!.candidates.map((c) => c.model)).toEqual(['OTHER-MODEL']);
+  });
+
   it('후보가 0개여도 목록에 포함한다 — 미등록 표시용', () => {
     const session = createSession([entry('row-1', 'OTHER-MODEL')]);
     const rows = [row({ rowId: 'r1', specification: 'SRG-A40' })];

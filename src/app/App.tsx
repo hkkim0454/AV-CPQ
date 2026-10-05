@@ -423,7 +423,7 @@ export function App() {
                       />
                     );
                   })}
-                  <PrivateCostPanel document={status.document} />
+                  <PrivateCostPanel document={status.document} documentGeneration={workspace.documentGeneration} />
                 </>
               )}
             </>
