@@ -136,9 +136,17 @@ export function internalLines(
     // 단위·통화가 견적과 다르면 임의로 비교·변환해 계산하지 않는다 —
     // 자동 SKU 연결·수동 모델 연결 모두 같은 규칙이다. 견적 쪽 통화는
     // 시스템 전체가 KRW 고정이다(domain/quote/types.ts의
-    // `ProductVariant.currency: 'KRW'`). 행에 단위를 아예 안 줬으면
-    // (호출부가 생략) 비교할 수 없으니 막지 않는다.
-    const unitMismatch = line.unit !== '' && entry.unit !== line.unit;
+    // `ProductVariant.currency: 'KRW'`).
+    //
+    // 단위 필드 **자체를 생략**(undefined — 과거 테스트가 쓰는 호환
+    // 경로)했을 때만 비교할 수 없다고 보고 막지 않는다. 호출부가
+    // **명시적으로 빈 문자열**을 줬으면(실제 QuoteRow.unit은 필수
+    // 필드지만 데이터 결함으로 비어 있을 수 있다) 그건 "단위를
+    // 모른다"는 뜻이지 "맞다"는 뜻이 아니다 — 똑같이 막는다(독립 검토
+    // 지적 2026-10-05: Task6이 실제 행을 연결할 때 빈 단위가 조용히
+    // 통과하면 안 된다).
+    const unitKnown = row.unit !== undefined;
+    const unitMismatch = unitKnown && entry.unit !== line.unit;
     const currencyMismatch = entry.currency !== 'KRW';
     if (unitMismatch || currencyMismatch) {
       line.costUnit = entry.unit;

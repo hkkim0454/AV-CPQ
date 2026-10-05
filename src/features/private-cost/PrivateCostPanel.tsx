@@ -38,22 +38,11 @@
  */
 import { useRef, useState } from 'react';
 import type { QuoteDocument } from '../../domain/quote/types';
-import type { ColumnMapping } from '../../services/private-cost/parse';
+import { columnLetter, type ColumnMapping } from '../../services/private-cost/parse';
 import type { TableFormat } from '../../services/private-cost/readTable';
 import { usePrivateCostController, type PrivateCostController, type XlsxWizard } from './usePrivateCostController';
 import type { InternalLine } from '../../services/private-cost/calculate';
 import type { UnresolvedRowCandidates } from '../../services/private-cost/candidates';
-
-/** 0→A, 1→B, … 25→Z, 26→AA … — 열 미리보기에 "B: 품명"처럼 보여줄 때 쓴다. */
-function columnLetter(index: number): string {
-  let n = index;
-  let out = '';
-  do {
-    out = String.fromCharCode(65 + (n % 26)) + out;
-    n = Math.floor(n / 26) - 1;
-  } while (n >= 0);
-  return out;
-}
 
 function formatOf(name: string): TableFormat | undefined {
   if (/\.csv$/i.test(name)) return 'csv';
@@ -232,6 +221,45 @@ function XlsxWizardView({ wizard, controller }: { wizard: XlsxWizard; controller
     );
   }
 
+  if (wizard.step === 'choosing-data-end') {
+    return (
+      <div role="alert" className="q-field-error">
+        <p>
+          {wizard.fileName} — {wizard.sheetName} 시트. 품목이 어디서 끝나는지 고르세요 — 잡자재비·합계 같은
+          집계 행이 아래에 있으면 그 앞 행에서 "여기까지 품목"을 누르세요. 시트 끝까지 전부 품목이면
+          아래 버튼으로 전체를 포함하세요.
+        </p>
+        <button type="button" className="q-button" onClick={() => controller.chooseDataEnd()}>
+          전체 포함(끝까지)
+        </button>
+        <table className="q-quote-table">
+          <tbody>
+            {wizard.rowsAfterHeader.map(({ rowIndex, cells }) => (
+              <tr key={rowIndex}>
+                <td>
+                  <button
+                    type="button"
+                    className="q-button"
+                    onClick={() => controller.chooseDataEnd(rowIndex)}
+                    aria-label={`${rowIndex + 1}행까지 품목으로 선택`}
+                  >
+                    여기까지 품목
+                  </button>
+                </td>
+                {cells.map((cell, cellIndex) => (
+                  <td key={cellIndex}>{cell}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <button type="button" className="q-button" onClick={() => controller.cancelWizard()}>
+          취소
+        </button>
+      </div>
+    );
+  }
+
   return <MappingConfirmForm wizard={wizard} controller={controller} />;
 }
 
@@ -254,8 +282,12 @@ function MappingConfirmForm({
 
   const ready = priceIndex !== '' && (modelIndex !== '' || skuIndex !== '');
 
-  function nameOf(value: string): string | undefined {
-    return value === '' ? undefined : header[Number(value)];
+  // 이름이 아니라 **열 번호(좌표)**로 넘긴다 — 머리글 텍스트가
+  // 중복·공백·병합이어도 사람이 화면에서 고른 그 열을 그대로 읽는다
+  // (독립 검토 지적 2026-10-05: 이름으로 되돌리면 중복 머리글에서
+  // 먼저 나오는 열을 읽어 버렸다).
+  function indexOf(value: string): number | undefined {
+    return value === '' ? undefined : Number(value);
   }
 
   return (
@@ -276,12 +308,12 @@ function MappingConfirmForm({
         disabled={!ready}
         onClick={() => {
           const mapping: ColumnMapping = {
-            purchaseUnitPrice: nameOf(priceIndex)!,
-            ...(nameOf(nameIndex) !== undefined ? { name: nameOf(nameIndex)! } : {}),
-            ...(nameOf(modelIndex) !== undefined ? { model: nameOf(modelIndex)! } : {}),
-            ...(nameOf(skuIndex) !== undefined ? { sku: nameOf(skuIndex)! } : {}),
-            ...(nameOf(currencyIndex) !== undefined ? { currency: nameOf(currencyIndex)! } : {}),
-            ...(nameOf(unitIndex) !== undefined ? { unit: nameOf(unitIndex)! } : {}),
+            purchaseUnitPrice: indexOf(priceIndex)!,
+            ...(indexOf(nameIndex) !== undefined ? { name: indexOf(nameIndex)! } : {}),
+            ...(indexOf(modelIndex) !== undefined ? { model: indexOf(modelIndex)! } : {}),
+            ...(indexOf(skuIndex) !== undefined ? { sku: indexOf(skuIndex)! } : {}),
+            ...(indexOf(currencyIndex) !== undefined ? { currency: indexOf(currencyIndex)! } : {}),
+            ...(indexOf(unitIndex) !== undefined ? { unit: indexOf(unitIndex)! } : {}),
           };
           controller.confirmMapping(mapping);
         }}

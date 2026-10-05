@@ -10,7 +10,21 @@ import { dec } from '../../domain/calculation/rounding';
 import type { Table } from './readTable';
 
 /**
- * 열 이름 매핑. 값이 아니라 **이름**만 담는다 — 저장해도 원가가 새지 않는다.
+ * 열을 가리키는 방법 — **이름**(CSV 간단 경로, 기존 그대로) 또는
+ * **0부터 센 열 번호**(XLSX 열매핑 확인 화면).
+ *
+ * 머리글 텍스트는 중복되거나 비거나 병합돼 있을 수 있다(독립 검토
+ * 지적 2026-10-05 — 실제 재현: D열·G열 머리글이 둘 다 "단가"일 때,
+ * 이름으로 찾으면 사람이 화면에서 G를 골라도 먼저 나오는 D를 읽는다).
+ * 그래서 사람이 화면에서 **열을 직접 고른 경우**(XLSX 마법사)는 그
+ * 자리(인덱스)를 끝까지 그대로 들고 다녀야 한다 — 이름으로 되돌려
+ * 변환하면 고른 좌표를 잃는다.
+ */
+export type ColumnRef = string | number;
+
+/**
+ * 열 매핑. 이름 또는 번호만 담는다 — 값은 담지 않는다. 그래서 저장해도
+ * 원가가 새지 않는다.
  *
  * ## 총액 열이 없는 이유
  *
@@ -27,20 +41,20 @@ import type { Table } from './readTable';
  */
 export interface ColumnMapping {
   /** 내부 SKU 열. 사용자 원가 파일에는 보통 없다. */
-  sku?: string;
+  sku?: ColumnRef;
   /** 모델명 열. 사용자 파일에서는 머리글이 '규격' 인 경우가 많다. */
-  model?: string;
-  purchaseUnitPrice: string;
+  model?: ColumnRef;
+  purchaseUnitPrice: ColumnRef;
   /** 통화 열. 파일에 이 열 자체가 없을 수 있다 — 그러면 `defaultCurrency`를 쓴다. */
-  currency?: string;
+  currency?: ColumnRef;
   /** 단위 열. 파일에 이 열 자체가 없을 수 있다 — 그러면 `defaultUnit`를 쓴다. */
-  unit?: string;
+  unit?: ColumnRef;
   /** 품명 열. 사람이 연결을 확인할 때 본다. */
-  name?: string;
+  name?: ColumnRef;
   /** 선택 열 (설계서 §8.2). */
-  brand?: string;
-  lengthM?: string;
-  effectiveDate?: string;
+  brand?: ColumnRef;
+  lengthM?: ColumnRef;
+  effectiveDate?: ColumnRef;
   /**
    * 통화 열이 아예 없거나, 있어도 그 줄의 칸이 비었을 때만 채우는
    * **사용자 명시 확인값**이다. 자동으로 추측하지 않는다 — 화면에서
@@ -74,9 +88,38 @@ export interface PriceError {
   code: PriceErrorCode;
   /** 데이터 행 번호 (1부터). 머리글은 0. */
   row: number;
-  /** 열 이름. 값은 담지 않는다. */
-  column?: string;
+  /** 열 이름 또는 번호. 값은 담지 않는다. */
+  column?: ColumnRef;
   message: string;
+}
+
+/** 0→A, 1→B, … 25→Z, 26→AA … — 번호로 가리킨 열을 오류 문구에 사람이 읽을 모양으로 보여줄 때 쓴다. */
+export function columnLetter(index: number): string {
+  let n = index;
+  let out = '';
+  do {
+    out = String.fromCharCode(65 + (n % 26)) + out;
+    n = Math.floor(n / 26) - 1;
+  } while (n >= 0);
+  return out;
+}
+
+function describeColumnRef(ref: ColumnRef): string {
+  return typeof ref === 'number' ? `${columnLetter(ref)}열` : ref;
+}
+
+/**
+ * 열 참조(이름 또는 번호)를 실제 열 번호로 바꾼다. 번호면 범위만
+ * 확인하고 그대로 쓴다 — 이름으로 되돌리지 않는다(중복 머리글이어도
+ * 고른 자리를 잃지 않는다). 이름이면 기존처럼 첫 일치를 찾는다(CSV
+ * 간단 경로와 호환).
+ */
+export function resolveColumnRef(ref: ColumnRef, header: readonly string[]): number | undefined {
+  if (typeof ref === 'number') {
+    return ref >= 0 && ref < header.length ? ref : undefined;
+  }
+  const at = header.findIndex((h) => h === ref);
+  return at === -1 ? undefined : at;
 }
 
 /** 원가 한 줄. **이 타입은 영속 객체에 들어가지 않는다** (설계서 §6.2). */
@@ -122,9 +165,6 @@ function normalizeNumber(raw: string): string | undefined {
 export function parsePrivatePrices(table: Table, mapping: ColumnMapping): ParseResult {
   const errors: PriceError[] = [];
 
-  const indexOf = (name: string): number =>
-    table.header.findIndex((h) => h === name);
-
   // SKU 와 모델명 중 **하나는** 있어야 한다. 둘 다 없으면 어느 견적 행에
   // 붙일 건지 사람이 확인할 단서조차 없다.
   if (mapping.sku === undefined && mapping.model === undefined) {
@@ -140,41 +180,41 @@ export function parsePrivatePrices(table: Table, mapping: ColumnMapping): ParseR
     };
   }
 
-  const required: Array<[keyof ColumnMapping, string]> = [
+  const required: Array<[keyof ColumnMapping, ColumnRef]> = [
     ['purchaseUnitPrice', mapping.purchaseUnitPrice],
     ...(mapping.currency !== undefined
-      ? ([['currency', mapping.currency]] as Array<[keyof ColumnMapping, string]>)
+      ? ([['currency', mapping.currency]] as Array<[keyof ColumnMapping, ColumnRef]>)
       : []),
     ...(mapping.unit !== undefined
-      ? ([['unit', mapping.unit]] as Array<[keyof ColumnMapping, string]>)
+      ? ([['unit', mapping.unit]] as Array<[keyof ColumnMapping, ColumnRef]>)
       : []),
     ...(mapping.sku !== undefined
-      ? ([['sku', mapping.sku]] as Array<[keyof ColumnMapping, string]>)
+      ? ([['sku', mapping.sku]] as Array<[keyof ColumnMapping, ColumnRef]>)
       : []),
     ...(mapping.model !== undefined
-      ? ([['model', mapping.model]] as Array<[keyof ColumnMapping, string]>)
+      ? ([['model', mapping.model]] as Array<[keyof ColumnMapping, ColumnRef]>)
       : []),
   ];
 
   const columnIndex: Partial<Record<keyof ColumnMapping, number>> = {};
-  for (const [key, name] of required) {
-    const at = indexOf(name);
-    if (at === -1) {
+  for (const [key, ref] of required) {
+    const at = resolveColumnRef(ref, table.header);
+    if (at === undefined) {
       errors.push({
         code: 'column-missing',
         row: 0,
-        column: name,
-        message: `필수 열 '${name}'을 찾을 수 없다. 열 매핑을 확인한다.`,
+        column: ref,
+        message: `필수 열 '${describeColumnRef(ref)}'을 찾을 수 없다. 열 매핑을 확인한다.`,
       });
     } else {
       columnIndex[key] = at;
     }
   }
   for (const key of ['brand', 'name', 'lengthM', 'effectiveDate'] as const) {
-    const name = mapping[key];
-    if (name === undefined) continue;
-    const at = indexOf(name);
-    if (at !== -1) columnIndex[key] = at;
+    const ref = mapping[key];
+    if (ref === undefined) continue;
+    const at = resolveColumnRef(ref, table.header);
+    if (at !== undefined) columnIndex[key] = at;
   }
 
   if (errors.length > 0) return { entries: [], errors };

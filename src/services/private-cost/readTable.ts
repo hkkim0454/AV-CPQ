@@ -66,6 +66,17 @@ export interface ReadTableOptions {
    * 직접 고른 행 번호를 그대로 받는다 — 추측하지 않는다.
    */
   headerRowIndex?: number;
+  /**
+   * 품목 데이터가 **끝나는** 행의 자리(0부터, 원본 행 그대로, 포함).
+   * 비우면 시트 끝까지 전부 데이터로 본다. 실제 가이드류 파일은 품목
+   * 표 아래에 잡자재비·합계 같은 집계 행이 있을 수 있는데, 그 행을
+   * "시트 끝까지가 데이터"라고 멋대로 가정해 읽으면 집계 행이 품목
+   * 행으로 잘못 섞이거나(숫자가 수식이 아니라 값으로 박혀 있으면
+   * 수식 검사로도 못 거른다) 반대로 멀쩡한 품목이 빠질 수 있다.
+   * `headerRowIndex`와 같은 원칙 — 사람이 미리보기에서 직접 고른
+   * 행 번호만 받는다, 내용을 보고 추측하지 않는다.
+   */
+  dataEndRowIndex?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -386,9 +397,21 @@ export function readTable(
     if (headerRowIndex < 0 || headerRowIndex >= sheet.rows.length) {
       throw new TableReadError('머리글 행 번호가 범위를 벗어났다.', 'header-row-out-of-range');
     }
+    if (options.dataEndRowIndex !== undefined && options.dataEndRowIndex <= headerRowIndex) {
+      throw new TableReadError('데이터 끝 행이 머리글 행보다 앞에 있다.', 'data-end-before-header');
+    }
+    if (options.dataEndRowIndex !== undefined && options.dataEndRowIndex >= sheet.rows.length) {
+      throw new TableReadError('데이터 끝 행 번호가 범위를 벗어났다.', 'data-end-out-of-range');
+    }
     const header = sheet.rows[headerRowIndex]!.map((c) => c.trim());
-    const dataRows = sheet.rows.slice(headerRowIndex + 1);
-    const dataFormulas = sheet.formulas.slice(headerRowIndex + 1);
+    // 끝 행을 명시하지 않으면 시트 끝까지가 데이터다(기존 동작) —
+    // 명시하면 그 행(포함)에서 자른다. 실제 가이드류 파일의 잡자재비·
+    // 합계 같은 집계 행을 데이터로 잘못 끌어들이지 않으려면 사람이
+    // 직접 끝을 지정해야 한다(모듈 설명 `dataEndRowIndex` 참고).
+    const dataEndExclusive =
+      options.dataEndRowIndex === undefined ? undefined : options.dataEndRowIndex + 1;
+    const dataRows = sheet.rows.slice(headerRowIndex + 1, dataEndExclusive);
+    const dataFormulas = sheet.formulas.slice(headerRowIndex + 1, dataEndExclusive);
     // 빈 행을 거를 때 수식 자리도 같이 걸러야 행 번호가 어긋나지 않는다.
     const kept: Array<{ values: string[]; formulas: ReadonlySet<number> }> = [];
     dataRows.forEach((row, index) => {

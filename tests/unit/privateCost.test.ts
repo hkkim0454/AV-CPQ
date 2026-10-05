@@ -383,6 +383,48 @@ describe('parsePrivatePrices — 통화/단위 확인값 (계획 Task5, 자동 �
   });
 });
 
+describe('parsePrivatePrices — 열 번호(ColumnRef)로 매핑하면 중복 머리글이어도 고른 열을 그대로 읽는다 (독립 검토 지적 2026-10-05)', () => {
+  it('매입단가 머리글이 두 열(D·G)에 똑같이 있어도, 번호로 G를 지정하면 G값을 읽는다', () => {
+    // D(인덱스3)·G(인덱스6) 둘 다 머리글이 "단가"다. 이름으로 찾으면
+    // 항상 먼저 나오는 D를 읽는다 — 사람이 화면에서 G를 "선택"해도
+    // 이름으로 되돌려 변환하면 그 선택을 잃는다.
+    const table = readTable(csv('품명,규격,X,단가,X,X,단가\nPTZ 카메라,SRG-A40,,777,,,1234567\n'), 'csv');
+    const result = parsePrivatePrices(table, {
+      name: 0,
+      model: 1,
+      purchaseUnitPrice: 6, // G열 — 번호로 직접 가리킨다.
+      defaultCurrency: 'KRW',
+      defaultUnit: 'EA',
+    });
+    expect(result.errors).toEqual([]);
+    expect(result.entries[0]!.purchaseUnitPrice).toBe('1234567'); // D(777)이 아니라 G값이다.
+  });
+
+  it('번호로 지정한 매입단가 열에 수식이 있으면 그 좌표 그대로 수식 검사를 한다', () => {
+    const header = ['품명', '규격', 'X', '단가', 'X', 'X', '단가'];
+    const xlsx = makeXlsx(
+      [header, ['PTZ 카메라', 'SRG-A40', '', '777', '', '', '1234567']],
+      { formulaAt: [1, 6] }, // 데이터 1행, G열(인덱스6)에 수식이 있다.
+    );
+    const table = readTable(xlsx, 'xlsx');
+    const result = parsePrivatePrices(table, {
+      name: 0,
+      model: 1,
+      purchaseUnitPrice: 6,
+      defaultCurrency: 'KRW',
+      defaultUnit: 'EA',
+    });
+    expect(result.errors.map((e) => e.code)).toEqual(['price-formula']);
+    expect(result.entries).toEqual([]);
+  });
+
+  it('번호가 범위를 벗어나면 column-missing이다', () => {
+    const table = readTable(csv('품명,규격,매입단가\nPTZ 카메라,SRG-A40,1000\n'), 'csv');
+    const result = parsePrivatePrices(table, { name: 0, model: 1, purchaseUnitPrice: 99 });
+    expect(result.errors.map((e) => e.code)).toEqual(['column-missing']);
+  });
+});
+
 describe('PrivateCostSession — 메모리 전용 (설계서 §8.1, §8.4)', () => {
   const entries = [
     { entryId: `e${1}`, sku: 'A-1', purchaseUnitPrice: '1000', currency: 'KRW' as const, unit: 'EA' },
@@ -512,5 +554,14 @@ describe('internalLines — 내부용 계산 (설계서 §8.7)', () => {
     const lines = internalLines([{ rowId: 'r1', sku: 'A-1', quantity: '3', sellingUnitPrice: '1500' }], session);
     expect(lines[0]!.costMismatch).toBeUndefined();
     expect(lines[0]!.purchaseAmount?.toFixed()).toBe('3000');
+  });
+
+  it('행의 단위가 명시적으로 빈 문자열이면(생략이 아니다) 막는다 — Task6 실입력에서 빈 단위가 조용히 통과하면 안 된다', () => {
+    const lines = internalLines(
+      [{ rowId: 'r1', sku: 'A-1', unit: '', quantity: '3', sellingUnitPrice: '1500' }],
+      session,
+    );
+    expect(lines[0]!.costMismatch).toEqual({ costUnit: 'EA', costCurrency: 'KRW' });
+    expect(lines[0]!.purchaseAmount).toBeUndefined();
   });
 });

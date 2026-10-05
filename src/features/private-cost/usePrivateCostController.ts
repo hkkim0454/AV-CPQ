@@ -34,7 +34,12 @@ import {
   type TableFormat,
   type XlsxSheetInfo,
 } from '../../services/private-cost/readTable';
-import { parsePrivatePrices, type ColumnMapping, type PriceError } from '../../services/private-cost/parse';
+import {
+  parsePrivatePrices,
+  resolveColumnRef,
+  type ColumnMapping,
+  type PriceError,
+} from '../../services/private-cost/parse';
 import {
   beginCostLoad,
   clearCostLoad,
@@ -65,6 +70,16 @@ export type XlsxWizard =
       preview: readonly string[][];
     }
   | {
+      step: 'choosing-data-end';
+      requestId: number;
+      fileName: string;
+      sheetName: string;
+      headerRowIndex: number;
+      header: readonly string[];
+      /** 머리글 다음 행부터 시트 끝까지, 원본 행 번호(0부터) 그대로. */
+      rowsAfterHeader: readonly { rowIndex: number; cells: readonly string[] }[];
+    }
+  | {
       step: 'confirming-mapping';
       requestId: number;
       fileName: string;
@@ -85,6 +100,12 @@ export interface PrivateCostController {
   chooseSheet(sheetPath: string): void;
   /** 마법사 — 머리글 행을 고른다(`wizard.step === 'choosing-header-row'`일 때만 뜻이 있다). */
   chooseHeaderRow(rowIndex: number): void;
+  /**
+   * 마법사 — 품목 데이터가 끝나는 행을 고른다(`wizard.step ===
+   * 'choosing-data-end'`일 때만 뜻이 있다). `rowIndex`를 생략하면
+   * "시트 끝까지 전부 포함"이다.
+   */
+  chooseDataEnd(rowIndex?: number): void;
   /** 마법사 — 열 매핑을 확인하고 실제로 읽는다(`wizard.step === 'confirming-mapping'`일 때만 뜻이 있다). */
   confirmMapping(mapping: ColumnMapping): void;
   /** 마법사를 버린다 — 아직 아무것도 연결되지 않았으므로 idle로 되돌아간다. */
@@ -115,7 +136,11 @@ interface XlsxSession {
   bytes: Uint8Array;
   sheetPath?: string;
   headerRowIndex?: number;
+  dataEndRowIndex?: number;
 }
+
+/** 데이터 끝 선택 화면에서 트레일링 행(잡자재비·합계 등)까지 보이도록 넉넉히 가져온다. */
+const DATA_END_PREVIEW_ROWS = 500;
 
 function itemRowsOf(document: QuoteDocument | undefined): QuoteRow[] {
   if (document === undefined) return [];
@@ -317,13 +342,52 @@ export function usePrivateCostController(
       return;
     }
     const header = (wizard.preview[rowIndex] ?? []).map((c) => c.trim());
-    xlsxRef.current = { ...xlsxRef.current!, headerRowIndex: rowIndex };
+    const xlsx = xlsxRef.current;
+    if (xlsx === undefined) return;
+    xlsxRef.current = { ...xlsx, headerRowIndex: rowIndex };
+    // 트레일링 행(잡자재비·합계 등)까지 보이도록 미리보기를 넉넉히 다시
+    // 가져온다 — 머리글 선택 때 쓴 짧은 미리보기로는 시트 끝이 안 보일
+    // 수 있다(독립 검토 지적 2026-10-05: 시트 끝까지가 데이터라고
+    // 멋대로 가정하면 집계 행이 섞이거나 품목이 빠질 수 있다).
+    try {
+      const full = previewXlsxRows(xlsx.bytes, xlsx.sheetPath!, DATA_END_PREVIEW_ROWS);
+      const rowsAfterHeader = full
+        .slice(rowIndex + 1)
+        .map((cells, i) => ({ rowIndex: rowIndex + 1 + i, cells }));
+      setWizard({
+        step: 'choosing-data-end',
+        requestId: wizard.requestId,
+        fileName: wizard.fileName,
+        sheetName: wizard.sheetName,
+        headerRowIndex: rowIndex,
+        header,
+        rowsAfterHeader,
+      });
+    } catch (err) {
+      applyResult({
+        kind: 'read-error',
+        requestId: wizard.requestId,
+        fileName: wizard.fileName,
+        message: err instanceof TableReadError ? err.message : '시트를 읽지 못했다.',
+      });
+    }
+  }
+
+  function chooseDataEnd(rowIndex?: number): void {
+    if (wizard === undefined || wizard.step !== 'choosing-data-end') return;
+    if (wizard.requestId !== stateRef.current.requestSeq) {
+      setWizard(undefined);
+      return;
+    }
+    const xlsx = xlsxRef.current;
+    if (xlsx === undefined) return;
+    xlsxRef.current = { ...xlsx, ...(rowIndex !== undefined ? { dataEndRowIndex: rowIndex } : {}) };
     setWizard({
       step: 'confirming-mapping',
       requestId: wizard.requestId,
       fileName: wizard.fileName,
       sheetName: wizard.sheetName,
-      header,
+      header: wizard.header,
     });
   }
 
@@ -343,6 +407,7 @@ export function usePrivateCostController(
       const table = readTable(xlsx.bytes, 'xlsx', undefined, {
         sheetPath: xlsx.sheetPath,
         headerRowIndex: xlsx.headerRowIndex,
+        ...(xlsx.dataEndRowIndex !== undefined ? { dataEndRowIndex: xlsx.dataEndRowIndex } : {}),
       });
       attemptParse(table, mapping, requestId, fileName, documentGeneration);
     } catch (err) {
@@ -374,8 +439,12 @@ export function usePrivateCostController(
     // 기존 값을 계속 읽는다 — 확인값은 빈 줄만 메운다. 열 자체가
     // 없었을 때만 매핑에서 빼서 모든 줄이 확인값을 쓰게 한다.
     const base: ColumnMapping = { ...pending.mapping };
-    if (base.currency === undefined || !pending.table.header.includes(base.currency)) delete base.currency;
-    if (base.unit === undefined || !pending.table.header.includes(base.unit)) delete base.unit;
+    if (base.currency === undefined || resolveColumnRef(base.currency, pending.table.header) === undefined) {
+      delete base.currency;
+    }
+    if (base.unit === undefined || resolveColumnRef(base.unit, pending.table.header) === undefined) {
+      delete base.unit;
+    }
     const mergedMapping: ColumnMapping = {
       ...base,
       ...(defaults.currency !== undefined ? { defaultCurrency: defaults.currency } : {}),
@@ -468,6 +537,7 @@ export function usePrivateCostController(
     loadFile,
     chooseSheet,
     chooseHeaderRow,
+    chooseDataEnd,
     confirmMapping,
     cancelWizard,
     confirmDefaults,
