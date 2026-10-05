@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   calculateLaborUnitPrice,
   calculateLaborForRows,
+  computeRowConfirmationFingerprint,
   type LaborRowRequest,
 } from '@/domain/labor/calculateLabor';
 import { computeLaborConfirmationFingerprint } from '@/domain/labor/laborConfirmation';
@@ -268,6 +269,33 @@ describe('calculateLaborForRows — 행별 노무 단가 주입', () => {
       const r1 = result.breakdowns.get('r1')!;
       expect(r1.warnings.some((w) => w.code === 'mapping-unconfirmed')).toBe(true);
       expect(r1.blocking).toBe(true);
+    });
+
+    it('computeRowConfirmationFingerprint가 만든 지문을 그대로 확인에 쓰면 그 행만 풀린다 — 화면 "확인함" 버튼이 쓸 계산과 재검증이 같은 결과를 낸다', () => {
+      const identity = { unit: 'EA', quantity: '1', ruleVersion: 'rule-v1' };
+      const fingerprint = computeRowConfirmationFingerprint('r1', 'm1', reference, identity);
+      expect(fingerprint).toBe(fingerprintFor('r1'));
+
+      const result = calculateLaborForRows(
+        [
+          {
+            rowId: 'r1',
+            laborMappingId: 'm1',
+            confirmation: { laborConfirmation: { basisFingerprint: fingerprint!, confirmedAt: '2026-10-05' }, ...identity },
+          },
+        ],
+        reference,
+      );
+      expect(result.breakdowns.get('r1')!.blocking).toBe(false);
+    });
+
+    it('존재하지 않는 매핑으로는 지문을 계산할 수 없다 — undefined를 돌려준다', () => {
+      const fingerprint = computeRowConfirmationFingerprint('r1', 'nope', reference, {
+        unit: 'EA',
+        quantity: '1',
+        ruleVersion: 'rule-v1',
+      });
+      expect(fingerprint).toBeUndefined();
     });
   });
 });

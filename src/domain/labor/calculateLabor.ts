@@ -187,6 +187,72 @@ export interface LaborRowsResult {
   warnings: LaborWarning[];
 }
 
+/** `computeLaborConfirmationFingerprint`에 넘길 identity·단위·수량 재료. */
+export interface LaborRowIdentity {
+  productId?: string;
+  sku?: string;
+  /** 견적 행의 unit(판매 단위). */
+  unit: string;
+  quantity: DecimalText;
+  ruleVersion: string;
+}
+
+/**
+ * **지금 계산 근거**(품셈 연결·직종별 품·적용 노임·단위·계수·행 수량·
+ * rule 버전)로 지문을 다시 만든다. 화면의 "확인함" 버튼(지금 보고 있는
+ * 근거를 확인한다)과 `calculateLaborForRows`의 재검증(저장된 지문이
+ * 지금도 유효한지 본다)이 **같은 계산**을 쓰도록 여기 하나로 묶는다 —
+ * 따로 두면 한쪽만 고쳤을 때 둘이 어긋난다.
+ */
+export function computeCurrentLaborFingerprint(
+  rowId: string,
+  item: LaborItem,
+  mapping: LaborMapping,
+  wages: WageTable,
+  breakdown: LaborBreakdown,
+  identity: LaborRowIdentity,
+): string {
+  return computeLaborConfirmationFingerprint({
+    rowId,
+    ...(identity.productId !== undefined ? { productId: identity.productId } : {}),
+    ...(identity.sku !== undefined ? { sku: identity.sku } : {}),
+    laborMappingId: mapping.laborMappingId,
+    laborItemId: item.laborItemId,
+    code: item.code,
+    trades: item.trades,
+    tradeWages: breakdown.tradeAmounts.map((t) => ({ trade: t.trade, amount: text(t.wage), unit: t.wageUnit })),
+    wageTableId: wages.wageTableId,
+    wageUnit: item.wageUnit,
+    baseUnit: item.baseUnit,
+    rowUnit: identity.unit,
+    itemRate: mapping.itemRate,
+    surcharge: mapping.surcharge,
+    conversionFactor: mapping.conversionFactor,
+    quantity: identity.quantity,
+    ruleVersion: identity.ruleVersion,
+  });
+}
+
+/**
+ * 행 identity(productId/sku 포함)와 수량·rule 버전으로 **지금** 이
+ * 매핑의 지문을 계산한다 — 화면의 "확인함" 액션이 이 함수로 저장할
+ * `basisFingerprint`를 만든다. 매핑/품셈 항목을 찾을 수 없으면
+ * `undefined`다(존재하지 않는 연결을 확인할 수 없다).
+ */
+export function computeRowConfirmationFingerprint(
+  rowId: string,
+  laborMappingId: string,
+  reference: LaborReference,
+  identity: LaborRowIdentity,
+): string | undefined {
+  const mapping = reference.mappings.find((m) => m.laborMappingId === laborMappingId);
+  if (mapping === undefined) return undefined;
+  const item = reference.items.find((i) => i.laborItemId === mapping.laborItemId);
+  if (item === undefined) return undefined;
+  const breakdown = calculateLaborUnitPrice(item, mapping, reference.wages);
+  return computeCurrentLaborFingerprint(rowId, item, mapping, reference.wages, breakdown, identity);
+}
+
 /**
  * **그 rowId에 한해서만** `mapping-unconfirmed`를 푼다(계획 §Task B —
  * "푸는 것은 그 행의 mapping-unconfirmed 하나뿐이다"). 전역
@@ -205,22 +271,10 @@ function applyLaborConfirmation(
   if (request.confirmation === undefined) return breakdown;
   if (!breakdown.warnings.some((w) => w.code === 'mapping-unconfirmed')) return breakdown;
 
-  const currentFingerprint = computeLaborConfirmationFingerprint({
-    rowId: request.rowId,
+  const currentFingerprint = computeCurrentLaborFingerprint(request.rowId, item, mapping, wages, breakdown, {
     ...(request.confirmation.productId !== undefined ? { productId: request.confirmation.productId } : {}),
     ...(request.confirmation.sku !== undefined ? { sku: request.confirmation.sku } : {}),
-    laborMappingId: mapping.laborMappingId,
-    laborItemId: item.laborItemId,
-    code: item.code,
-    trades: item.trades,
-    tradeWages: breakdown.tradeAmounts.map((t) => ({ trade: t.trade, amount: text(t.wage), unit: t.wageUnit })),
-    wageTableId: wages.wageTableId,
-    wageUnit: item.wageUnit,
-    baseUnit: item.baseUnit,
-    rowUnit: request.confirmation.unit,
-    itemRate: mapping.itemRate,
-    surcharge: mapping.surcharge,
-    conversionFactor: mapping.conversionFactor,
+    unit: request.confirmation.unit,
     quantity: request.confirmation.quantity,
     ruleVersion: request.confirmation.ruleVersion,
   });
