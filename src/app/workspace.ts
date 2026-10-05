@@ -9,7 +9,7 @@
  * (계획 §1).
  */
 import { useCallback, useMemo, useState } from 'react';
-import { buildGuideBasis, GuideBasisError } from '../data/catalog/guideBasis';
+import { buildGuideBasis, GuideBasisError, type BasisVersions } from '../data/catalog/guideBasis';
 import { prepareQuote, type PreparedQuote } from '../export/variants/prepare';
 import { priceQuote } from '../domain/quote/priceQuote';
 import { indirectCostsFor, type IndirectProfileId } from '../export/ooxml/guideTemplate';
@@ -100,6 +100,13 @@ export interface Workspace {
    * 쓰면 수량 한 번만 고쳐도 다른 문서로 오인한다).
    */
   documentGeneration: number;
+  /**
+   * 지금 채택된 품셈/노임 기준 — 공통 출력 경계(`assertExportAllowed`)가
+   * `prepared`에 박힌 과거 기준과 대조하는 데 쓴다(2026-10-05 독립
+   * 검토 지적: 템플릿 지문과 노임 지문은 별개다). `resources`가 아직
+   * 없으면 `undefined`다.
+   */
+  basisVersions: BasisVersions | undefined;
   loadDocument(input: LoadedDocument): void;
   /**
    * 저장된 작업 파일을 연다 — `loadDocument`와 달리 새 견적 입구가
@@ -1012,6 +1019,7 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     canUndo: history.past.length > 0,
     canRedo: history.future.length > 0,
     documentGeneration,
+    basisVersions: basis?.versions,
     loadDocument,
     openWorkFile,
     previewRecalculateWithCurrentBasis,

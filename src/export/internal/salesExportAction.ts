@@ -16,6 +16,7 @@ import { buildSharedProjection, type SharedNotes } from '../shared/projection';
 import { buildMultiSystemSalesGuideWorkbook, type MultiSystemSalesExtras } from './guideWorkbookMulti';
 import type { GuideTemplateSet } from '../ooxml/guideTemplate';
 import type { InternalLine } from '../../services/private-cost/calculate';
+import type { BasisVersions } from '../../data/catalog/guideBasis';
 
 /** 영업팀용(0단계) — 원가·이윤·AI 메모 포함. */
 export function buildSalesDownload(
@@ -24,8 +25,9 @@ export function buildSalesDownload(
   notes: SharedNotes,
   lines: readonly InternalLine[],
   aiNotesByRow: ReadonlyMap<string, string>,
+  currentBasisVersions: BasisVersions,
 ): ExportFile {
-  assertExportAllowed(prepared, guides);
+  assertExportAllowed(prepared, guides, currentBasisVersions);
   assertSingleCompleteGroup(prepared.document);
   const shared = buildSharedProjection(prepared, notes);
   const guideBySystemId = guideBySystemOf(prepared.document, guides, true);

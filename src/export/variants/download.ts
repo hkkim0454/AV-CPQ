@@ -27,6 +27,7 @@ import {
   type GuideTemplateSet,
   type IndirectProfileId,
 } from '../ooxml/guideTemplate';
+import { assertSameBasis, GuideBasisError, type BasisVersions } from '../../data/catalog/guideBasis';
 
 export class ExportBlockedError extends Error {
   constructor(message: string) {
@@ -67,12 +68,18 @@ export function guideBySystemOf(
  * 쓰는 이 경계에서 **한 번 더** 한다 — 호출부가 신선한 `prepared`를
  * 들고 있었다는 것만 믿지 않는다.
  *
- * 노임·카탈로그 기준 불일치는 이 함수의 범위 밖이다 — 그건 화면 쪽
- * `status.kind === 'basis-conflict'`가 `prepared` 자체를 아예 만들지
- * 않는 방식으로 이미 막는다(`computeDocumentBasisConflicts`). 이 함수가
- * 추가로 보는 것은 "지금 넘겨받은 guides와 비교해도 여전히 맞는가"뿐이다.
+ * **템플릿 지문과 노임(wage)/품셈(labor) 지문은 별개다**(2026-10-05 독립
+ * 검토 재지적) — "화면이 새 `prepared`를 안 만든다"는 것만으로는, 이
+ * 공통 함수가 **UI 없이 직접 받는** stale `prepared`를 막는 것을
+ * 대체하지 못한다. 그래서 호출부가 지금 채택한 `currentBasisVersions`
+ * (`labor`/`wage`)까지 받아, `prepareQuote`가 재열기·재계산 경로에서
+ * 쓰는 것과 같은 `assertSameBasis`로 한 번 더 비교한다.
  */
-export function assertExportAllowed(prepared: PreparedQuote, guides: GuideTemplateSet): void {
+export function assertExportAllowed(
+  prepared: PreparedQuote,
+  guides: GuideTemplateSet,
+  currentBasisVersions: BasisVersions,
+): void {
   if (prepared.blocking) {
     throw new ExportBlockedError('해결되지 않은 구성도/품셈/계산 경고가 있어 출력할 수 없다.');
   }
@@ -82,6 +89,17 @@ export function assertExportAllowed(prepared: PreparedQuote, guides: GuideTempla
       '이 견적은 지금과 다른 가이드 템플릿 기준으로 계산됐다 — 출력하지 않는다. ' +
         '명시적으로 재계산을 거쳐야 한다.',
     );
+  }
+  try {
+    assertSameBasis(
+      { labor: prepared.document.versions.labor, wage: prepared.document.versions.wage },
+      currentBasisVersions,
+    );
+  } catch (err) {
+    if (err instanceof GuideBasisError) {
+      throw new ExportBlockedError(err.message);
+    }
+    throw err;
   }
 }
 
@@ -109,8 +127,12 @@ export function assertSingleCompleteGroup(document: QuoteDocument): void {
 }
 
 /** 고객용(2단계) — 원가 없음, 설명/품셈 없음. */
-export function buildCustomerDownload(prepared: PreparedQuote, guides: GuideTemplateSet): ExportFile {
-  assertExportAllowed(prepared, guides);
+export function buildCustomerDownload(
+  prepared: PreparedQuote,
+  guides: GuideTemplateSet,
+  currentBasisVersions: BasisVersions,
+): ExportFile {
+  assertExportAllowed(prepared, guides, currentBasisVersions);
   assertSingleCompleteGroup(prepared.document);
   const exported = buildCustomerProjection(prepared.document, prepared.priced.calculation);
   const guideBySystemId = guideBySystemOf(prepared.document, guides, false);
@@ -126,8 +148,9 @@ export function buildSharedDownload(
   prepared: PreparedQuote,
   guides: GuideTemplateSet,
   notes: SharedNotes,
+  currentBasisVersions: BasisVersions,
 ): ExportFile {
-  assertExportAllowed(prepared, guides);
+  assertExportAllowed(prepared, guides, currentBasisVersions);
   assertSingleCompleteGroup(prepared.document);
   const shared = buildSharedProjection(prepared, notes);
   const guideBySystemId = guideBySystemOf(prepared.document, guides, false);

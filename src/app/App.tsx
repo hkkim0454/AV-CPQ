@@ -112,15 +112,23 @@ export function App() {
     // 버튼에만 있어, 버튼이 비활성인 이유로 클릭이 막힌 것과 핸들러가
     // 직접 막은 것이 실제로는 구분되지 않았다(2026-10-05 독립 검토 지적).
     if (resources === undefined || !exportGate(status, pendingCableEdit).allowed) return;
-    if (status.kind !== 'editing') return; // 위 gate와 같은 결론이지만, 아래 타입 좁히기에 필요하다.
+    if (status.kind !== 'editing' || workspace.basisVersions === undefined) return; // 위 gate와 같은 결론이지만, 아래 타입 좁히기에 필요하다.
     try {
       const notes = notesOf(status.document);
+      const basisVersions = workspace.basisVersions;
       const file =
         outputGrade === '2'
-          ? buildCustomerDownload(status.prepared, resources.guides)
+          ? buildCustomerDownload(status.prepared, resources.guides, basisVersions)
           : outputGrade === '1'
-            ? buildSharedDownload(status.prepared, resources.guides, notes)
-            : buildSalesDownload(status.prepared, resources.guides, notes, costLines, aiNotesOf(status.document));
+            ? buildSharedDownload(status.prepared, resources.guides, notes, basisVersions)
+            : buildSalesDownload(
+                status.prepared,
+                resources.guides,
+                notes,
+                costLines,
+                aiNotesOf(status.document),
+                basisVersions,
+              );
       downloadBinaryFile(file.fileName, file.bytes);
       setExportError(undefined);
     } catch (err) {
