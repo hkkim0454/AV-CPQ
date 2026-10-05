@@ -52,9 +52,10 @@ export function itemRow(
     quantity: options.quantity,
     ...(options.price !== undefined ? { sellingUnitPrice: options.price } : {}),
     laborMode: options.laborPrice !== undefined ? 'manual' : 'not-applicable',
-    ...(options.laborPrice !== undefined
-      ? { manualLaborUnitPrice: options.laborPrice, overrideReason: '테스트 값' }
-      : {}),
+    // Task 6 노무 확인 보완: manual·not-applicable 둘 다 사유가 있어야
+    // 차단되지 않는다 — 합성 기존 시험이 전부 이 사유를 쓴다.
+    overrideReason: '테스트 값',
+    ...(options.laborPrice !== undefined ? { manualLaborUnitPrice: options.laborPrice } : {}),
     remark: '',
     origin: 'manual',
   };

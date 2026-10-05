@@ -237,7 +237,11 @@ describe('노임(wage) 기준 — 템플릿과 별개로 공통 출력 경계에
     // 아니므로 confirmed:false 정책의 mapping-unconfirmed 차단과 무관하다.
     const document: QuoteDocument = {
       ...picked,
-      rows: picked.rows.map((r) => (r.type === 'item' ? { ...r, laborMode: 'not-applicable' as const } : r)),
+      rows: picked.rows.map((r) =>
+        r.type === 'item'
+          ? { ...r, laborMode: 'not-applicable' as const, overrideReason: '합성 시험 — 노무 해당 없음' }
+          : r,
+      ),
     };
 
     return prepareQuote({

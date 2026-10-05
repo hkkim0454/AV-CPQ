@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   calculateLaborUnitPrice,
   calculateLaborForRows,
+  type LaborRowRequest,
 } from '@/domain/labor/calculateLabor';
+import { computeLaborConfirmationFingerprint } from '@/domain/labor/laborConfirmation';
 import type { LaborItem, LaborMapping, WageTable } from '@/domain/labor/types';
 
 /** 설계서 §5.6: 합성 품셈·노임. 회사 자료가 아니다. */
@@ -184,5 +186,88 @@ describe('calculateLaborForRows — 행별 노무 단가 주입', () => {
     );
     expect(result.unitPrices.has('r1')).toBe(false);
     expect(result.warnings.some((w) => w.code === 'mapping-missing')).toBe(true);
+  });
+
+  describe('노무 확인(Task 6 보완 Task B) — 같은 매핑을 쓰는 행 중 확인된 행만 선별 해제', () => {
+    const unconfirmedMapping: LaborMapping = {
+      laborMappingId: 'm1',
+      sku: 'SKU-1',
+      laborItemId: 'L-001',
+      conversionFactor: '1',
+      surcharge: '0',
+      itemRate: '1',
+      confirmed: false,
+      note: '자동 매칭, 미확인',
+    };
+    const reference = { items: [item], mappings: [unconfirmedMapping], wages };
+
+    function fingerprintFor(rowId: string, overrides: Partial<Parameters<typeof computeLaborConfirmationFingerprint>[0]> = {}): string {
+      return computeLaborConfirmationFingerprint({
+        rowId,
+        laborMappingId: 'm1',
+        laborItemId: 'L-001',
+        code: 'TEST-01',
+        trades: item.trades,
+        tradeWages: [
+          { trade: '통신내선공', amount: '200000', unit: 'M/D' },
+          { trade: '통신설비공', amount: '100000', unit: 'M/D' },
+        ],
+        wageTableId: 'w-test',
+        wageUnit: 'M/D',
+        baseUnit: 'EA',
+        rowUnit: 'EA',
+        itemRate: '1',
+        surcharge: '0',
+        conversionFactor: '1',
+        quantity: '1',
+        ruleVersion: 'rule-v1',
+        ...overrides,
+      });
+    }
+
+    it('같은 매핑을 쓰는 두 행 중 한 행만 확인하면 다른 행은 여전히 막힌다', () => {
+      const requests: LaborRowRequest[] = [
+        {
+          rowId: 'r1',
+          laborMappingId: 'm1',
+          confirmation: {
+            laborConfirmation: { basisFingerprint: fingerprintFor('r1'), confirmedAt: '2026-10-05' },
+            unit: 'EA',
+            quantity: '1',
+            ruleVersion: 'rule-v1',
+          },
+        },
+        { rowId: 'r2', laborMappingId: 'm1' },
+      ];
+      const result = calculateLaborForRows(requests, reference);
+
+      const r1 = result.breakdowns.get('r1')!;
+      const r2 = result.breakdowns.get('r2')!;
+      expect(r1.warnings.some((w) => w.code === 'mapping-unconfirmed')).toBe(false);
+      expect(r1.blocking).toBe(false);
+      expect(r2.warnings.some((w) => w.code === 'mapping-unconfirmed')).toBe(true);
+      expect(r2.blocking).toBe(true);
+      expect(result.warnings.filter((w) => w.rowId === 'r1' && w.code === 'mapping-unconfirmed')).toHaveLength(0);
+      expect(result.warnings.some((w) => w.rowId === 'r2' && w.code === 'mapping-unconfirmed')).toBe(true);
+    });
+
+    it('지문이 현재 근거와 다르면(노임 등이 바뀌었으면) 확인은 무효 — 여전히 막힌다', () => {
+      const requests: LaborRowRequest[] = [
+        {
+          rowId: 'r1',
+          laborMappingId: 'm1',
+          confirmation: {
+            laborConfirmation: { basisFingerprint: fingerprintFor('r1', { quantity: '999' }), confirmedAt: '2026-10-05' },
+            unit: 'EA',
+            quantity: '1',
+            ruleVersion: 'rule-v1',
+          },
+        },
+      ];
+      const result = calculateLaborForRows(requests, reference);
+      const r1 = result.breakdowns.get('r1')!;
+      expect(r1.warnings.some((w) => w.code === 'mapping-unconfirmed')).toBe(true);
+      expect(r1.blocking).toBe(true);
+    });
   });
 });

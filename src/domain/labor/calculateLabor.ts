@@ -17,7 +17,9 @@ import type {
   WageUnit,
   Trade,
 } from './types';
-import { Decimal, ZERO, dec, excelInt, sum } from '../calculation/rounding';
+import { Decimal, ZERO, dec, excelInt, sum, text } from '../calculation/rounding';
+import { computeLaborConfirmationFingerprint, type LaborConfirmation } from './laborConfirmation';
+import type { DecimalText } from '../quote/types';
 
 export interface TradeAmount {
   trade: Trade;
@@ -155,9 +157,26 @@ export interface LaborReference {
   wages: WageTable;
 }
 
+/**
+ * 사람이 이 행의 품셈 연결을 확인했다는 사실 + 그 확인이 **지금도
+ * 유효한지** 재계산하는 데 필요한 나머지 재료(Task 6 노무 확인 보완
+ * Task B). `laborConfirmation` 자체는 지문만 담고, 지문을 다시 계산할
+ * 재료(제품 identity·단위·수량·rule 버전)는 행에서 따로 가져와야 한다.
+ */
+export interface LaborRowConfirmation {
+  laborConfirmation: LaborConfirmation;
+  productId?: string;
+  sku?: string;
+  /** 견적 행의 unit(판매 단위). */
+  unit: string;
+  quantity: DecimalText;
+  ruleVersion: string;
+}
+
 export interface LaborRowRequest {
   rowId: string;
   laborMappingId: string;
+  confirmation?: LaborRowConfirmation;
 }
 
 export interface LaborRowsResult {
@@ -166,6 +185,52 @@ export interface LaborRowsResult {
   /** 행별 근거 — LaborBreakdown 화면이 쓴다. */
   breakdowns: Map<string, LaborBreakdown>;
   warnings: LaborWarning[];
+}
+
+/**
+ * **그 rowId에 한해서만** `mapping-unconfirmed`를 푼다(계획 §Task B —
+ * "푸는 것은 그 행의 mapping-unconfirmed 하나뿐이다"). 전역
+ * `mapping.confirmed`는 건드리지 않는다 — `calculateLaborUnitPrice`가
+ * 이미 그 경고를 넣은 뒤, 지금 계산 근거로 지문을 다시 만들어 저장된
+ * 지문과 **같을 때만** 그 경고 하나만 걸러낸다. 다른 경고
+ * (wage-missing·wage-unit-mismatch 등)는 그대로 남는다.
+ */
+function applyLaborConfirmation(
+  breakdown: LaborBreakdown,
+  request: LaborRowRequest,
+  item: LaborItem,
+  mapping: LaborMapping,
+  wages: WageTable,
+): LaborBreakdown {
+  if (request.confirmation === undefined) return breakdown;
+  if (!breakdown.warnings.some((w) => w.code === 'mapping-unconfirmed')) return breakdown;
+
+  const currentFingerprint = computeLaborConfirmationFingerprint({
+    rowId: request.rowId,
+    ...(request.confirmation.productId !== undefined ? { productId: request.confirmation.productId } : {}),
+    ...(request.confirmation.sku !== undefined ? { sku: request.confirmation.sku } : {}),
+    laborMappingId: mapping.laborMappingId,
+    laborItemId: item.laborItemId,
+    code: item.code,
+    trades: item.trades,
+    tradeWages: breakdown.tradeAmounts.map((t) => ({ trade: t.trade, amount: text(t.wage), unit: t.wageUnit })),
+    wageTableId: wages.wageTableId,
+    wageUnit: item.wageUnit,
+    baseUnit: item.baseUnit,
+    rowUnit: request.confirmation.unit,
+    itemRate: mapping.itemRate,
+    surcharge: mapping.surcharge,
+    conversionFactor: mapping.conversionFactor,
+    quantity: request.confirmation.quantity,
+    ruleVersion: request.confirmation.ruleVersion,
+  });
+
+  if (currentFingerprint !== request.confirmation.laborConfirmation.basisFingerprint) {
+    return breakdown; // 지문이 다르다 — 차단을 유지한다. 풀지 않는다.
+  }
+
+  const warnings = breakdown.warnings.filter((w) => w.code !== 'mapping-unconfirmed');
+  return { ...breakdown, warnings, blocking: warnings.some((w) => w.blocking) };
 }
 
 export function calculateLaborForRows(
@@ -201,7 +266,8 @@ export function calculateLaborForRows(
       continue;
     }
 
-    const breakdown = calculateLaborUnitPrice(item, mapping, reference.wages);
+    const rawBreakdown = calculateLaborUnitPrice(item, mapping, reference.wages);
+    const breakdown = applyLaborConfirmation(rawBreakdown, request, item, mapping, reference.wages);
     breakdowns.set(request.rowId, breakdown);
     unitPrices.set(request.rowId, breakdown.appliedUnitPrice);
     for (const w of breakdown.warnings) {

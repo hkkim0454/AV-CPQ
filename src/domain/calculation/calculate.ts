@@ -37,6 +37,10 @@ export type WarningCode =
   | 'derived-source-missing'
   | 'indirect-basis-missing'
   | 'empty-system'
+  /** Task 6 노무 확인 보완 §2-3: 직접 입력은 금액(0 이상 유한)과 사유가 모두 있어야 한다. */
+  | 'manual-labor-incomplete'
+  /** Task 6 노무 확인 보완 §2-3: '해당 없음'은 사유가 있어야 한다(파생 행은 예외). */
+  | 'not-applicable-reason-missing'
   /**
    * `row.quantityUnresolved`가 `true`인 행 — 품목(SKU)은 골랐어도
    * 실제 수량은 아직 아무도 확인하지 않았다(독립 검토 지적). import
@@ -136,17 +140,51 @@ function isItem(row: SheetRow): row is SheetRow & { type: 'item' } & QuoteRow {
   return row.type === 'item';
 }
 
-/** 행의 적용 노무 단가. `mapped`는 `laborUnitPrices`에서 주입받는다. */
+/**
+ * 행의 적용 노무 단가. `mapped`는 `laborUnitPrices`에서 주입받는다.
+ *
+ * `isDerivedRow`가 true면(잡자재비·배관 기타자재 등 규칙이 만든 행)
+ * `not-applicable`의 사유 요구를 건너뛴다 — 사람이 고른 것이 아니라
+ * 규칙으로 이미 정해진 자리이고, 애초에 사유를 적을 화면도 없다
+ * (Task 6 노무 확인 보완 범위 밖 — 품셈 묶음·파생 행 규칙은 다른 과제).
+ */
 function resolveLaborUnitPrice(
   row: QuoteRow,
   laborUnitPrices: ReadonlyMap<string, Decimal>,
   warnings: CalculationWarning[],
+  isDerivedRow: boolean,
 ): Decimal | undefined {
   switch (row.laborMode) {
-    case 'not-applicable':
+    case 'not-applicable': {
+      const reasonOk = row.overrideReason !== undefined && row.overrideReason.trim() !== '';
+      if (!isDerivedRow && !reasonOk) {
+        warnings.push({
+          code: 'not-applicable-reason-missing',
+          blocking: true,
+          message: `행 ${row.name || row.rowId}: '해당 없음'으로 고르려면 사유를 적어야 한다.`,
+          systemId: row.systemId,
+          rowId: row.rowId,
+        });
+      }
+      // 합산에 0을 기여하는 기존 동작은 바꾸지 않는다 — 사유 유무와
+      // 무관하게 '해당 없음'은 여전히 undefined(§5.6 — 0과 다르다).
       return undefined;
-    case 'manual':
-      return decOrUndefined(row.manualLaborUnitPrice);
+    }
+    case 'manual': {
+      const amount = decOrUndefined(row.manualLaborUnitPrice);
+      const amountOk = amount !== undefined && !amount.isNegative();
+      const reasonOk = row.overrideReason !== undefined && row.overrideReason.trim() !== '';
+      if (!amountOk || !reasonOk) {
+        warnings.push({
+          code: 'manual-labor-incomplete',
+          blocking: true,
+          message: `행 ${row.name || row.rowId}: 직접 입력은 0 이상의 금액과 사유가 모두 있어야 한다.`,
+          systemId: row.systemId,
+          rowId: row.rowId,
+        });
+      }
+      return amountOk ? amount : undefined;
+    }
     case 'mapped': {
       const price = laborUnitPrices.get(row.rowId);
       if (price === undefined) {
@@ -291,7 +329,7 @@ function calculateItemRow(
     });
   }
 
-  const laborUnitPrice = resolveLaborUnitPrice(row, laborUnitPrices, warnings);
+  const laborUnitPrice = resolveLaborUnitPrice(row, laborUnitPrices, warnings, false);
 
   return buildRowCalculation(row.rowId, quantity, materialUnitPrice, laborUnitPrice);
 }
@@ -330,7 +368,7 @@ function calculateDerivedRow(
   const materialUnitPrice =
     laborOnly || basis === undefined ? undefined : excelInt(mul(basis, rate));
 
-  const laborUnitPrice = resolveLaborUnitPrice(row, laborUnitPrices, warnings);
+  const laborUnitPrice = resolveLaborUnitPrice(row, laborUnitPrices, warnings, true);
 
   return buildRowCalculation(row.rowId, quantity, materialUnitPrice, laborUnitPrice);
 }

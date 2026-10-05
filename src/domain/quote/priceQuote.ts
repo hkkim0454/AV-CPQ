@@ -68,7 +68,22 @@ export function priceQuote(
         row.laborMode === 'mapped' &&
         row.laborMappingId !== undefined,
     )
-    .map((row) => ({ rowId: row.rowId, laborMappingId: row.laborMappingId }));
+    .map((row) => ({
+      rowId: row.rowId,
+      laborMappingId: row.laborMappingId,
+      ...(row.laborConfirmation === undefined
+        ? {}
+        : {
+            confirmation: {
+              laborConfirmation: row.laborConfirmation,
+              ...(row.productId !== undefined ? { productId: row.productId } : {}),
+              ...(row.sku !== undefined ? { sku: row.sku } : {}),
+              unit: row.unit,
+              quantity: row.quantity,
+              ruleVersion: document.versions.rule,
+            },
+          }),
+    }));
 
   const labor = calculateLaborForRows(requests, laborReference);
 

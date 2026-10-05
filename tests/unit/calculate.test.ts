@@ -472,3 +472,134 @@ describe('calculateQuote — 항목 기준 간접비 (일반 프로파일, 계�
     expect(snap.blocking).toBe(true);
   });
 });
+
+/**
+ * Task 6 노무 확인 보완 §2-3 Task B — `manual`/`not-applicable`은 금액·
+ * 사유가 모두 있을 때만 차단이 풀린다. 파생 행(잡자재비 등)은 예외다
+ * (규칙이 이미 정한 자리라 사유를 적을 화면이 없다).
+ */
+describe('calculateQuote — 직접 입력(manual)·해당 없음(not-applicable) 사유 요구', () => {
+  function rowWith(overrides: {
+    laborMode: 'manual' | 'not-applicable';
+    manualLaborUnitPrice?: string;
+    overrideReason?: string;
+  }): SheetRow {
+    return {
+      type: 'item',
+      rowId: 'r1',
+      systemId: 'S1',
+      name: 'r1',
+      specification: '',
+      unit: 'EA',
+      quantity: '1',
+      sellingUnitPrice: '10000',
+      remark: '',
+      origin: 'manual',
+      laborMode: overrides.laborMode,
+      ...(overrides.manualLaborUnitPrice !== undefined
+        ? { manualLaborUnitPrice: overrides.manualLaborUnitPrice }
+        : {}),
+      ...(overrides.overrideReason !== undefined ? { overrideReason: overrides.overrideReason } : {}),
+    };
+  }
+
+  it('manual: 금액·사유가 둘 다 있으면 차단되지 않는다', () => {
+    const doc = makeDocument({
+      systems: [system('S1', { indirect: [] })],
+      rows: [rowWith({ laborMode: 'manual', manualLaborUnitPrice: '5000', overrideReason: '합성 사유' })],
+    });
+    expect(calculateQuote(doc).blocking).toBe(false);
+  });
+
+  it('manual: 금액은 있는데 사유가 없으면 차단한다', () => {
+    const doc = makeDocument({
+      systems: [system('S1', { indirect: [] })],
+      rows: [rowWith({ laborMode: 'manual', manualLaborUnitPrice: '5000' })],
+    });
+    const snap = calculateQuote(doc);
+    expect(snap.blocking).toBe(true);
+    expect(snap.warnings.some((w) => w.code === 'manual-labor-incomplete')).toBe(true);
+  });
+
+  it('manual: 사유는 있는데 금액이 없으면 차단한다', () => {
+    const doc = makeDocument({
+      systems: [system('S1', { indirect: [] })],
+      rows: [rowWith({ laborMode: 'manual', overrideReason: '합성 사유' })],
+    });
+    expect(calculateQuote(doc).blocking).toBe(true);
+  });
+
+  it('manual: 사유가 공백뿐이면(trim 후 비어 있음) 차단한다', () => {
+    const doc = makeDocument({
+      systems: [system('S1', { indirect: [] })],
+      rows: [rowWith({ laborMode: 'manual', manualLaborUnitPrice: '5000', overrideReason: '   ' })],
+    });
+    expect(calculateQuote(doc).blocking).toBe(true);
+  });
+
+  it('manual: 명시적 0원은 허용한다(미등록과 다르다) — 사유가 있으면 차단되지 않는다', () => {
+    const doc = makeDocument({
+      systems: [system('S1', { indirect: [] })],
+      rows: [rowWith({ laborMode: 'manual', manualLaborUnitPrice: '0', overrideReason: '무상 작업' })],
+    });
+    const snap = calculateQuote(doc);
+    expect(snap.blocking).toBe(false);
+    expect(snap.systems[0]!.rows[0]!.laborAmount?.toFixed()).toBe('0');
+  });
+
+  it('manual: 음수 금액은 유효 범위 밖이라 차단한다', () => {
+    const doc = makeDocument({
+      systems: [system('S1', { indirect: [] })],
+      rows: [rowWith({ laborMode: 'manual', manualLaborUnitPrice: '-100', overrideReason: '합성 사유' })],
+    });
+    expect(calculateQuote(doc).blocking).toBe(true);
+  });
+
+  it('not-applicable: 사유가 없으면 차단한다', () => {
+    const doc = makeDocument({
+      systems: [system('S1', { indirect: [] })],
+      rows: [rowWith({ laborMode: 'not-applicable' })],
+    });
+    const snap = calculateQuote(doc);
+    expect(snap.blocking).toBe(true);
+    expect(snap.warnings.some((w) => w.code === 'not-applicable-reason-missing')).toBe(true);
+  });
+
+  it('not-applicable: 사유가 있으면 차단되지 않고, 노무비는 여전히 미등록(0이 아니다)이다', () => {
+    const doc = makeDocument({
+      systems: [system('S1', { indirect: [] })],
+      rows: [rowWith({ laborMode: 'not-applicable', overrideReason: '노무 불필요' })],
+    });
+    const snap = calculateQuote(doc);
+    expect(snap.blocking).toBe(false);
+    expect(snap.systems[0]!.rows[0]!.laborAmount).toBeUndefined();
+  });
+
+  it('파생 행(잡자재비 스타일)의 not-applicable은 사유가 없어도 차단하지 않는다 — 규칙이 정한 자리다', () => {
+    const doc = makeDocument({
+      systems: [system('S1', { indirect: [] })],
+      rows: [itemRow('r1', 'S1', { quantity: '1', price: '10000' })],
+    });
+    const withDerived: typeof doc = {
+      ...doc,
+      derivedRows: [
+        {
+          rowId: 'd1',
+          systemId: 'S1',
+          name: '잡자재비',
+          specification: '합성 2%',
+          unit: '식',
+          quantity: '1',
+          laborMode: 'not-applicable',
+          remark: '',
+          origin: 'rule',
+          ruleInstanceId: 'misc-material-test',
+          rate: '0.02',
+          derived: { kind: 'material-sum-to-here' },
+        },
+      ],
+    };
+    const snap = calculateQuote(withDerived);
+    expect(snap.warnings.some((w) => w.code === 'not-applicable-reason-missing')).toBe(false);
+  });
+});

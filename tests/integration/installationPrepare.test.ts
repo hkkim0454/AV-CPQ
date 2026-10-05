@@ -141,7 +141,11 @@ describe('배관 경고 × prepareQuote — 문서에서 파생한 경고가 실
     // 배관 외 다른 blocking 원인(품셈 미연결 등)을 분리하려고 명시로 둔다.
     const resolvedWithLabor: QuoteDocument = {
       ...resolved,
-      rows: resolved.rows.map((r) => (r.type === 'item' && r.sku === 'FLEX-1' ? { ...r, laborMode: 'not-applicable' } : r)),
+      rows: resolved.rows.map((r) =>
+        r.type === 'item' && r.sku === 'FLEX-1'
+          ? { ...r, laborMode: 'not-applicable', overrideReason: '시험 — 배관 축 isolate' }
+          : r,
+      ),
     };
 
     const after = prepareFor(resolvedWithLabor, catalog, false);

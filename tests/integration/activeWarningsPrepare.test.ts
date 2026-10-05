@@ -132,7 +132,15 @@ describe('computeActiveWarnings × prepareQuote — 해소된 원인 제거, 나
             // 그 축만 따로 isolate한다(실제 resolveDevice도 품셈
             // 연결이 있는 제품이면 laborMode:'mapped'로 바꾼다 — 여기선
             // 품셈 축 자체를 시험 밖에 두려고 'not-applicable'을 쓴다).
-            { ...r, sku: 'X', sellingUnitPrice: '1000', laborMode: 'not-applicable' as const }
+            {
+              ...r,
+              sku: 'X',
+              sellingUnitPrice: '1000',
+              laborMode: 'not-applicable' as const,
+              // Task 6 노무 확인 보완: '해당 없음'은 사유가 있어야 차단되지
+              // 않는다 — 이 시험은 그 축을 보려는 게 아니므로 사유를 채운다.
+              overrideReason: '시험 — 품셈 축 isolate',
+            }
           : r,
       ),
     };
