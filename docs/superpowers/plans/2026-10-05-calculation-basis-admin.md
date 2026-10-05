@@ -22,10 +22,31 @@
 |---|---|---|
 | **공수**(품) | `data/approved/labor-items.json` — 1,331건 | 품셈 엑셀 재추출 후 파일 교체 |
 | **노임** | `data/approved/wage-table.json` — 직종별 단가 | 같은 추출 경로로 파일 교체 |
-| **간접비 요율** | **`src/domain/quote/indirectCosts.ts` — 소스 코드** | **TypeScript 를 고치고 다시 빌드** |
+| **간접비 요율** | **출처가 둘이다 — 아래 참조** | 어느 쪽인지에 따라 다르다 |
 
-세 번째가 특히 문제다. 요율 9항목이 **데이터가 아니라 프로그램 코드 안에** 적혀 있어서,
-숫자 하나를 바꾸려 해도 개발자가 코드를 고치고 배포해야 한다.
+#### ⛔ 정정 (2026-10-05) — 요율의 출처가 **둘**이다
+
+처음에 *"요율 9항목이 `src/domain/quote/indirectCosts.ts` 소스 코드에만 있다"* 고 적었다.
+**불완전했다.** Codex 가 *"실제 workspace 는 `indirectCostsFor(profile, guides)` 를 쓴다"* 고
+지적해 확인했다.
+
+```
+buildDocument.ts:172   standardIndirectCosts()            ← indirectCosts.ts 소스 코드
+                                                            문서를 처음 만들 때
+workspace.ts:191·772   indirectCostsFor(profile, guides)  ← 가이드 템플릿 파일에서 읽는다
+                                                            화면에서 프로파일을 고를 때
+```
+
+`guideTemplate.ts:437` 이 가이드의 `spec.indirect` 를 읽어 `indirectRules` 를 만든다.
+즉 **가이드 엑셀이 화면 경로의 진짜 출처**다.
+
+| 경로 | 출처 | 바꾸려면 |
+|---|---|---|
+| 문서 생성 | `indirectCosts.ts` 소스 코드 | TypeScript 수정 + 빌드 |
+| 화면 프로파일 선택 | 가이드 템플릿 엑셀 | 가이드 파일 교체 |
+
+**이 화면이 할 일이 하나 늘었다** — 두 출처가 **같은 값인지 보여주고, 다르면 알리는 것**이다.
+지금은 사용자가 두 벌이 있다는 것조차 알 수 없다. 노임표가 두 벌인 것과 같은 모양이다.
 
 ### 노임표가 두 벌 있고, 어느 쪽이 쓰이는지 화면에 안 보인다
 
