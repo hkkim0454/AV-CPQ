@@ -52,6 +52,19 @@ export interface Table {
    * 값이 아니라 자리만 담는다 — 이 구조는 원가를 싣지 않는다 (설계서 §8.4).
    */
   formulaColumns: ReadonlySet<number>[];
+  /**
+   * 데이터 행별로 **원본 시트의 실제 행 번호**(1부터). `rows`와 같은
+   * 순서·길이다. 시트/머리글/데이터 시작·끝을 명시 선택했을 때만
+   * 채운다(XLSX 마법사 경로) — 그 선택 자체가 이미 원본 좌표
+   * 기준이라 정확한 주소를 그대로 들고 올 수 있다.
+   *
+   * 비워 두면(기본 경로 — CSV 간단 매핑) `PriceError.row`는 기존처럼
+   * **선택 범위 안에서 몇 번째 데이터 행인지**(1부터)로 돌아간다 —
+   * 그 경로는 사람이 행 번호를 보고 고르는 화면 자체가 없어 혼동할
+   * 여지가 없다(독립 검토 지적 2026-10-05: 오류 문구의 "몇 행"이
+   * 원본 시트 주소라고 잘못 주장하면 안 된다).
+   */
+  sourceRowNumbers?: readonly number[];
 }
 
 export type TableFormat = 'csv' | 'xlsx';
@@ -456,10 +469,18 @@ export function readTable(
     const dataRows = sheet.rows.slice(dataStartRowIndex, dataEndExclusive);
     const dataFormulas = sheet.formulas.slice(dataStartRowIndex, dataEndExclusive);
     // 빈 행을 거를 때 수식 자리도 같이 걸러야 행 번호가 어긋나지 않는다.
-    const kept: Array<{ values: string[]; formulas: ReadonlySet<number> }> = [];
+    // `sourceRow`는 원본 시트의 실제 행 번호(1부터)다 — 선택한 시작
+    // 좌표(dataStartRowIndex, 0부터)에 데이터 안 상대 위치를 더해서
+    // 구한다(독립 검토 지적 2026-10-05: 오류 문구의 "몇 행"이 선택
+    // 범위 안 순서가 아니라 원본 주소를 가리켜야 한다).
+    const kept: Array<{ values: string[]; formulas: ReadonlySet<number>; sourceRow: number }> = [];
     dataRows.forEach((row, index) => {
       if (!row.some((cell) => cell.trim() !== '')) return;
-      kept.push({ values: row, formulas: dataFormulas[index] ?? new Set<number>() });
+      kept.push({
+        values: row,
+        formulas: dataFormulas[index] ?? new Set<number>(),
+        sourceRow: dataStartRowIndex + index + 1,
+      });
     });
     if (kept.length === 0) {
       throw new TableReadError('빈 파일이다.', 'empty-file');
@@ -468,6 +489,7 @@ export function readTable(
       header,
       rows: kept.map((r) => r.values),
       formulaColumns: kept.map((r) => r.formulas),
+      sourceRowNumbers: kept.map((r) => r.sourceRow),
     };
   }
 

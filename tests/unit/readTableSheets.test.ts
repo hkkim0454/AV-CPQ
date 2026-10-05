@@ -183,7 +183,10 @@ describe('headerRowIndex를 거쳐도 수식 가격 차단은 그대로 산다',
     });
 
     expect(result.errors.map((e) => e.code)).toEqual(['price-formula']);
-    expect(result.errors[0]!.row).toBe(1); // 수식이 있던 3행(데이터 1번째 줄)만 막힌다.
+    // headerRowIndex 경로는 원본 시트의 실제 행 번호를 돌려준다 —
+    // "데이터 안 몇 번째 줄"(과거 동작)이 아니라 수식이 실제로 있던
+    // 3행 그대로다(독립 검토 지적 2026-10-05).
+    expect(result.errors[0]!.row).toBe(3);
     expect(result.entries).toHaveLength(1);
     expect(result.entries[0]!.model).toBe('NVR-16'); // 수식 없는 둘째 줄은 그대로 읽힌다.
   });
@@ -241,5 +244,46 @@ describe('희소 row 태그 — 완전히 빈 행은 XML에서 <row> 자체가 �
     // 7행(빈 행)은 데이터에서 자동으로 걸러지고, 8행만 데이터로 남는다.
     expect(table.rows).toHaveLength(1);
     expect(table.rows[0]).toContain('PTZ 카메라');
+  });
+
+  it('데이터 행 사이에 빈 행이 있어도, 오류의 행 번호는 "몇 번째 데이터"가 아니라 원본 시트 행 그대로다', () => {
+    // 6행 머리글, 8행(정상 품목), 9행(빈 행 — XML에 없음), 10행
+    // (규격이 빈 오류 품목). 데이터로는 2줄(8·10행)뿐이라 "몇 번째
+    // 데이터인지"로 세면 오류는 "2행"이 되어 버린다 — 실제로는 10행
+    // 이다(독립 검토 지적 2026-10-05: 거짓 주소를 주장하면 안 된다).
+    const sheet = sheetXml(
+      `<row r="6">${inlineCell('B6', '품명')}${inlineCell('C6', '규격')}${inlineCell('G6', '매입단가')}</row>` +
+        `<row r="8">${inlineCell('B8', 'PTZ 카메라')}${inlineCell('C8', 'FIX-SPEC')}${numberCell('G8', '1234567')}</row>` +
+        `<row r="10">${inlineCell('B10', 'NVR')}${numberCell('G10', '800000')}</row>`,
+    );
+    const bytes = zipSync({
+      '[Content_Types].xml': strToU8('<Types/>'),
+      'xl/workbook.xml': strToU8(
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+          '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' +
+          'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+          '<sheets><sheet name="원가" sheetId="1" r:id="rId1"/></sheets></workbook>',
+      ),
+      'xl/_rels/workbook.xml.rels': strToU8(
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+          '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+          '<Relationship Id="rId1" Type="worksheet" Target="worksheets/sheet1.xml"/>' +
+          '</Relationships>',
+      ),
+      'xl/worksheets/sheet1.xml': sheet,
+    });
+
+    const sheets = listXlsxSheets(bytes);
+    const table = readTable(bytes, 'xlsx', undefined, { sheetPath: sheets[0]!.sheetPath, headerRowIndex: 5 });
+    expect(table.sourceRowNumbers).toEqual([8, 10]);
+
+    const result = parsePrivatePrices(table, {
+      model: 2,
+      purchaseUnitPrice: 6,
+      defaultCurrency: 'KRW',
+      defaultUnit: 'EA',
+    });
+    expect(result.errors.map((e) => e.code)).toEqual(['model-empty']);
+    expect(result.errors[0]!.row).toBe(10); // "2행"(데이터 안 순서)이 아니다.
   });
 });

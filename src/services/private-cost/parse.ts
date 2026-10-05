@@ -224,7 +224,12 @@ export function parsePrivatePrices(table: Table, mapping: ColumnMapping): ParseR
   let firstCurrency: string | undefined;
 
   table.rows.forEach((row, index) => {
-    const rowNumber = index + 1;
+    // 원본 시트 행 번호를 알면(XLSX 마법사가 시트/머리글/데이터 시작·
+    // 끝을 명시 선택한 경로) 그 실제 주소를 쓴다 — 모르면(CSV 간단
+    // 경로) 선택 범위 안에서 몇 번째 데이터 행인지로 돌아간다. 둘 다
+    // "PriceError.row"로 그대로 나간다 — 거짓 주소를 주장하지 않는다
+    // (독립 검토 지적 2026-10-05).
+    const rowNumber = table.sourceRowNumbers?.[index] ?? index + 1;
     const cell = (key: keyof ColumnMapping): string => {
       const at = columnIndex[key];
       return at === undefined ? '' : (row[at] ?? '').trim();
