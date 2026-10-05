@@ -36,7 +36,7 @@
  * 원가 서비스 계층(`services/private-cost/`)은 여기서만 들여온다 —
  * customer/shared/files 경로와 분리한다.
  */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { QuoteDocument } from '../../domain/quote/types';
 import { columnLetter, type ColumnMapping } from '../../services/private-cost/parse';
 import type { TableFormat } from '../../services/private-cost/readTable';
@@ -53,13 +53,24 @@ function formatOf(name: string): TableFormat | undefined {
 export function PrivateCostPanel({
   document,
   documentGeneration,
+  onLinesChange,
 }: {
   document: QuoteDocument;
   documentGeneration: number;
+  /**
+   * 영업팀용(0단계) 출력이 쓸 수 있도록 현재 원가 연결 결과를 부모로
+   * 올린다(계획 Task6) — 이 화면 밖에서는 `lines`에 직접 접근할 길이
+   * 없다. 세션이 없으면(비웠거나 문서가 바뀌었으면) 빈 배열로 알린다.
+   */
+  onLinesChange?: (lines: readonly InternalLine[]) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const controller = usePrivateCostController(document, documentGeneration);
   const { status } = controller;
+
+  useEffect(() => {
+    onLinesChange?.(controller.lines);
+  }, [controller.lines, onLinesChange]);
 
   return (
     <section className="q-card q-private-cost">

@@ -24,7 +24,16 @@ import { InstallationPanel } from '../features/installation/InstallationPanel';
 import { CableRoutePanel } from '../features/installation/CableRoutePanel';
 import { PrivateCostPanel } from '../features/private-cost/PrivateCostPanel';
 import { encodeWorkFile, decodeWorkFile } from '../services/files/workFile';
-import { downloadTextFile } from '../services/files/download';
+import { downloadTextFile, downloadBinaryFile } from '../services/files/download';
+import { buildCustomerDownload, buildSharedDownload } from '../export/variants/download';
+import { buildSalesDownload } from '../export/internal/salesExportAction';
+import type { SharedNotes } from '../export/shared/projection';
+import type { InternalLine } from '../services/private-cost/calculate';
+
+// 거래처/영업비고/AI 메모는 아직 입력 화면이 없다 — 지어내지 않고
+// 항상 빈 값으로 둔다(Task6 범위: 원가 연결 출력, 이 세 칸은 후속).
+const EMPTY_NOTES: SharedNotes = { supplierByRow: new Map(), salesRemarkByRow: new Map() };
+const EMPTY_AI_NOTES: ReadonlyMap<string, string> = new Map();
 
 type LoadState = { kind: 'loading' } | ResourcesResult;
 
@@ -45,6 +54,8 @@ export function App() {
   const [pendingCableEdit, setPendingCableEdit] = useState(false);
   const [workFileOpenError, setWorkFileOpenError] = useState<string | undefined>(undefined);
   const [workFileSaveError, setWorkFileSaveError] = useState<string | undefined>(undefined);
+  const [exportError, setExportError] = useState<string | undefined>(undefined);
+  const [costLines, setCostLines] = useState<readonly InternalLine[]>([]);
   const [cableResetRowIds, setCableResetRowIds] = useState<string[]>([]);
   const workFileInputRef = useRef<HTMLInputElement>(null);
   // 파일을 고를 때마다 늘어난다 — 먼저 고른 파일의 비동기 읽기가 나중에
@@ -67,6 +78,25 @@ export function App() {
       // 등) 던지는 대로 두면 UI가 이유 없이 멈춘다 — 사유를 보여준다
       // (독립 검토 지적).
       setWorkFileSaveError(err instanceof Error ? err.message : '작업 파일을 저장하지 못했다.');
+    }
+  }
+
+  function handleExcelDownload(): void {
+    // 버튼이 비활성이어도 핸들러 자신이 다시 확인한다 — 최신 기준인지는
+    // 버튼 disabled 하나로만 보장하지 않는다(D23, 2026-10-04 사용자
+    // 지적: "handler/출력 경계에서 재확인, 버튼만 차단하지 않기").
+    if (status.kind !== 'editing' || resources === undefined) return;
+    try {
+      const file =
+        outputGrade === '2'
+          ? buildCustomerDownload(status.prepared, resources.guides)
+          : outputGrade === '1'
+            ? buildSharedDownload(status.prepared, resources.guides, EMPTY_NOTES)
+            : buildSalesDownload(status.prepared, resources.guides, EMPTY_NOTES, costLines, EMPTY_AI_NOTES);
+      downloadBinaryFile(file.fileName, file.bytes);
+      setExportError(undefined);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : '출력 파일을 만들지 못했다.');
     }
   }
 
@@ -207,12 +237,29 @@ export function App() {
                 {grade.label}
               </label>
             ))}
-            {/* 준비된 출력 함수가 아직 안 붙었다 — 항상 비활성이다. 실제
-                활성화는 Task 6(출력)에서 한다. */}
-            <button type="button" className="q-button q-primary" disabled>
+            <button
+              type="button"
+              className="q-button q-primary"
+              onClick={handleExcelDownload}
+              disabled={
+                status.kind !== 'editing' || pendingCableEdit || resources === undefined ||
+                status.prepared.blocking
+              }
+            >
               Excel 다운로드
             </button>
           </div>
+          {status.kind === 'editing' && status.prepared.blocking && (
+            <p role="status" className="q-muted">
+              해결되지 않은 구성도/품셈/계산 경고가 있어 Excel을 출력할 수 없습니다 — 위 경고를
+              먼저 해결하세요.
+            </p>
+          )}
+          {exportError !== undefined && (
+            <p role="alert" className="q-notice q-notice-error">
+              출력 파일을 만들지 못했습니다 — {exportError}
+            </p>
+          )}
         </div>
 
         <main className="q-main">
@@ -423,7 +470,11 @@ export function App() {
                       />
                     );
                   })}
-                  <PrivateCostPanel document={status.document} documentGeneration={workspace.documentGeneration} />
+                  <PrivateCostPanel
+                    document={status.document}
+                    documentGeneration={workspace.documentGeneration}
+                    onLinesChange={setCostLines}
+                  />
                 </>
               )}
             </>
