@@ -2,23 +2,39 @@
  * 원가 세션 + rowId↔entryId 확인 연결을 React 상태로 들고 있는 훅.
  * 교체·폐기·지연 응답 무효화 규칙 자체는 `services/private-cost/
  * controller.ts`(순수 리듀서)에 있다. 이 훅은 비동기 파일 읽기
- * 오케스트레이션, 통화/단위 확인 재파싱, rowId 연결, 문서 세대 연결만
- * 맡는다(계획 Task5, 2026-10-05 독립 검토 지적).
+ * 오케스트레이션, 시트/헤더행/열매핑 확인, 통화/단위 확인 재파싱,
+ * rowId 연결, 문서 세대 연결을 맡는다(계획 Task5, 2026-10-05 독립
+ * 검토 지적).
  *
  * 문서 **교체**(새 견적/작업 파일 열기)는 `documentGeneration`으로
  * 가른다 — 문서 객체 참조가 아니다. 참조는 같은 문서를 수량만 고쳐도
  * 매번 바뀌므로, 참조로 가르면 편집할 때마다 세션이 사라진다(독립
  * 검토 지적). 원가 파일 **교체**(새 파일 선택)는 성공이든 실패든
- * **선택한 순간** 옛 세션·연결·확인 대기를 전부 지운다 — 실패해도
- * 복구하지 않는다.
+ * **선택한 순간** 옛 세션·연결·확인 대기·마법사 상태를 전부 지운다 —
+ * 실패해도 복구하지 않는다.
+ *
+ * ## CSV는 기존 간단 경로 그대로, XLSX만 시트·헤더행·열매핑을 확인한다
+ *
+ * 실제 원가 파일은 "갑지" 등 여러 시트를 담거나(시트 선택), 설명
+ * 제목 행이 머리글 위에 있을 수 있다(헤더행 선택). 추측하지 않고
+ * 사람이 시트·머리글 행·열 매핑을 직접 확인한 뒤에만 읽는다. CSV는
+ * 이런 구조가 없으므로 기존처럼 바로 읽는다.
  *
  * customer/shared/files 경로와 분리한다 — 이 디렉터리(`features/
  * private-cost/`)만 원가 서비스 계층을 import한다.
  */
 import { useEffect, useRef, useState } from 'react';
 import type { QuoteDocument, QuoteRow } from '../../domain/quote/types';
-import { readTable, TableReadError, type Table, type TableFormat } from '../../services/private-cost/readTable';
-import { parsePrivatePrices, type ColumnMapping } from '../../services/private-cost/parse';
+import {
+  listXlsxSheets,
+  previewXlsxRows,
+  readTable,
+  TableReadError,
+  type Table,
+  type TableFormat,
+  type XlsxSheetInfo,
+} from '../../services/private-cost/readTable';
+import { parsePrivatePrices, type ColumnMapping, type PriceError } from '../../services/private-cost/parse';
 import {
   beginCostLoad,
   clearCostLoad,
@@ -32,15 +48,47 @@ import {
 } from '../../services/private-cost/controller';
 import type { PrivateCostSession } from '../../services/private-cost/session';
 import { internalLines, type InternalLine } from '../../services/private-cost/calculate';
-import { unresolvedCandidates, type UnresolvedRowCandidates } from '../../services/private-cost/candidates';
+import {
+  linkStillValid,
+  unresolvedCandidates,
+  type ConfirmedLink,
+  type UnresolvedRowCandidates,
+} from '../../services/private-cost/candidates';
+
+export type XlsxWizard =
+  | { step: 'choosing-sheet'; requestId: number; fileName: string; sheets: readonly XlsxSheetInfo[] }
+  | {
+      step: 'choosing-header-row';
+      requestId: number;
+      fileName: string;
+      sheetName: string;
+      preview: readonly string[][];
+    }
+  | {
+      step: 'confirming-mapping';
+      requestId: number;
+      fileName: string;
+      sheetName: string;
+      header: readonly string[];
+    };
 
 export interface PrivateCostController {
   status: CostLoadStatus;
+  /** XLSX 선택 중 시트·헤더행·열매핑을 확인하는 단계 — 비어 있으면 평소 `status` 화면을 보여준다. */
+  wizard: XlsxWizard | undefined;
   /** 지금 문서 세대에 유효한 세션. 문서가 통째로 교체되면 자동으로 undefined다. */
   session: PrivateCostSession | undefined;
   lines: readonly InternalLine[];
   unresolved: readonly UnresolvedRowCandidates[];
-  loadFile(file: File, format: TableFormat | undefined, mapping: ColumnMapping): void;
+  loadFile(file: File, format: TableFormat | undefined): void;
+  /** 마법사 — 시트를 고른다(`wizard.step === 'choosing-sheet'`일 때만 뜻이 있다). */
+  chooseSheet(sheetPath: string): void;
+  /** 마법사 — 머리글 행을 고른다(`wizard.step === 'choosing-header-row'`일 때만 뜻이 있다). */
+  chooseHeaderRow(rowIndex: number): void;
+  /** 마법사 — 열 매핑을 확인하고 실제로 읽는다(`wizard.step === 'confirming-mapping'`일 때만 뜻이 있다). */
+  confirmMapping(mapping: ColumnMapping): void;
+  /** 마법사를 버린다 — 아직 아무것도 연결되지 않았으므로 idle로 되돌아간다. */
+  cancelWizard(): void;
   /**
    * `status.kind === 'needs-defaults'`일 때만 뜻이 있다. 이미 읽어 둔
    * 표를 다시 읽지 않고, 확인값만 더해 같은 자리에서 다시 파싱한다.
@@ -59,8 +107,14 @@ interface PendingConfirmation {
   fileName: string;
   table: Table;
   mapping: ColumnMapping;
-  missing: { currency: boolean; unit: boolean };
   documentGeneration: number;
+}
+
+/** 시트 선택 뒤에도 같은 파일을 다시 읽지 않도록 바이트를 들고 있는다. */
+interface XlsxSession {
+  bytes: Uint8Array;
+  sheetPath?: string;
+  headerRowIndex?: number;
 }
 
 function itemRowsOf(document: QuoteDocument | undefined): QuoteRow[] {
@@ -77,19 +131,24 @@ export function usePrivateCostController(
   documentGeneration: number,
 ): PrivateCostController {
   const [state, setState] = useState<CostControllerState>(() => initialCostControllerState());
-  const [links, setLinks] = useState<Record<string, string>>({});
+  const [links, setLinks] = useState<Record<string, ConfirmedLink>>({});
+  const [wizard, setWizard] = useState<XlsxWizard | undefined>(undefined);
   const stateRef = useRef(state);
   stateRef.current = state;
   const pendingRef = useRef<PendingConfirmation | undefined>(undefined);
+  const xlsxRef = useRef<XlsxSession | undefined>(undefined);
   const generationRef = useRef(documentGeneration);
 
-  // 문서가 통째로 교체되면(generationRef와 다름) 세션·연결·확인 대기를
-  // 전부 지운다. 같은 문서를 편집만 하면(수량 등) generation이 그대로라
-  // 아무것도 하지 않는다 — effect가 매 렌더 돌아도 안전하다.
+  // 문서가 통째로 교체되면(generationRef와 다름) 세션·연결·확인
+  // 대기·마법사를 전부 지운다. 같은 문서를 편집만 하면(수량 등)
+  // generation이 그대로라 아무것도 하지 않는다 — effect가 매 렌더
+  // 돌아도 안전하다.
   useEffect(() => {
     if (generationRef.current === documentGeneration) return;
     generationRef.current = documentGeneration;
     pendingRef.current = undefined;
+    xlsxRef.current = undefined;
+    setWizard(undefined);
     setLinks({});
     setState((current) => {
       const next = discardForNewGeneration(current);
@@ -106,12 +165,64 @@ export function usePrivateCostController(
     });
   }
 
-  function loadFile(file: File, format: TableFormat | undefined, mapping: ColumnMapping): void {
+  /** 표를 다 읽은 뒤 공통 경로 — CSV 간단 경로와 XLSX 마법사 마지막 단계가 같이 쓴다. */
+  function attemptParse(
+    table: Table,
+    mapping: ColumnMapping,
+    requestId: number,
+    fileName: string,
+    sourceGeneration: number,
+  ): void {
+    const result = parsePrivatePrices(table, mapping);
+
+    // 통화·단위 열이 아예 없거나(column-missing), 열은 있는데 일부
+    // 줄만 비었을 때(currency-empty/unit-empty) 확인 입력을 연다 —
+    // 확인값은 **비었을 때만** 채우므로(parse.ts), 통화가 섞인
+    // 행(currency-mixed)이나 다른 오류가 섞여 있으면 평소대로 전부
+    // 보여주고 확인 입력을 열지 않는다(기존 값·혼합 오류 보존).
+    const currencyRelated = (e: PriceError): boolean =>
+      (e.code === 'column-missing' && e.column === mapping.currency) || e.code === 'currency-empty';
+    const unitRelated = (e: PriceError): boolean =>
+      (e.code === 'column-missing' && e.column === mapping.unit) || e.code === 'unit-empty';
+    // 매핑 자체에서 열을 아예 안 줬으면(마법사에서 "사용 안 함") 그
+    // 사실만으로 이미 "열이 없다"는 뜻이다 — 한 줄이 통화·단위 둘 다
+    // 비어 한 번에 하나씩만 오류를 내더라도(parsePrivatePrices는 그
+    // 줄에서 처음 걸리는 오류만 내고 더 보지 않는다) 매핑으로 바로
+    // 알 수 있으므로 둘 다 놓치지 않는다.
+    const missingCurrency = mapping.currency === undefined || result.errors.some(currencyRelated);
+    const missingUnit = mapping.unit === undefined || result.errors.some(unitRelated);
+    const otherErrors = result.errors.filter((e) => !currencyRelated(e) && !unitRelated(e));
+
+    if ((missingCurrency || missingUnit) && otherErrors.length === 0) {
+      // requestId가 그 사이 최신이 아니게 됐으면(다른 파일을 더 골랐거나
+      // 문서가 교체됐다) 대기 상태를 기록하지 않는다 — 늦게 도착한 이
+      // 결과가 더 최신 선택의 pendingRef를 덮으면 안 된다.
+      if (requestId !== stateRef.current.requestSeq) return;
+      pendingRef.current = { requestId, fileName, table, mapping, documentGeneration: sourceGeneration };
+      applyResult({
+        kind: 'needs-defaults',
+        requestId,
+        fileName,
+        missing: { currency: missingCurrency, unit: missingUnit },
+      });
+      return;
+    }
+
+    if (result.errors.length > 0) {
+      applyResult({ kind: 'parse-errors', requestId, fileName, errors: result.errors });
+      return;
+    }
+    applyResult({ kind: 'parsed', requestId, fileName, entries: result.entries, documentGeneration: sourceGeneration });
+  }
+
+  function loadFile(file: File, format: TableFormat | undefined): void {
     // 로드를 시작한 시점의 문서 세대에 못박는다 — 파싱이 끝나기 전에
     // 사용자가 문서를 통째로 바꿔도, 이 결과는 "시작할 때의 세대"에만
     // 유효해야 한다.
     const sourceGeneration = documentGeneration;
     pendingRef.current = undefined; // 새 파일을 고르면 이전 확인 대기는 더는 뜻이 없다.
+    xlsxRef.current = undefined;
+    setWizard(undefined); // 새 파일을 고르면 이전 마법사 진행도 더는 뜻이 없다.
     setLinks({}); // 새 파일을 고르면 이전 연결도 전부 무효다 — 성공 여부와 무관하다.
     const [started, requestId] = beginCostLoad(stateRef.current);
     stateRef.current = started;
@@ -132,59 +243,35 @@ export function usePrivateCostController(
         applyResult({ kind: 'read-error', requestId, fileName: file.name, message: '파일을 읽지 못했다.' });
         return;
       }
+      if (requestId !== stateRef.current.requestSeq) return; // 그 사이 다른 파일을 골랐거나 문서가 교체됐다.
 
-      try {
-        const table = readTable(bytes, format);
-        const result = parsePrivatePrices(table, mapping);
-
-        // 통화·단위 열이 아예 없거나(column-missing), 열은 있는데 일부
-        // 줄만 비었을 때(currency-empty/unit-empty) 확인 입력을 연다 —
-        // 확인값은 **비었을 때만** 채우므로(parse.ts), 통화가 섞인
-        // 행(currency-mixed)이나 다른 오류가 섞여 있으면 평소대로
-        // 전부 보여주고 확인 입력을 열지 않는다(기존 값·혼합 오류
-        // 보존, 독립 검토 지적 2026-10-05).
-        const currencyRelated = (e: (typeof result.errors)[number]): boolean =>
-          (e.code === 'column-missing' && e.column === mapping.currency) || e.code === 'currency-empty';
-        const unitRelated = (e: (typeof result.errors)[number]): boolean =>
-          (e.code === 'column-missing' && e.column === mapping.unit) || e.code === 'unit-empty';
-        const missingCurrency = result.errors.some(currencyRelated);
-        const missingUnit = result.errors.some(unitRelated);
-        const otherErrors = result.errors.filter((e) => !currencyRelated(e) && !unitRelated(e));
-
-        if ((missingCurrency || missingUnit) && otherErrors.length === 0) {
-          // requestId가 그 사이 최신이 아니게 됐으면(다른 파일을 더
-          // 골랐거나 문서가 교체됐다) 대기 상태를 기록하지 않는다 —
-          // 늦게 도착한 이 결과가 더 최신 선택의 pendingRef를 덮으면
-          // 안 된다(독립 검토 지적 2026-10-05).
-          if (requestId !== stateRef.current.requestSeq) return;
-          pendingRef.current = {
-            requestId,
-            fileName: file.name,
-            table,
-            mapping,
-            missing: { currency: missingCurrency, unit: missingUnit },
-            documentGeneration: sourceGeneration,
-          };
+      if (format === 'csv') {
+        // 기존 간단 경로 — 시트·헤더행 개념이 없다. 바로 읽는다.
+        try {
+          const table = readTable(bytes, 'csv');
+          attemptParse(table, DEFAULT_MAPPING, requestId, file.name, sourceGeneration);
+        } catch (err) {
           applyResult({
-            kind: 'needs-defaults',
+            kind: 'read-error',
             requestId,
             fileName: file.name,
-            missing: { currency: missingCurrency, unit: missingUnit },
+            message: err instanceof TableReadError ? err.message : '원가 파일을 읽지 못했다.',
           });
-          return;
         }
+        return;
+      }
 
-        if (result.errors.length > 0) {
-          applyResult({ kind: 'parse-errors', requestId, fileName: file.name, errors: result.errors });
-          return;
+      // XLSX — 시트 목록부터 본다(workbook 관계·순서로, 파일 이름
+      // 정렬이 아니다 — readTable.ts의 모듈 설명 참고).
+      try {
+        const sheets = listXlsxSheets(bytes);
+        if (requestId !== stateRef.current.requestSeq) return;
+        xlsxRef.current = { bytes };
+        if (sheets.length === 1) {
+          enterHeaderRowStep(requestId, file.name, bytes, sheets[0]!);
+        } else {
+          setWizard({ step: 'choosing-sheet', requestId, fileName: file.name, sheets });
         }
-        applyResult({
-          kind: 'parsed',
-          requestId,
-          fileName: file.name,
-          entries: result.entries,
-          documentGeneration: sourceGeneration,
-        });
       } catch (err) {
         applyResult({
           kind: 'read-error',
@@ -194,6 +281,83 @@ export function usePrivateCostController(
         });
       }
     })();
+  }
+
+  function enterHeaderRowStep(requestId: number, fileName: string, bytes: Uint8Array, sheet: XlsxSheetInfo): void {
+    try {
+      const preview = previewXlsxRows(bytes, sheet.sheetPath);
+      xlsxRef.current = { bytes, sheetPath: sheet.sheetPath };
+      setWizard({ step: 'choosing-header-row', requestId, fileName, sheetName: sheet.name, preview });
+    } catch (err) {
+      applyResult({
+        kind: 'read-error',
+        requestId,
+        fileName,
+        message: err instanceof TableReadError ? err.message : '시트를 읽지 못했다.',
+      });
+    }
+  }
+
+  function chooseSheet(sheetPath: string): void {
+    if (wizard === undefined || wizard.step !== 'choosing-sheet') return;
+    if (wizard.requestId !== stateRef.current.requestSeq) {
+      setWizard(undefined);
+      return;
+    }
+    const sheet = wizard.sheets.find((s) => s.sheetPath === sheetPath);
+    const xlsx = xlsxRef.current;
+    if (sheet === undefined || xlsx === undefined) return;
+    enterHeaderRowStep(wizard.requestId, wizard.fileName, xlsx.bytes, sheet);
+  }
+
+  function chooseHeaderRow(rowIndex: number): void {
+    if (wizard === undefined || wizard.step !== 'choosing-header-row') return;
+    if (wizard.requestId !== stateRef.current.requestSeq) {
+      setWizard(undefined);
+      return;
+    }
+    const header = (wizard.preview[rowIndex] ?? []).map((c) => c.trim());
+    xlsxRef.current = { ...xlsxRef.current!, headerRowIndex: rowIndex };
+    setWizard({
+      step: 'confirming-mapping',
+      requestId: wizard.requestId,
+      fileName: wizard.fileName,
+      sheetName: wizard.sheetName,
+      header,
+    });
+  }
+
+  function confirmMapping(mapping: ColumnMapping): void {
+    if (wizard === undefined || wizard.step !== 'confirming-mapping') return;
+    const requestId = wizard.requestId;
+    const fileName = wizard.fileName;
+    if (requestId !== stateRef.current.requestSeq) {
+      setWizard(undefined);
+      return;
+    }
+    const xlsx = xlsxRef.current;
+    if (xlsx?.sheetPath === undefined || xlsx.headerRowIndex === undefined) return;
+    setWizard(undefined);
+
+    try {
+      const table = readTable(xlsx.bytes, 'xlsx', undefined, {
+        sheetPath: xlsx.sheetPath,
+        headerRowIndex: xlsx.headerRowIndex,
+      });
+      attemptParse(table, mapping, requestId, fileName, documentGeneration);
+    } catch (err) {
+      applyResult({
+        kind: 'read-error',
+        requestId,
+        fileName,
+        message: err instanceof TableReadError ? err.message : '원가 파일을 읽지 못했다.',
+      });
+    }
+  }
+
+  function cancelWizard(): void {
+    xlsxRef.current = undefined;
+    setWizard(undefined);
   }
 
   function confirmDefaults(defaults: { currency?: string; unit?: string }): void {
@@ -239,11 +403,26 @@ export function usePrivateCostController(
   }
 
   function confirmLink(rowId: string, entryId: string): void {
-    setLinks((current) => ({ ...current, [rowId]: entryId }));
+    // 확인 당시 행의 제품 식별을 그대로 찍어 둔다 — 나중에 이 행이
+    // 다른 제품으로 바뀌면(규격 문구가 우연히 같아도) 식별이 달라져
+    // 다시 확인받는다(독립 검토 지적 2026-10-05, candidates.ts의
+    // `linkStillValid`가 이 스냅샷을 매 렌더 재검증한다).
+    const row = itemRowsOf(document).find((r) => r.rowId === rowId);
+    if (row === undefined) return;
+    const link: ConfirmedLink = {
+      entryId,
+      ...(row.productId !== undefined ? { productId: row.productId } : {}),
+      ...(row.sku !== undefined ? { sku: row.sku } : {}),
+      specification: row.specification,
+      unit: row.unit,
+    };
+    setLinks((current) => ({ ...current, [rowId]: link }));
   }
 
   function clearCost(): void {
     pendingRef.current = undefined;
+    xlsxRef.current = undefined;
+    setWizard(undefined);
     setLinks({});
     setState((current) => {
       const next = clearCostLoad(current);
@@ -259,16 +438,16 @@ export function usePrivateCostController(
       ? []
       : internalLines(
           itemRows.map((row) => {
-            // 모델이 바뀐 행(제품 교체)의 옛 연결은 다시 확인받아야 한다
-            // — 지금 규격과 더는 안 맞으면 costEntryId를 아예 넘기지
-            // 않는다(internalLines는 모델 일치까지는 보지 않는다).
+            // 제품이 바뀐 행(productId/SKU/규격/단위 중 하나라도 확인
+            // 당시와 달라짐)의 옛 연결은 다시 확인받아야 한다 — 그러면
+            // costEntryId를 아예 넘기지 않는다(internalLines는 이
+            // 재검증까지는 보지 않는다).
             const linked = links[row.rowId];
-            const linkStillMatches =
-              linked !== undefined && session.ownsEntryId(linked) && session.matchesModel(linked, row.specification);
+            const linkStillMatches = linked !== undefined && linkStillValid(row, linked, session);
             return {
               rowId: row.rowId,
               ...(row.sku !== undefined ? { sku: row.sku } : {}),
-              ...(linkStillMatches ? { costEntryId: linked } : {}),
+              ...(linkStillMatches ? { costEntryId: linked.entryId } : {}),
               name: row.name,
               specification: row.specification,
               unit: row.unit,
@@ -282,12 +461,26 @@ export function usePrivateCostController(
 
   return {
     status: state.status,
+    wizard,
     session,
     lines,
     unresolved,
     loadFile,
+    chooseSheet,
+    chooseHeaderRow,
+    confirmMapping,
+    cancelWizard,
     confirmDefaults,
     confirmLink,
     clearCost,
   };
 }
+
+/** CSV 간단 경로의 고정 매핑 — 실제 원가 파일의 공통 모양(품명/규격/매입단가/통화/단위). */
+const DEFAULT_MAPPING: ColumnMapping = {
+  name: '품명',
+  model: '규격',
+  purchaseUnitPrice: '매입단가',
+  currency: '통화',
+  unit: '단위',
+};

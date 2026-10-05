@@ -71,6 +71,15 @@ export interface InternalLine {
    * "미등록"이 아니라 "다시 연결하세요"를 띄워야 한다.
    */
   costLinkStale?: boolean;
+  /**
+   * 원가 단위·통화가 견적과 달라 계산을 막았다(독립 검토 지적
+   * 2026-10-05) — 임의로 비교·변환하지 않는다. 이 값이 있으면
+   * 아래 금액·요율 필드는 전부 비어 있다. 화면뿐 아니라 이 결과를
+   * 그대로 읽는 소비자(Task6 등)도 숫자 대신 이 표식으로 "계산되지
+   * 않았다"를 알 수 있다 — 화면이 숫자를 숨기는 것만으로는 다른
+   * 소비자가 잘못된 단가를 실수로 쓰는 것을 막지 못한다.
+   */
+  costMismatch?: { costUnit: string; costCurrency: string };
   /** 견적의 판매 단가. 미등록이면 없다. */
   sellingUnitPrice?: Decimal;
   purchaseUnitPrice?: Decimal;
@@ -123,6 +132,19 @@ export function internalLines(
     }
 
     if (entry === undefined) return line;
+
+    // 단위·통화가 견적과 다르면 임의로 비교·변환해 계산하지 않는다 —
+    // 자동 SKU 연결·수동 모델 연결 모두 같은 규칙이다. 견적 쪽 통화는
+    // 시스템 전체가 KRW 고정이다(domain/quote/types.ts의
+    // `ProductVariant.currency: 'KRW'`). 행에 단위를 아예 안 줬으면
+    // (호출부가 생략) 비교할 수 없으니 막지 않는다.
+    const unitMismatch = line.unit !== '' && entry.unit !== line.unit;
+    const currencyMismatch = entry.currency !== 'KRW';
+    if (unitMismatch || currencyMismatch) {
+      line.costUnit = entry.unit;
+      line.costMismatch = { costUnit: entry.unit, costCurrency: entry.currency };
+      return line;
+    }
 
     const cost = dec(entry.purchaseUnitPrice);
     line.purchaseUnitPrice = cost;

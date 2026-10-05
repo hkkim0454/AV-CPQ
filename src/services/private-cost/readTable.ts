@@ -18,6 +18,16 @@
  *
  * 설계서 §8.4: 이 모듈은 파일명이나 행 데이터를 바깥으로 내보내지 않는다.
  * 오류에는 **좌표와 사유만** 담고 값은 담지 않는다.
+ *
+ * ## 시트 선택은 workbook 관계로 한다 — 파일 이름 정렬이 아니다
+ *
+ * 실제 원가 파일은 "갑지"(표지) 시트를 포함해 여러 시트를 담고 있을 수
+ * 있고, 그 표지 시트가 ZIP 안에서 `sheet1.xml`일 수도 있다. `sheet1.xml
+ * < sheet2.xml < …` 같은 **파일 이름 정렬로 "첫 시트"를 고르면 표지를
+ * 원가표로 잘못 읽는다.** 반드시 `xl/workbook.xml`의 `<sheets>` 순서와
+ * `xl/_rels/workbook.xml.rels`의 관계(r:id → 파트 경로)를 따라가 실제
+ * Excel 탭 순서·이름을 복원한다 — `export/ooxml/template.ts`의
+ * `resolveSheetPaths`와 같은 알고리즘이다.
  */
 import { unzipSync, strFromU8 } from 'fflate';
 import { parseXml, findChild, findChildren } from '../../export/ooxml/xml';
@@ -45,6 +55,18 @@ export interface Table {
 }
 
 export type TableFormat = 'csv' | 'xlsx';
+
+export interface ReadTableOptions {
+  /** `listXlsxSheets`가 돌려준 `sheetPath` — 비우면 워크북 순서상 첫 시트다. */
+  sheetPath?: string;
+  /**
+   * 머리글 행의 자리(0부터, 원본 행 그대로 — 빈 행도 센다). 비우면
+   * 기존 동작(처음 나오는 비어있지 않은 행)을 그대로 쓴다. 실제 파일은
+   * 표지성 설명 행이 머리글 위에 있을 수 있어, 사람이 미리보기에서
+   * 직접 고른 행 번호를 그대로 받는다 — 추측하지 않는다.
+   */
+  headerRowIndex?: number;
+}
 
 // ---------------------------------------------------------------------------
 // CSV
@@ -155,30 +177,80 @@ interface RawSheet {
   formulas: Set<number>[];
 }
 
-function parseXlsx(bytes: Uint8Array, limits: InputLimits): RawSheet {
-  assertOoxml(bytes);
-  const files = unzipSync(bytes);
-  const names = Object.keys(files);
+export interface XlsxSheetInfo {
+  /** Excel 탭에 보이는 실제 이름. */
+  name: string;
+  /** `readTable`/`previewXlsxRows`에 그대로 넘기는 내부 경로 표식. */
+  sheetPath: string;
+}
 
-  if (names.length > limits.maxZipEntries) {
-    throw new TableReadError(
-      `ZIP 항목이 ${limits.maxZipEntries}개를 넘는다.`,
-      'too-many-entries',
-    );
+/** `xl/_rels/workbook.xml.rels`의 관계 Id → 파트 경로. */
+function resolveRelTargets(files: Record<string, Uint8Array>): Map<string, string> {
+  const relTargets = new Map<string, string>();
+  const relsRaw = files['xl/_rels/workbook.xml.rels'];
+  if (relsRaw === undefined) return relTargets;
+  const rels = parseXml(strFromU8(relsRaw));
+  for (const rel of rels.root.children) {
+    const id = rel.attrs['Id'];
+    const target = rel.attrs['Target'];
+    if (id === undefined || target === undefined) continue;
+    relTargets.set(id, target.startsWith('/') ? target.slice(1) : `xl/${target}`);
+  }
+  return relTargets;
+}
+
+/**
+ * `xl/workbook.xml`의 `<sheets>` 순서(= Excel 탭 순서)대로, 관계를 따라가
+ * 실제 이름·파트 경로를 돌려준다. 파일 이름 정렬이 아니다(위 모듈 설명).
+ */
+function listSheetsFromFiles(files: Record<string, Uint8Array>): XlsxSheetInfo[] {
+  const workbookRaw = files['xl/workbook.xml'];
+  if (workbookRaw === undefined) {
+    throw new TableReadError('워크북 구조(xl/workbook.xml)가 없다.', 'no-workbook');
+  }
+  const workbook = parseXml(strFromU8(workbookRaw));
+  const relTargets = resolveRelTargets(files);
+
+  const sheetsEl = findChild(workbook.root, 'sheets');
+  if (sheetsEl === undefined) {
+    throw new TableReadError('워크시트 목록을 찾을 수 없다.', 'no-worksheet');
   }
 
+  const out: XlsxSheetInfo[] = [];
+  for (const sheet of findChildren(sheetsEl, 'sheet')) {
+    const name = sheet.attrs['name'];
+    const relId = sheet.attrs['r:id'] ?? sheet.attrs['id'];
+    if (name === undefined || relId === undefined) continue;
+    const target = relTargets.get(relId);
+    if (target !== undefined && files[target] !== undefined) out.push({ name, sheetPath: target });
+  }
+  if (out.length === 0) {
+    throw new TableReadError('워크시트를 찾을 수 없다.', 'no-worksheet');
+  }
+  return out;
+}
+
+/** 통합문서의 시트 목록을 Excel 탭 순서·실제 이름 그대로 돌려준다 — 시트 선택 UI용. */
+export function listXlsxSheets(bytes: Uint8Array, limits: InputLimits = DEFAULT_LIMITS): XlsxSheetInfo[] {
+  assertOoxml(bytes);
+  const files = unzipSync(bytes);
+  guardZip(files, limits);
+  return listSheetsFromFiles(files);
+}
+
+function guardZip(files: Record<string, Uint8Array>, limits: InputLimits): void {
+  const names = Object.keys(files);
+  if (names.length > limits.maxZipEntries) {
+    throw new TableReadError(`ZIP 항목이 ${limits.maxZipEntries}개를 넘는다.`, 'too-many-entries');
+  }
   let unzipped = 0;
   for (const name of names) {
     unzipped += files[name]!.byteLength;
     if (unzipped > limits.maxUnzippedBytes) {
-      throw new TableReadError(
-        '압축 해제 크기가 제한을 넘는다.',
-        'unzipped-too-large',
-      );
+      throw new TableReadError('압축 해제 크기가 제한을 넘는다.', 'unzipped-too-large');
     }
   }
-
-  if (names.some((n) => /vbaProject|\.bin$/i.test(n) && /vbaProject/i.test(n))) {
+  if (names.some((n) => /vbaProject/i.test(n))) {
     throw new TableReadError(
       '매크로가 든 통합문서다. 매크로 없는 값 전용 파일로 저장해 다시 선택한다.',
       'macro-present',
@@ -190,14 +262,9 @@ function parseXlsx(bytes: Uint8Array, limits: InputLimits): RawSheet {
       'external-link',
     );
   }
+}
 
-  const sheetName = names
-    .filter((n) => /^xl\/worksheets\/sheet\d+\.xml$/.test(n))
-    .sort()[0];
-  if (sheetName === undefined) {
-    throw new TableReadError('워크시트를 찾을 수 없다.', 'no-worksheet');
-  }
-
+function parseXlsxSheet(files: Record<string, Uint8Array>, sheetPath: string, limits: InputLimits): RawSheet {
   const sharedStrings: string[] = [];
   const sstRaw = files['xl/sharedStrings.xml'];
   if (sstRaw !== undefined) {
@@ -217,7 +284,11 @@ function parseXlsx(bytes: Uint8Array, limits: InputLimits): RawSheet {
     }
   }
 
-  const worksheet = parseXml(strFromU8(files[sheetName]!)).root;
+  const sheetRaw = files[sheetPath];
+  if (sheetRaw === undefined) {
+    throw new TableReadError(`시트 '${sheetPath}'를 찾을 수 없다.`, 'sheet-not-found');
+  }
+  const worksheet = parseXml(strFromU8(sheetRaw)).root;
   const sheetData = findChild(worksheet, 'sheetData');
   if (sheetData === undefined) return { rows: [], formulas: [] };
 
@@ -230,10 +301,7 @@ function parseXlsx(bytes: Uint8Array, limits: InputLimits): RawSheet {
       const ref = cellEl.attrs['r'] ?? '';
       const column = columnOf(ref);
       if (column > limits.maxColumns) {
-        throw new TableReadError(
-          `열이 ${limits.maxColumns}개를 넘는다.`,
-          'too-many-columns',
-        );
+        throw new TableReadError(`열이 ${limits.maxColumns}개를 넘는다.`, 'too-many-columns');
       }
 
       // 설계서 §8.3: 캐시된 수식 결과를 원가 값으로 조용히 신뢰하지 않는다.
@@ -265,12 +333,39 @@ function parseXlsx(bytes: Uint8Array, limits: InputLimits): RawSheet {
   return { rows, formulas };
 }
 
+function parseXlsx(bytes: Uint8Array, limits: InputLimits, sheetPath?: string): RawSheet {
+  assertOoxml(bytes);
+  const files = unzipSync(bytes);
+  guardZip(files, limits);
+  const resolved = sheetPath ?? listSheetsFromFiles(files)[0]!.sheetPath;
+  return parseXlsxSheet(files, resolved, limits);
+}
+
+/**
+ * 머리글을 고르기 전에 시트의 원본 행을 미리 본다 — 열 이름을 아직
+ * 모르니 `Table`이 아니라 원본 문자열 그대로 돌려준다(헤더 행 선택
+ * UI용). 수식 자리는 보지 않는다 — 미리보기는 값만 보여준다.
+ */
+export function previewXlsxRows(
+  bytes: Uint8Array,
+  sheetPath: string,
+  maxRows = 15,
+  limits: InputLimits = DEFAULT_LIMITS,
+): string[][] {
+  assertOoxml(bytes);
+  const files = unzipSync(bytes);
+  guardZip(files, limits);
+  const sheet = parseXlsxSheet(files, sheetPath, limits);
+  return sheet.rows.slice(0, maxRows);
+}
+
 // ---------------------------------------------------------------------------
 
 export function readTable(
   bytes: Uint8Array,
   format: TableFormat,
   limits: InputLimits = DEFAULT_LIMITS,
+  options: ReadTableOptions = {},
 ): Table {
   if (bytes.byteLength > limits.maxBytes) {
     throw new TableReadError('파일 크기가 제한을 넘는다.', 'file-too-large');
@@ -280,14 +375,38 @@ export function readTable(
   const sheet: RawSheet =
     format === 'csv'
       ? { rows: parseCsv(strFromU8(bytes).replace(/^﻿/, ''), limits), formulas: [] }
-      : parseXlsx(bytes, limits);
+      : parseXlsx(bytes, limits, options.sheetPath);
 
   if (Date.now() - started > limits.maxParseMs) {
     throw new TableReadError('파싱 시간이 제한을 넘었다.', 'parse-timeout');
   }
 
-  // 빈 행을 거를 때 **수식 자리도 같이 걸러야** 행 번호가 어긋나지 않는다.
-  // 어긋나면 멀쩡한 행이 막히고 수식 가격이 통과한다.
+  if (options.headerRowIndex !== undefined) {
+    const headerRowIndex = options.headerRowIndex;
+    if (headerRowIndex < 0 || headerRowIndex >= sheet.rows.length) {
+      throw new TableReadError('머리글 행 번호가 범위를 벗어났다.', 'header-row-out-of-range');
+    }
+    const header = sheet.rows[headerRowIndex]!.map((c) => c.trim());
+    const dataRows = sheet.rows.slice(headerRowIndex + 1);
+    const dataFormulas = sheet.formulas.slice(headerRowIndex + 1);
+    // 빈 행을 거를 때 수식 자리도 같이 걸러야 행 번호가 어긋나지 않는다.
+    const kept: Array<{ values: string[]; formulas: ReadonlySet<number> }> = [];
+    dataRows.forEach((row, index) => {
+      if (!row.some((cell) => cell.trim() !== '')) return;
+      kept.push({ values: row, formulas: dataFormulas[index] ?? new Set<number>() });
+    });
+    if (kept.length === 0) {
+      throw new TableReadError('빈 파일이다.', 'empty-file');
+    }
+    return {
+      header,
+      rows: kept.map((r) => r.values),
+      formulaColumns: kept.map((r) => r.formulas),
+    };
+  }
+
+  // 머리글 행을 명시하지 않으면 기존 동작: 처음 나오는 비어있지 않은
+  // 행을 머리글로 삼는다(간단한 CSV 경로가 그대로 쓰는 기본값).
   const kept: Array<{ values: string[]; formulas: ReadonlySet<number> }> = [];
   sheet.rows.forEach((row, index) => {
     if (!row.some((cell) => cell.trim() !== '')) return;

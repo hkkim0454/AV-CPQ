@@ -1,13 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
+import { zipSync, strToU8 } from 'fflate';
 import { mockResources } from './fixtures';
 
 /**
  * Task5 "내 PC의 원가 파일과 모델 확인" — 집중 항목만 검증한다(독립
  * 검토 지적 2026-10-05): 원가 파일 교체/문서 교체 시 세션 폐기, 지연
- * 응답 무효화, 고객/작업 파일 격리, 통화/단위 확인 입력(2026-10-05
- * 추가). 모델 후보 연결 UI는 아직 없다 — 고정 열 이름(품명/규격/
- * 매입단가/통화/단위)만 쓴다.
+ * 응답 무효화, 고객/작업 파일 격리, 통화/단위 확인 입력, 단위/통화
+ * 불일치 차단, 제품 재검증, 실제 B~H 다단 헤더 XLSX(갑지 포함)의
+ * 시트·헤더행·열매핑 확인(2026-10-05 추가).
  *
  * 숫자는 전부 합성이다. 실제 원가 파일은 사용자 PC에만 있다.
  */
@@ -173,6 +174,19 @@ test('단위가 다른 원가는 임의로 비교·변환해 계산하지 않고
   await expect(row.getByText(/원가 1234567/)).toHaveCount(0);
 });
 
+test('통화가 다른 원가(USD)는 임의로 비교·변환해 계산하지 않고 차단한다', async ({ page }) => {
+  await mockResources(page);
+  await createDocument(page); // 견적 쪽은 시스템 전체가 KRW 고정이다.
+  const csv = Buffer.from('품명,규격,매입단가,통화,단위\nPTZ 카메라,FIX-SPEC,1234567,USD,EA\n', 'utf8');
+  await selectCostFile(page, 'cost-currency-mismatch.csv', csv);
+
+  const row = page.locator('.q-private-cost tbody tr', { hasText: '합성 테스트 품목' });
+  await row.getByRole('button', { name: '연결' }).click();
+
+  await expect(row.getByText('통화가 다르다')).toBeVisible();
+  await expect(row.getByText(/원가 1234567/)).toHaveCount(0);
+});
+
 test('지원하지 않는 확장자를 선택해도 이전 원가 연결은 즉시 폐기된다', async ({ page }) => {
   await mockResources(page);
   await createDocument(page);
@@ -199,32 +213,36 @@ test('원가 비우기 — 다음 파일을 고르지 않아도 바로 연결이
   await expect(page.getByRole('status').filter({ hasText: '연결된 원가' })).toHaveCount(0);
 });
 
-test('감사 — 오프라인에서도 선택·연결·편집·저장 전체가 되고, 요청 전체 내용·웹소켓·저장소·IndexedDB/Cache·콘솔·작업 파일 어디에도 원가가 새지 않는다', async ({
-  page,
-  context,
-}) => {
-  await mockResources(page);
-  await createDocument(page);
+interface FullFlowAuditResult {
+  requestDumps: string[];
+  webSockets: string[];
+  consoleMessages: string[];
+  storages: { local: string; session: string; idbNames: string; cacheNames: string };
+  savedText: string;
+}
 
-  // URL뿐 아니라 요청 본문·헤더까지 전부 모은다 — URL만 보면 POST
-  // 본문에 실어 보내는 유출은 못 잡는다(독립 검토 지적 2026-10-05).
+/**
+ * 원가 선택~연결~편집(수량)~작업 파일 저장 전체 흐름을 돌면서, 요청
+ * 전체 내용(URL·헤더·POST 본문)·웹소켓·콘솔·localStorage/sessionStorage/
+ * IndexedDB/Cache·저장된 작업 파일까지 전부 모은다. 온라인/오프라인
+ * 둘 다 같은 흐름·같은 감사를 돌려야 한다(독립 검토 지적 2026-10-05:
+ * 오프라인 통과만으로는 "유출 없음"을 증명하지 못한다 — 온라인에서도
+ * 똑같이 확인해야 한다).
+ */
+async function runFullFlowAudit(
+  page: import('@playwright/test').Page,
+  secretPrice: string,
+  secretFileName: string,
+): Promise<FullFlowAuditResult> {
   const requestDumps: string[] = [];
   page.on('request', (req) => {
-    const headers = req.headers();
-    const postData = req.postData();
-    requestDumps.push(`${req.url()}|${JSON.stringify(headers)}|${postData ?? ''}`);
+    requestDumps.push(`${req.url()}|${JSON.stringify(req.headers())}|${req.postData() ?? ''}`);
   });
   const webSockets: string[] = [];
   page.on('websocket', (ws) => webSockets.push(ws.url()));
   const consoleMessages: string[] = [];
   page.on('console', (msg) => consoleMessages.push(msg.text()));
 
-  // 초기 자산 로딩이 끝난 뒤 오프라인으로 전환한다 — 이 지점부터는
-  // 네트워크가 전혀 없어도 원가 선택·연결·편집·저장이 전부 돼야 한다.
-  await context.setOffline(true);
-
-  const secretPrice = '919191917';
-  const secretFileName = 'cost-offline-secret.csv';
   const csv = Buffer.from(`품명,규격,매입단가,통화,단위\nPTZ 카메라,FIX-SPEC,${secretPrice},KRW,EA\n`, 'utf8');
   await selectCostFile(page, secretFileName, csv);
   await expect(page.getByRole('status').filter({ hasText: '1줄 인식됨' })).toBeVisible();
@@ -244,20 +262,6 @@ test('감사 — 오프라인에서도 선택·연결·편집·저장 전체가 
   ]);
   const savedText = readFileSync((await download.path())!, 'utf8');
 
-  await context.setOffline(false);
-
-  // 네트워크 — 이 흐름 전체에서 어떤 요청도(URL·헤더·본문 어디에도)
-  // 비밀 가격·원가 파일명을 담지 않는다.
-  expect(requestDumps.some((dump) => dump.includes(secretPrice))).toBe(false);
-  expect(requestDumps.some((dump) => dump.includes(secretFileName))).toBe(false);
-
-  // 웹소켓 — 아예 열지 않는다.
-  expect(webSockets).toEqual([]);
-
-  // 콘솔 — 어디에도 비밀 가격을 찍지 않는다.
-  expect(consoleMessages.some((text) => text.includes(secretPrice))).toBe(false);
-
-  // 저장소 — localStorage/sessionStorage/IndexedDB/Cache 어디에도 없다.
   const storages = await page.evaluate(async () => {
     const dump = (storage: Storage): string =>
       Array.from({ length: storage.length }, (_, i) => storage.key(i))
@@ -265,21 +269,58 @@ test('감사 — 오프라인에서도 선택·연결·편집·저장 전체가 
         .join(';');
     const idbNames = (await indexedDB.databases()).map((d) => d.name ?? '').join(';');
     const cacheNames = ('caches' in window ? await caches.keys() : []).join(';');
-    return {
-      local: dump(window.localStorage),
-      session: dump(window.sessionStorage),
-      idbNames,
-      cacheNames,
-    };
+    return { local: dump(window.localStorage), session: dump(window.sessionStorage), idbNames, cacheNames };
   });
-  expect(storages.local).not.toContain(secretPrice);
-  expect(storages.session).not.toContain(secretPrice);
-  expect(storages.idbNames).not.toContain(secretPrice);
-  expect(storages.cacheNames).not.toContain(secretPrice);
 
+  return { requestDumps, webSockets, consoleMessages, storages, savedText };
+}
+
+function assertNoLeak(result: FullFlowAuditResult, secretPrice: string, secretFileName: string): void {
+  // 네트워크 — 어떤 요청도(URL·헤더·본문 어디에도) 비밀 가격·원가 파일명을 담지 않는다.
+  expect(result.requestDumps.some((dump) => dump.includes(secretPrice))).toBe(false);
+  expect(result.requestDumps.some((dump) => dump.includes(secretFileName))).toBe(false);
+  // 웹소켓 — 아예 열지 않는다.
+  expect(result.webSockets).toEqual([]);
+  // 콘솔 — 어디에도 비밀 가격을 찍지 않는다.
+  expect(result.consoleMessages.some((text) => text.includes(secretPrice))).toBe(false);
+  // 저장소 — localStorage/sessionStorage/IndexedDB/Cache 어디에도 없다.
+  expect(result.storages.local).not.toContain(secretPrice);
+  expect(result.storages.session).not.toContain(secretPrice);
+  expect(result.storages.idbNames).not.toContain(secretPrice);
+  expect(result.storages.cacheNames).not.toContain(secretPrice);
   // 작업 파일 — 저장된 JSON에도 없다.
-  expect(savedText).not.toContain(secretPrice);
-  expect(savedText).not.toContain(secretFileName);
+  expect(result.savedText).not.toContain(secretPrice);
+  expect(result.savedText).not.toContain(secretFileName);
+}
+
+test('감사(오프라인) — 선택·연결·편집·저장 전체가 되고, 요청 전체 내용·웹소켓·저장소·IndexedDB/Cache·콘솔·작업 파일 어디에도 원가가 새지 않는다', async ({
+  page,
+  context,
+}) => {
+  await mockResources(page);
+  await createDocument(page);
+
+  // 초기 자산 로딩이 끝난 뒤 오프라인으로 전환한다 — 이 지점부터는
+  // 네트워크가 전혀 없어도 원가 선택·연결·편집·저장이 전부 돼야 한다.
+  await context.setOffline(true);
+  const result = await runFullFlowAudit(page, '919191917', 'cost-offline-secret.csv');
+  await context.setOffline(false);
+
+  assertNoLeak(result, '919191917', 'cost-offline-secret.csv');
+});
+
+test('감사(온라인) — 오프라인 통과만으로는 유출 없음을 증명하지 못한다 — 네트워크가 있는 상태에서도 같은 흐름·같은 감사를 돈다', async ({
+  page,
+}) => {
+  await mockResources(page);
+  await createDocument(page);
+
+  // 오프라인으로 바꾸지 않는다 — 초기 자산 로딩용 mockResources 라우트
+  // 말고 진짜 네트워크가 열려 있는 상태에서 똑같은 흐름을 돌아, 원가가
+  // 든 경로가 실제로 외부 요청을 내지 않는지 확인한다.
+  const result = await runFullFlowAudit(page, '828282827', 'cost-online-secret.csv');
+
+  assertNoLeak(result, '828282827', 'cost-online-secret.csv');
 });
 
 test('격리 — 원가 파일 선택은 네트워크 요청을 전혀 내지 않는다', async ({ page }) => {
@@ -294,4 +335,140 @@ test('격리 — 원가 파일 선택은 네트워크 요청을 전혀 내지 �
 
   expect(requests.filter((url) => url.includes('cost-a.csv'))).toEqual([]);
   expect(requests.some((url) => url.includes(COST_PRICE_A))).toBe(false);
+});
+
+// ---------------------------------------------------------------------------
+// 실제 B~H 다단 헤더 XLSX(갑지 포함) — 시트·헤더행·열매핑 확인(승인 필수 범위)
+// ---------------------------------------------------------------------------
+
+function inlineCell(ref: string, text: string): string {
+  return `<c r="${ref}" t="inlineStr"><is><t>${text}</t></is></c>`;
+}
+
+function numberCell(ref: string, value: string): string {
+  return `<c r="${ref}"><v>${value}</v></c>`;
+}
+
+function sheetXml(rows: string): Uint8Array {
+  return strToU8(
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+      `<sheetData>${rows}</sheetData></worksheet>`,
+  );
+}
+
+/**
+ * 실제 원가 파일 모양: "갑지"(표지) 시트 + "원가입력" 시트. 원가입력의
+ * 1행은 설명 제목이고 2행이 진짜 머리글이다 — B품명/C규격/G매입단가/
+ * H총액(총액은 일부러 터무니없는 값을 넣어 읽지 않는지 확인한다).
+ * 통화·단위 열은 아예 없다 — 실제 파일 그대로다.
+ */
+function realShapeXlsx(): Buffer {
+  const coverSheet = sheetXml(`<row r="1">${inlineCell('A1', '㈜서울영상테크 견적서')}</row>`);
+  const costSheet = sheetXml(
+    `<row r="1">${inlineCell('A1', '2026년 하반기 원가표(사내 전용)')}</row>` +
+      `<row r="2">${inlineCell('B2', '품명')}${inlineCell('C2', '규격')}${inlineCell('G2', '매입단가')}${inlineCell('H2', '총액')}</row>` +
+      `<row r="3">${inlineCell('B3', 'PTZ 카메라')}${inlineCell('C3', 'FIX-SPEC')}${numberCell('G3', '1234567')}${numberCell('H3', '99999999')}</row>`,
+  );
+  const workbookXml = strToU8(
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' +
+      'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+      '<sheets>' +
+      '<sheet name="갑지" sheetId="1" r:id="rId1"/>' +
+      '<sheet name="원가입력" sheetId="2" r:id="rId2"/>' +
+      '</sheets></workbook>',
+  );
+  const relsXml = strToU8(
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      // 갑지(탭 1번)가 sheet2.xml, 원가입력(탭 2번)이 sheet1.xml이다 —
+      // 파일 이름 정렬로 고르면 틀린다는 것을 그대로 증명한다.
+      '<Relationship Id="rId1" Type="worksheet" Target="worksheets/sheet2.xml"/>' +
+      '<Relationship Id="rId2" Type="worksheet" Target="worksheets/sheet1.xml"/>' +
+      '</Relationships>',
+  );
+  const zipped = zipSync({
+    '[Content_Types].xml': strToU8('<Types/>'),
+    'xl/workbook.xml': workbookXml,
+    'xl/_rels/workbook.xml.rels': relsXml,
+    'xl/worksheets/sheet1.xml': costSheet,
+    'xl/worksheets/sheet2.xml': coverSheet,
+  });
+  return Buffer.from(zipped);
+}
+
+test('실제 모양 XLSX(갑지+다단 헤더) — 시트·헤더행·열매핑을 직접 확인해야 읽힌다, H열은 안 쓴다', async ({ page }) => {
+  await mockResources(page);
+  await createDocument(page);
+
+  await selectCostFile(page, 'real-cost.xlsx', realShapeXlsx());
+
+  // 1) 시트 선택 — "갑지"가 ZIP 파일 이름상 먼저가 아니라는 것과 무관하게
+  //    실제 탭 이름 둘 다 보여야 한다. 표지가 아니라 "원가입력"을 고른다.
+  const sheetStep = page.getByRole('alert').filter({ hasText: '어느 시트를 읽을지' });
+  await expect(sheetStep).toBeVisible();
+  await expect(sheetStep.getByText('갑지', { exact: true })).toBeVisible();
+  await expect(sheetStep.getByText('원가입력', { exact: true })).toBeVisible();
+  await sheetStep.getByText('원가입력', { exact: true }).locator('..').getByRole('button', { name: '이 시트 선택' }).click();
+
+  // 2) 머리글 행 선택 — 1행(설명 제목)이 아니라 2행을 고른다.
+  const headerStep = page.getByRole('alert').filter({ hasText: '어느 행이 머리글' });
+  await expect(headerStep).toBeVisible();
+  await expect(headerStep.getByText('2026년 하반기 원가표')).toBeVisible(); // 1행 — 머리글이 아니다
+  await headerStep.getByRole('button', { name: '2행을 머리글로 선택' }).click();
+
+  // 3) 열 매핑 확인 — B/C/G는 자동 추정되어 있어야 하고, H(총액)는 어떤
+  //    필드에도 배정하지 않는다. 통화/단위 열이 없으므로 매핑에 없다.
+  const mappingStep = page.getByRole('alert').filter({ hasText: '열 매핑을 확인하세요' });
+  await expect(mappingStep).toBeVisible();
+  await expect(mappingStep.getByLabel('열 매핑 — 품명')).toHaveValue('1'); // B(0-based index 1)
+  await expect(mappingStep.getByLabel('열 매핑 — 규격/모델')).toHaveValue('2'); // C
+  await expect(mappingStep.getByLabel('열 매핑 — 매입단가')).toHaveValue('6'); // G
+  await mappingStep.getByRole('button', { name: '확인', exact: true }).click();
+
+  // 4) 통화/단위 열이 없으므로 확인 입력으로 이어진다(기존 흐름 재사용).
+  const defaultsStep = page.getByRole('alert').filter({ hasText: '통화·단위 확인이 필요하다' });
+  await expect(defaultsStep).toBeVisible();
+  await defaultsStep.getByLabel('원가 파일 통화 확인').fill('KRW');
+  await defaultsStep.getByLabel('원가 파일 단위 확인').fill('EA');
+  await defaultsStep.getByRole('button', { name: '확인' }).click();
+
+  await expect(page.getByRole('status').filter({ hasText: '1줄 인식됨' })).toBeVisible();
+
+  const row = page.locator('.q-private-cost tbody tr', { hasText: '합성 테스트 품목' });
+  await row.getByRole('button', { name: '연결' }).click();
+  // G열 매입단가(1234567)는 들어가고, H열 총액(99999999)은 전혀 쓰이지 않는다.
+  await expect(row.getByText(/원가 1234567/)).toBeVisible();
+  await expect(page.getByText('99999999')).toHaveCount(0);
+});
+
+test('시트/헤더행/열매핑을 바꾸려고 파일을 다시 고르면 이전 연결이 즉시 폐기된다', async ({ page }) => {
+  await mockResources(page);
+  await createDocument(page);
+
+  await selectCostFile(page, 'real-cost.xlsx', realShapeXlsx());
+  await page
+    .getByRole('alert')
+    .filter({ hasText: '어느 시트를 읽을지' })
+    .getByText('원가입력', { exact: true })
+    .locator('..')
+    .getByRole('button', { name: '이 시트 선택' })
+    .click();
+  await page.getByRole('button', { name: '2행을 머리글로 선택' }).click();
+  await page.getByRole('alert').filter({ hasText: '열 매핑을 확인하세요' }).getByRole('button', { name: '확인', exact: true }).click();
+  await page.getByLabel('원가 파일 통화 확인').fill('KRW');
+  await page.getByLabel('원가 파일 단위 확인').fill('EA');
+  await page.getByRole('button', { name: '확인' }).click();
+  await expect(page.getByRole('status').filter({ hasText: '1줄 인식됨' })).toBeVisible();
+
+  const row = page.locator('.q-private-cost tbody tr', { hasText: '합성 테스트 품목' });
+  await row.getByRole('button', { name: '연결' }).click();
+  await expect(row.getByText(/원가 1234567/)).toBeVisible();
+
+  // 같은 파일을 다시 골라 시트를 바꾼다 — 이전 연결은 즉시 폐기되고
+  // 마법사부터 다시 시작해야 한다.
+  await selectCostFile(page, 'real-cost.xlsx', realShapeXlsx());
+  await expect(page.getByText(/원가 1234567/)).toHaveCount(0);
+  await expect(page.getByRole('alert').filter({ hasText: '어느 시트를 읽을지' })).toBeVisible();
 });

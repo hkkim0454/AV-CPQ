@@ -483,4 +483,34 @@ describe('internalLines — 내부용 계산 (설계서 §8.7)', () => {
     expect(lines[0]!.markupRate).toBeUndefined();
     expect(lines[0]!.profitAmount).toBeUndefined();
   });
+
+  it('원가 단위가 견적 단위와 다르면 임의로 비교·변환하지 않고 계산을 막는다', () => {
+    const lines = internalLines(
+      [{ rowId: 'r1', sku: 'A-1', unit: 'M', quantity: '3', sellingUnitPrice: '1500' }],
+      session,
+    );
+    expect(lines[0]!.costRegistered).toBe(true);
+    expect(lines[0]!.costMismatch).toEqual({ costUnit: 'EA', costCurrency: 'KRW' });
+    expect(lines[0]!.purchaseAmount).toBeUndefined();
+    expect(lines[0]!.purchaseUnitPrice).toBeUndefined();
+    expect(lines[0]!.markupRate).toBeUndefined();
+  });
+
+  it('원가 통화가 KRW가 아니면 임의로 비교·변환하지 않고 계산을 막는다', () => {
+    const usdSession = createSession([
+      { entryId: 'eu', sku: 'U-1', purchaseUnitPrice: '10', currency: 'USD', unit: 'EA' },
+    ]);
+    const lines = internalLines(
+      [{ rowId: 'r1', sku: 'U-1', unit: 'EA', quantity: '1', sellingUnitPrice: '1500' }],
+      usdSession,
+    );
+    expect(lines[0]!.costMismatch).toEqual({ costUnit: 'EA', costCurrency: 'USD' });
+    expect(lines[0]!.purchaseAmount).toBeUndefined();
+  });
+
+  it('행에 단위를 안 줬으면(호출부 생략) 비교할 수 없으니 막지 않는다', () => {
+    const lines = internalLines([{ rowId: 'r1', sku: 'A-1', quantity: '3', sellingUnitPrice: '1500' }], session);
+    expect(lines[0]!.costMismatch).toBeUndefined();
+    expect(lines[0]!.purchaseAmount?.toFixed()).toBe('3000');
+  });
 });
