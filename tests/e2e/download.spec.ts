@@ -124,6 +124,72 @@ test('해결되지 않은 구성도/품셈/계산 경고 — 해결 전에는 �
   await expect(page.getByRole('button', { name: 'Excel 다운로드' })).toBeDisabled();
 });
 
+test('거래처/영업비고 입력 — 1단계에는 남고 2단계(고객용)에는 애초에 없다', async ({ page }) => {
+  await makeDownloadableQuote(page);
+  await page.getByLabel('합성 테스트 품목 거래처').fill('SONY/한국에빅스');
+  await page.getByLabel('합성 테스트 품목 거래처').blur();
+  await page.getByLabel('합성 테스트 품목 영업비고').fill('현장 확인 필요 — 영업팀 전용 메모');
+  await page.getByLabel('합성 테스트 품목 영업비고').blur();
+
+  // 2단계(고객용) — 거래처/영업비고 열 자체가 없다(allowlist projection).
+  const customerDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Excel 다운로드' }).click();
+  const customerDetail = strFromU8(unzipSync(await downloadedBytes(await customerDownload))['xl/worksheets/sheet2.xml']!);
+  expect(customerDetail).not.toContain('SONY/한국에빅스');
+  expect(customerDetail).not.toContain('영업팀 전용 메모');
+
+  // 1단계(공유용) — 거래처/영업비고가 실제로 들어간다.
+  await page.getByRole('radio', { name: '1 공유용' }).check();
+  const sharedDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Excel 다운로드' }).click();
+  const sharedDetail = strFromU8(unzipSync(await downloadedBytes(await sharedDownload))['xl/worksheets/sheet2.xml']!);
+  expect(sharedDetail).toContain('SONY/한국에빅스');
+  expect(sharedDetail).toContain('영업팀 전용 메모');
+});
+
+test('AI 메모(conversionNote) — 0단계에만 실리고 1단계에는 없다(새 입력 UI가 아니라 구성도 변환 출처를 그대로 옮긴 것)', async ({ page }) => {
+  const document = withResolvedLabor(await saveQuote(page));
+  const rows = (document['rows'] as Array<Record<string, unknown>>);
+  const itemRow = rows.find((r) => r['type'] === 'item')!;
+  // 사람이 새로 입력한 게 아니라, 구성도 변환이 이미 만들어 뒀다고 가정한 값이다
+  // (`conversionNote` — QuoteSheet에 '자동 메모(참고)'로 읽기 전용 표시되는 바로 그 필드).
+  itemRow['conversionNote'] = '구성도 — 모델 매칭을 자동 확정함(AI 메모 시험용)';
+  await reopen(page, document);
+  await expect(page.getByRole('button', { name: 'Excel 다운로드' })).toBeEnabled();
+
+  await page.getByRole('radio', { name: '0 영업팀용' }).check();
+  const salesDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Excel 다운로드' }).click();
+  const salesDetail = strFromU8(unzipSync(await downloadedBytes(await salesDownload))['xl/worksheets/sheet2.xml']!);
+  expect(salesDetail).toContain('AI 메모 시험용');
+
+  await page.getByRole('radio', { name: '1 공유용' }).check();
+  const sharedDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Excel 다운로드' }).click();
+  const sharedDetail = strFromU8(unzipSync(await downloadedBytes(await sharedDownload))['xl/worksheets/sheet2.xml']!);
+  expect(sharedDetail).not.toContain('AI 메모 시험용');
+});
+
+test('D23 — 옛 기준은 고른 등급과 무관하게 0/1/2 세 등급 전부 막는다', async ({ page }) => {
+  const document = withResolvedLabor(await saveQuote(page));
+  (document as { versions: { wage: string } }).versions.wage = 'unavailable-old-wage';
+  await reopen(page, document);
+  await expect(page.getByRole('alert').filter({ hasText: '계산 기준이 바뀌었습니다' })).toBeVisible();
+  const excelButton = page.getByRole('button', { name: 'Excel 다운로드' });
+
+  for (const grade of ['0 영업팀용', '1 공유용', '2 고객용'] as const) {
+    await page.getByRole('radio', { name: grade }).check();
+    await expect(excelButton, grade).toBeDisabled();
+    let gotDownload = false;
+    page.once('download', () => {
+      gotDownload = true;
+    });
+    await excelButton.click({ force: true }).catch(() => {});
+    await page.waitForTimeout(200);
+    expect(gotDownload, grade).toBe(false);
+  }
+});
+
 test('D23 — 노임 기준이 옛것이면 다시 계산해 적용할 때까지 출력을 막는다', async ({ page }) => {
   const document = withResolvedLabor(await saveQuote(page));
   await reopen(page, document);

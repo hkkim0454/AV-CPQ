@@ -168,7 +168,7 @@ test('재계산은 미리보기→취소(원본 유지)→다시 미리보기→
   await conflict.getByRole('button', { name: '적용', exact: true }).click();
   await expect(conflict).toHaveCount(0);
   const row = page.locator('.q-quote-table tbody tr', { hasText: '합성 테스트 품목' });
-  await expect(row.locator('td').nth(6)).toHaveText('20000');
+  await expect(row.locator('td').nth(8)).toHaveText('20000');
 
   // 5) 실행취소 — 재계산 자체를 되돌릴 수 있다(원래의 충돌 상태로).
   await page.getByRole('button', { name: '실행 취소' }).click();
@@ -176,7 +176,7 @@ test('재계산은 미리보기→취소(원본 유지)→다시 미리보기→
 
   // 6) 다시실행 — 적용한 재계산으로 되돌아간다.
   await page.getByRole('button', { name: '다시 실행' }).click();
-  await expect(page.locator('.q-quote-table tbody tr', { hasText: '합성 테스트 품목' }).locator('td').nth(6)).toHaveText('20000');
+  await expect(page.locator('.q-quote-table tbody tr', { hasText: '합성 테스트 품목' }).locator('td').nth(8)).toHaveText('20000');
 });
 
 test('재계산 중 카탈로그에서 사라진 품목은 옛 단가로 조용히 넘어가지 않고 다시 고르게 한다(독립 검토 지적)', async ({ page }) => {
@@ -227,7 +227,7 @@ test('재계산 중 카탈로그에서 사라진 품목은 옛 단가로 조용�
 
   await expect(removedWarning).toHaveCount(0);
   const row = page.locator('.q-quote-table tbody tr', { hasText: '대체 품목' });
-  await expect(row.locator('td').nth(6)).toHaveText('30000');
+  await expect(row.locator('td').nth(8)).toHaveText('30000');
 });
 
 test('재계산은 배관 행도 그룹 재검증을 거쳐 지금 단가로 갱신한다(독립 검토 지적)', async ({ page }) => {
@@ -255,7 +255,7 @@ test('재계산은 배관 행도 그룹 재검증을 거쳐 지금 단가로 갱
   await page.getByLabel('시스템1 장비실→가장 먼 장비 거리(m)').blur();
   const warnings = page.getByRole('alert').filter({ hasText: '확인이 필요합니다' });
   await warnings.getByRole('button', { name: '선택' }).first().click();
-  await expect(page.locator('.q-quote-table tbody tr', { hasText: '후렉시블' }).locator('td').nth(6)).toHaveText('93000');
+  await expect(page.locator('.q-quote-table tbody tr', { hasText: '후렉시블' }).locator('td').nth(8)).toHaveText('93000');
 
   const [download] = await Promise.all([
     page.waitForEvent('download'),
@@ -279,7 +279,7 @@ test('재계산은 배관 행도 그룹 재검증을 거쳐 지금 단가로 갱
   await conflict.getByRole('button', { name: '현재 기준으로 다시 계산 — 미리보기' }).click();
   await conflict.getByRole('button', { name: '적용', exact: true }).click();
 
-  await expect(page.locator('.q-quote-table tbody tr', { hasText: '후렉시블' }).locator('td').nth(6)).toHaveText('150000');
+  await expect(page.locator('.q-quote-table tbody tr', { hasText: '후렉시블' }).locator('td').nth(8)).toHaveText('150000');
 });
 
 test('케이블 가격만 바뀌고 수동 수정이 없으면 재계산이 가짜 충돌을 내지 않는다(독립 검토 지적)', async ({ page }) => {
@@ -307,7 +307,7 @@ test('케이블 가격만 바뀌고 수동 수정이 없으면 재계산이 가�
   });
 
   // 수동 수정은 전혀 하지 않는다 — 수량·품목 전부 자동 산출 그대로 둔다.
-  await expect(page.locator('.q-quote-table tbody tr', { hasText: '합성 HDMI' }).locator('td').nth(6)).toHaveText('100');
+  await expect(page.locator('.q-quote-table tbody tr', { hasText: '합성 HDMI' }).locator('td').nth(8)).toHaveText('100');
 
   const [download] = await Promise.all([
     page.waitForEvent('download'),
@@ -333,7 +333,7 @@ test('케이블 가격만 바뀌고 수동 수정이 없으면 재계산이 가�
   await expect(conflict.getByRole('button', { name: '적용', exact: true })).toBeEnabled();
   await conflict.getByRole('button', { name: '적용', exact: true }).click();
 
-  await expect(page.locator('.q-quote-table tbody tr', { hasText: '합성 HDMI' }).locator('td').nth(6)).toHaveText('200');
+  await expect(page.locator('.q-quote-table tbody tr', { hasText: '합성 HDMI' }).locator('td').nth(8)).toHaveText('200');
 });
 
 test('계산이 막히지 않고 labor/wage도 그대로면 이전 합계를 실제로 재현해 보여준다(독립 검토 지적)', async ({ page }) => {

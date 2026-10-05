@@ -100,6 +100,10 @@ export interface Workspace {
   setQuantity(rowId: string, quantity: string): void;
   setDescription(rowId: string, description: string): void;
   setRemark(rowId: string, remark: string): void;
+  /** 거래처(제조사/구매처) — 1·0단계에만 실린다(결정 D16). */
+  setSupplier(rowId: string, supplier: string): void;
+  /** 영업비고 — 거래처와 같은 공유 범위. */
+  setSalesRemark(rowId: string, salesRemark: string): void;
   setHeader(patch: Partial<QuoteHeader>): void;
   setProfile(systemId: string, profile: IndirectProfileId): void;
   setIndirectRule(systemId: string, itemId: string, patch: { applied?: boolean; rate?: string }): void;
@@ -749,6 +753,20 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     [mutateRow],
   );
 
+  const setSupplier = useCallback(
+    (rowId: string, supplier: string) => {
+      mutateRow(rowId, (r) => (r.type === 'item' ? { ...r, supplier } : r));
+    },
+    [mutateRow],
+  );
+
+  const setSalesRemark = useCallback(
+    (rowId: string, salesRemark: string) => {
+      mutateRow(rowId, (r) => (r.type === 'item' ? { ...r, salesRemark } : r));
+    },
+    [mutateRow],
+  );
+
   const setHeader = useCallback(
     (patch: Partial<QuoteHeader>) => {
       commit((document) => ({ ...document, header: { ...document.header, ...patch } }));
@@ -977,6 +995,8 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     setQuantity,
     setDescription,
     setRemark,
+    setSupplier,
+    setSalesRemark,
     setHeader,
     setProfile,
     setIndirectRule,

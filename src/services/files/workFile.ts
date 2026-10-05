@@ -145,6 +145,8 @@ const quoteRowSchema = z
     internalDescription: z.string().optional(),
     conversionNote: z.string().optional(),
     remark: z.string(),
+    supplier: z.string().optional(),
+    salesRemark: z.string().optional(),
     sourceNodeIds: z.array(z.string()).optional(),
     optionId: z.string().optional(),
     sourceEdgeIds: z.array(z.string()).optional(),

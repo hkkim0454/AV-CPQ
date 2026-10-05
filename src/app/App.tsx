@@ -29,11 +29,33 @@ import { buildCustomerDownload, buildSharedDownload } from '../export/variants/d
 import { buildSalesDownload } from '../export/internal/salesExportAction';
 import type { SharedNotes } from '../export/shared/projection';
 import type { InternalLine } from '../services/private-cost/calculate';
+import type { QuoteDocument } from '../domain/quote/types';
 
-// 거래처/영업비고/AI 메모는 아직 입력 화면이 없다 — 지어내지 않고
-// 항상 빈 값으로 둔다(Task6 범위: 원가 연결 출력, 이 세 칸은 후속).
-const EMPTY_NOTES: SharedNotes = { supplierByRow: new Map(), salesRemarkByRow: new Map() };
-const EMPTY_AI_NOTES: ReadonlyMap<string, string> = new Map();
+/** 거래처/영업비고 — 사람이 QuoteSheet에서 입력한 값만 담는다. 지어내지 않는다. */
+function notesOf(document: QuoteDocument): SharedNotes {
+  const supplierByRow = new Map<string, string>();
+  const salesRemarkByRow = new Map<string, string>();
+  for (const row of document.rows) {
+    if (row.type !== 'item') continue;
+    if (row.supplier !== undefined && row.supplier !== '') supplierByRow.set(row.rowId, row.supplier);
+    if (row.salesRemark !== undefined && row.salesRemark !== '') salesRemarkByRow.set(row.rowId, row.salesRemark);
+  }
+  return { supplierByRow, salesRemarkByRow };
+}
+
+/**
+ * AI 메모(0단계 BF열 전용) — **새 입력 칸이 아니다.** 구성도 변환이 이미
+ * 만들어 둔 `conversionNote`를 그대로 옮긴다(결정 D16: "AI 메모는 지운다가
+ * 아니라 안 쓴다" — 1·2단계 함수는 이 맵을 아예 받지 않는다).
+ */
+function aiNotesOf(document: QuoteDocument): ReadonlyMap<string, string> {
+  const notes = new Map<string, string>();
+  for (const row of document.rows) {
+    if (row.type !== 'item') continue;
+    if (row.conversionNote !== undefined && row.conversionNote !== '') notes.set(row.rowId, row.conversionNote);
+  }
+  return notes;
+}
 
 type LoadState = { kind: 'loading' } | ResourcesResult;
 
@@ -87,12 +109,13 @@ export function App() {
     // 지적: "handler/출력 경계에서 재확인, 버튼만 차단하지 않기").
     if (status.kind !== 'editing' || resources === undefined) return;
     try {
+      const notes = notesOf(status.document);
       const file =
         outputGrade === '2'
           ? buildCustomerDownload(status.prepared, resources.guides)
           : outputGrade === '1'
-            ? buildSharedDownload(status.prepared, resources.guides, EMPTY_NOTES)
-            : buildSalesDownload(status.prepared, resources.guides, EMPTY_NOTES, costLines, EMPTY_AI_NOTES);
+            ? buildSharedDownload(status.prepared, resources.guides, notes)
+            : buildSalesDownload(status.prepared, resources.guides, notes, costLines, aiNotesOf(status.document));
       downloadBinaryFile(file.fileName, file.bytes);
       setExportError(undefined);
     } catch (err) {
@@ -437,6 +460,8 @@ export function App() {
                     onQuantityChange={workspace.setQuantity}
                     onDescriptionChange={workspace.setDescription}
                     onRemarkChange={workspace.setRemark}
+                    onSupplierChange={workspace.setSupplier}
+                    onSalesRemarkChange={workspace.setSalesRemark}
                     onRemoveRow={workspace.removeRow}
                   />
                   <CableRoutePanel document={status.document} catalog={resources.catalog}

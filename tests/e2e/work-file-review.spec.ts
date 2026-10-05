@@ -77,5 +77,5 @@ test('현재 기준 재계산은 버전 이름뿐 아니라 변경된 판매단�
   await expect(page.getByText(/합성 테스트 품목.*10000.*20000/)).toBeVisible();
   await page.getByRole('button', { name: '적용', exact: true }).click();
   const row = page.locator('.q-quote-table tbody tr', { hasText: '합성 테스트 품목' });
-  await expect(row.locator('td').nth(6)).toHaveText('20000');
+  await expect(row.locator('td').nth(8)).toHaveText('20000'); // 재료비 칸(거래처/영업비고 2열 추가로 인덱스 이동)
 });

@@ -19,7 +19,7 @@ test('LED 캐비넷은 제외하고 S-BOX는 잡자재비에 포함한다', asyn
     await page.getByRole('button', { name: '추가', exact: true }).click();
   }
   await page.getByRole('button', { name: '견적 만들기' }).click();
-  const miscAmount = page.locator('tr[data-derived="true"]', { hasText: '잡자재비' }).locator('td').nth(6);
+  const miscAmount = page.locator('tr[data-derived="true"]', { hasText: '잡자재비' }).locator('td').nth(8);
   await expect(miscAmount).toHaveText('200');
   await page.getByLabel('합성 캐비넷 수량', { exact: true }).fill('5');
   await page.getByLabel('합성 캐비넷 수량', { exact: true }).blur();
@@ -38,11 +38,11 @@ test('잡자재비가 화면에 나타나고 수량 변경과 실행취소를 �
   await page.getByRole('button', { name: '견적 만들기' }).click();
   const misc = page.locator('.q-quote-table tbody tr', { hasText: '잡자재비' });
   await expect(misc).toHaveCount(1);
-  await expect(misc.locator('td').nth(6)).toHaveText('200');
+  await expect(misc.locator('td').nth(8)).toHaveText('200');
   await page.getByLabel('합성 테스트 품목 수량', { exact: true }).fill('2');
   await page.getByLabel('합성 테스트 품목 수량', { exact: true }).blur();
-  await expect(misc.locator('td').nth(6)).toHaveText('400');
+  await expect(misc.locator('td').nth(8)).toHaveText('400');
   await page.getByRole('button', { name: '실행 취소', exact: true }).click();
-  await expect(misc.locator('td').nth(6)).toHaveText('200');
+  await expect(misc.locator('td').nth(8)).toHaveText('200');
   await expect(misc).toHaveCount(1);
 });

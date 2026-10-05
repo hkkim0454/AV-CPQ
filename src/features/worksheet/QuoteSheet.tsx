@@ -17,6 +17,8 @@ interface QuoteSheetProps {
   onQuantityChange(rowId: string, value: string): void;
   onDescriptionChange(rowId: string, value: string): void;
   onRemarkChange(rowId: string, value: string): void;
+  onSupplierChange(rowId: string, value: string): void;
+  onSalesRemarkChange(rowId: string, value: string): void;
   onRemoveRow(rowId: string): void;
 }
 
@@ -108,6 +110,8 @@ export function QuoteSheet({
   onQuantityChange,
   onDescriptionChange,
   onRemarkChange,
+  onSupplierChange,
+  onSalesRemarkChange,
   onRemoveRow,
 }: QuoteSheetProps) {
   const calcBySystem = new Map(calculation.systems.map((s) => [s.systemId, s]));
@@ -131,6 +135,8 @@ export function QuoteSheet({
                     <th>수량</th>
                     <th>설명</th>
                     <th>비고</th>
+                    <th>거래처</th>
+                    <th>영업비고</th>
                     <th>재료비</th>
                     <th>노무비</th>
                     <th>합계</th>
@@ -142,7 +148,7 @@ export function QuoteSheet({
                     if (row.type === 'display') {
                       return (
                         <tr key={row.rowId}>
-                          <td colSpan={10}>{row.name}</td>
+                          <td colSpan={12}>{row.name}</td>
                         </tr>
                       );
                     }
@@ -190,6 +196,22 @@ export function QuoteSheet({
                             onCommit={onRemarkChange}
                           />
                         </td>
+                        <td>
+                          <TextCell
+                            rowId={row.rowId}
+                            value={row.supplier ?? ''}
+                            label={`${row.name} 거래처`}
+                            onCommit={onSupplierChange}
+                          />
+                        </td>
+                        <td>
+                          <TextCell
+                            rowId={row.rowId}
+                            value={row.salesRemark ?? ''}
+                            label={`${row.name} 영업비고`}
+                            onCommit={onSalesRemarkChange}
+                          />
+                        </td>
                         <td>{materialText}</td>
                         <td>{laborText}</td>
                         <td>{totalText}</td>
@@ -212,6 +234,7 @@ export function QuoteSheet({
                       <tr key={row.rowId} data-row-id={row.rowId} data-derived="true">
                         <td>{row.name}</td><td>{row.specification}</td><td>{row.unit}</td><td>{row.quantity}</td>
                         <td>{row.internalDescription ?? ''}</td><td>{row.remark}</td>
+                        <td></td><td></td>
                         <td>{rowCalc?.materialAmount?.toFixed() ?? '미등록'}</td>
                         <td>{row.laborMode === 'not-applicable' ? '해당없음' : rowCalc?.laborAmount?.toFixed() ?? '미등록'}</td>
                         <td>{rowCalc?.total?.toFixed() ?? '미등록'}</td><td></td>
@@ -222,19 +245,19 @@ export function QuoteSheet({
                 {calc !== undefined && (
                   <tfoot>
                     <tr>
-                      <td colSpan={6}>직접비계</td>
+                      <td colSpan={8}>직접비계</td>
                       <td>{calc.directMaterial.toFixed()}</td>
                       <td>{calc.directLabor.toFixed()}</td>
                       <td>{calc.directTotal.toFixed()}</td>
                       <td></td>
                     </tr>
                     <tr>
-                      <td colSpan={8}>간접비계</td>
+                      <td colSpan={10}>간접비계</td>
                       <td>{calc.indirectTotal.toFixed()}</td>
                       <td></td>
                     </tr>
                     <tr>
-                      <td colSpan={8}>합계</td>
+                      <td colSpan={10}>합계</td>
                       <td>{calc.systemTotal.toFixed()}</td>
                       <td></td>
                     </tr>

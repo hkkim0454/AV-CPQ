@@ -266,7 +266,7 @@ test('미등록과 명시적 0을 구분한다', async ({ page }) => {
   // 이 품목에 품셈 연결이 없어 별개로 '미등록'이 맞다 — 여기서 보는
   // 것은 재료비 칸 하나다.
   const zeroRow = page.locator('.q-quote-table tbody tr', { hasText: 'E2E 무상 품목' });
-  await expect(zeroRow.locator('td').nth(6)).toHaveText('0'); // 재료비 칸
+  await expect(zeroRow.locator('td').nth(8)).toHaveText('0'); // 재료비 칸
 
   // 무상 품목 쪽은 가격 미등록 경고가 없어야 한다 — 미등록 품목 경고만 있다.
   const warnings = page.getByRole('alert').filter({ hasText: '확인이 필요합니다' });
@@ -708,7 +708,7 @@ test('후보 표시 — 같은 모델이라도 설명·가격·단위로 구분�
   // A의 가격(70000)이 섞여 들어가지 않는지 확인한다.
   await candidateB.getByRole('button', { name: '선택' }).click();
   const resolvedAmbRow = page.locator('.q-quote-table tbody tr', { hasText: 'E2E 후보 B' });
-  await expect(resolvedAmbRow.locator('td').nth(6)).toHaveText('80000'); // 재료비 칸.
+  await expect(resolvedAmbRow.locator('td').nth(8)).toHaveText('80000'); // 재료비 칸.
 
   // --- 2) 같은 모델(UNIT-MODEL), 단위만 다른 두 후보 ---
   const candidateEa = candidates.filter({ hasText: `SKU ${SKU_UNIT_EA}` });
@@ -721,5 +721,5 @@ test('후보 표시 — 같은 모델이라도 설명·가격·단위로 구분�
   await candidateSet.getByRole('button', { name: '선택' }).click();
   const resolvedUnitRow = page.locator('.q-quote-table tbody tr', { hasText: 'E2E 단위후보' });
   await expect(resolvedUnitRow.locator('td').nth(2)).toHaveText('SET'); // 단위 칸 — EA(10000)가 아니라 SET(30000).
-  await expect(resolvedUnitRow.locator('td').nth(6)).toHaveText('30000'); // 재료비 칸.
+  await expect(resolvedUnitRow.locator('td').nth(8)).toHaveText('30000'); // 재료비 칸.
 });
