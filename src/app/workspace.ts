@@ -12,6 +12,8 @@ import { useCallback, useMemo, useState } from 'react';
 import { buildGuideBasis, GuideBasisError, type BasisVersions } from '../data/catalog/guideBasis';
 import { prepareQuote, type PreparedQuote } from '../export/variants/prepare';
 import { priceQuote } from '../domain/quote/priceQuote';
+import { computeRowConfirmationFingerprint } from '../domain/labor/calculateLabor';
+import { withLaborConfirmed, withLaborModeSwitch } from '../domain/quote/laborRowEdits';
 import { indirectCostsFor, type IndirectProfileId } from '../export/ooxml/guideTemplate';
 import { toRow, CURRENT_RULE_VERSION } from '../domain/quote/buildDocument';
 import { computeDocumentBasisConflicts, describeBasisConflicts } from '../domain/quote/basisConflict';
@@ -32,7 +34,7 @@ import {
   resolveConduitProduct,
   type InstallationPatch,
 } from '../domain/quote/installation';
-import type { QuoteDocument, QuoteHeader } from '../domain/quote/types';
+import type { LaborMode, QuoteDocument, QuoteHeader } from '../domain/quote/types';
 import type { ImportWarning } from '../import/diagram/devices';
 import type { Resources } from './resources';
 
@@ -138,6 +140,25 @@ export interface Workspace {
   setSupplier(rowId: string, supplier: string): void;
   /** 영업비고 — 거래처와 같은 공유 범위. */
   setSalesRemark(rowId: string, salesRemark: string): void;
+  /**
+   * mapped·manual·not-applicable 전환(Task 6 노무 확인 보완 Task C).
+   * 어느 방향이든 이전 수동 단가·사유·확인을 지운다 — 새 모드가 그
+   * 값들의 근거가 아니기 때문이다. `mapped`는 이 행에 애초에
+   * `laborMappingId`가 있을 때만 뜻이 있다 — 없으면 화면이 그 선택지를
+   * 보여주지 않아야 한다.
+   */
+  setLaborMode(rowId: string, mode: LaborMode): void;
+  /** `laborMode==='manual'`일 때만 쓰인다 — 견적 단위 1개당 KRW. */
+  setManualLaborUnitPrice(rowId: string, value: string): void;
+  /** manual·not-applicable 공통 — 사유. */
+  setOverrideReason(rowId: string, value: string): void;
+  /**
+   * 지금 화면에 보이는 계산 근거를 사람이 확인했다는 사실을 그 행에
+   * 싣는다. 지금 근거로 지문을 새로 만든다 — 확인 버튼을 누른 시점의
+   * 근거가 곧 저장되는 지문이다. 매핑을 찾을 수 없으면(이론상 생기지
+   * 않아야 하지만) 아무것도 하지 않는다.
+   */
+  confirmLaborRow(rowId: string): void;
   setHeader(patch: Partial<QuoteHeader>): void;
   setProfile(systemId: string, profile: IndirectProfileId): void;
   setIndirectRule(systemId: string, itemId: string, patch: { applied?: boolean; rate?: string }): void;
@@ -801,6 +822,51 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     [mutateRow],
   );
 
+  const setLaborMode = useCallback(
+    (rowId: string, mode: LaborMode) => {
+      mutateRow(rowId, (r) => (r.type === 'item' ? { type: 'item', ...withLaborModeSwitch(r, mode) } : r));
+    },
+    [mutateRow],
+  );
+
+  const setManualLaborUnitPrice = useCallback(
+    (rowId: string, value: string) => {
+      mutateRow(rowId, (r) => (r.type === 'item' ? { ...r, manualLaborUnitPrice: value } : r));
+    },
+    [mutateRow],
+  );
+
+  const setOverrideReason = useCallback(
+    (rowId: string, value: string) => {
+      mutateRow(rowId, (r) => (r.type === 'item' ? { ...r, overrideReason: value } : r));
+    },
+    [mutateRow],
+  );
+
+  const confirmLaborRow = useCallback(
+    (rowId: string) => {
+      if (basis === undefined) return;
+      commit((document) => ({
+        ...document,
+        rows: document.rows.map((r) => {
+          if (r.type !== 'item' || r.rowId !== rowId || r.laborMode !== 'mapped' || r.laborMappingId === undefined) {
+            return r;
+          }
+          const fingerprint = computeRowConfirmationFingerprint(r.rowId, r.laborMappingId, basis.reference, {
+            ...(r.productId !== undefined ? { productId: r.productId } : {}),
+            ...(r.sku !== undefined ? { sku: r.sku } : {}),
+            unit: r.unit,
+            quantity: r.quantity,
+            ruleVersion: document.versions.rule,
+          });
+          if (fingerprint === undefined) return r;
+          return { type: 'item', ...withLaborConfirmed(r, fingerprint, new Date().toISOString()) };
+        }),
+      }));
+    },
+    [commit, basis],
+  );
+
   const setHeader = useCallback(
     (patch: Partial<QuoteHeader>) => {
       commit((document) => ({ ...document, header: { ...document.header, ...patch } }));
@@ -1032,6 +1098,10 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     setRemark,
     setSupplier,
     setSalesRemark,
+    setLaborMode,
+    setManualLaborUnitPrice,
+    setOverrideReason,
+    confirmLaborRow,
     setHeader,
     setProfile,
     setIndirectRule,

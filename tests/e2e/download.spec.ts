@@ -39,6 +39,9 @@ async function saveQuote(page: Page): Promise<Record<string, unknown>> {
  * 덮어써 버린다(`resolveProduct.ts`의 의도된 동작: 재연결 시 제품에
  * 종속된 칸을 전부 다시 채운다) — sku가 없으면 재계산이 이 행을
  * 건드리지 않고 그대로 둔다(`refreshResolvedRows`).
+ *
+ * Task 6 노무 확인 보완 Task B: manual은 금액과 사유가 둘 다 있어야
+ * 차단되지 않는다 — 사유도 같이 명시한다.
  */
 function withResolvedLabor(document: Record<string, unknown>): Record<string, unknown> {
   const rows = document['rows'] as Array<Record<string, unknown>>;
@@ -46,6 +49,7 @@ function withResolvedLabor(document: Record<string, unknown>): Record<string, un
     if (row['type'] === 'item') {
       row['laborMode'] = 'manual';
       row['manualLaborUnitPrice'] = '0';
+      row['overrideReason'] = 'E2E 시험 — 노무비 수동 0원 지정';
       delete row['laborMappingId'];
       delete row['sku'];
       delete row['productId'];

@@ -6,20 +6,31 @@
  * `onCommit`으로 workspace reducer를 부른다(계획 §4.2 "원래 문서를
  * 덮어쓰지 않는다").
  */
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import type { CalculationSnapshot } from '../../domain/calculation/calculate';
-import type { QuoteDocument } from '../../domain/quote/types';
+import type { LaborBreakdown } from '../../domain/labor/calculateLabor';
+import type { LaborWarning } from '../../domain/labor/types';
+import type { LaborMode, QuoteDocument, SheetRow } from '../../domain/quote/types';
 import { validateQuantityInput } from '../../domain/quote/validateInput';
+
+type ItemRow = Extract<SheetRow, { type: 'item' }>;
 
 interface QuoteSheetProps {
   document: QuoteDocument;
   calculation: CalculationSnapshot;
+  /** 행별 품셈 계산 근거 — 확인 패널이 그대로 보여준다(설계서 §5.3). */
+  laborBreakdowns: ReadonlyMap<string, LaborBreakdown>;
+  laborWarnings: readonly LaborWarning[];
   onQuantityChange(rowId: string, value: string): void;
   onDescriptionChange(rowId: string, value: string): void;
   onRemarkChange(rowId: string, value: string): void;
   onSupplierChange(rowId: string, value: string): void;
   onSalesRemarkChange(rowId: string, value: string): void;
   onRemoveRow(rowId: string): void;
+  onLaborModeChange(rowId: string, mode: LaborMode): void;
+  onManualLaborUnitPriceChange(rowId: string, value: string): void;
+  onOverrideReasonChange(rowId: string, value: string): void;
+  onConfirmLaborRow(rowId: string): void;
 }
 
 function QuantityCell({
@@ -104,16 +115,196 @@ function TextCell({
   );
 }
 
+/**
+ * 행 하나의 노무 처리 근거·선택 패널(Task 6 노무 확인 보완 Task C).
+ *
+ * 세 가지 선택(mapped 확인함/manual 직접 입력/not-applicable 해당없음)을
+ * 두되, `laborMappingId`가 없는 행은 "확인함"을 보여주지 않는다 —
+ * 품셈이 없다는 이유로 자동으로 `not-applicable`이 되지 않는다(사람이
+ * 고르기 전까지 `unresolved`로 남는다).
+ *
+ * 일괄 확인·전체 선택 UI는 여기 없다 — 행마다 따로 확인한다.
+ */
+function LaborBasisPanel({
+  row,
+  breakdown,
+  hasUnconfirmedWarning,
+  onLaborModeChange,
+  onManualLaborUnitPriceChange,
+  onOverrideReasonChange,
+  onConfirmLaborRow,
+}: {
+  row: ItemRow;
+  breakdown: LaborBreakdown | undefined;
+  hasUnconfirmedWarning: boolean;
+  onLaborModeChange(rowId: string, mode: LaborMode): void;
+  onManualLaborUnitPriceChange(rowId: string, value: string): void;
+  onOverrideReasonChange(rowId: string, value: string): void;
+  onConfirmLaborRow(rowId: string): void;
+}) {
+  const canBeMapped = row.laborMappingId !== undefined;
+  const isConfirmed = row.laborConfirmation !== undefined && !hasUnconfirmedWarning;
+  const wasInvalidated = row.laborConfirmation !== undefined && hasUnconfirmedWarning;
+
+  return (
+    <tr data-labor-basis-for={row.rowId}>
+      <td colSpan={12}>
+        <div className="q-labor-basis">
+          <fieldset>
+            <legend>노무 처리 방식 — {row.name}</legend>
+            <label>
+              <input
+                type="radio"
+                name={`labor-mode-${row.rowId}`}
+                checked={row.laborMode === 'mapped'}
+                disabled={!canBeMapped}
+                onChange={() => onLaborModeChange(row.rowId, 'mapped')}
+              />
+              품셈 연결(확인 필요)
+            </label>
+            <label>
+              <input
+                type="radio"
+                name={`labor-mode-${row.rowId}`}
+                checked={row.laborMode === 'manual'}
+                onChange={() => onLaborModeChange(row.rowId, 'manual')}
+              />
+              직접 입력
+            </label>
+            <label>
+              <input
+                type="radio"
+                name={`labor-mode-${row.rowId}`}
+                checked={row.laborMode === 'not-applicable'}
+                onChange={() => onLaborModeChange(row.rowId, 'not-applicable')}
+              />
+              해당 없음
+            </label>
+          </fieldset>
+
+          {row.laborMode === 'mapped' && breakdown !== undefined && (
+            <div data-labor-mapped-basis>
+              <table className="q-labor-basis-table">
+                <thead>
+                  <tr>
+                    <th>직종</th>
+                    <th>공수</th>
+                    <th>노임</th>
+                    <th>직종별 금액</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {breakdown.tradeAmounts.map((t) => (
+                    <tr key={t.trade}>
+                      <td>{t.trade}</td>
+                      <td>{t.quantity.toFixed()}</td>
+                      <td>
+                        {t.wage.toFixed()} ({t.wageUnit})
+                      </td>
+                      <td>{t.amount.toFixed()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="q-muted">
+                표준 노무 단가 {breakdown.standardUnitPrice.toFixed()} × (1+{breakdown.surcharge.toFixed()}) ×
+                요율 {breakdown.itemRate.toFixed()} × 환산 {breakdown.conversionFactor.toFixed()} → INT →{' '}
+                <strong>적용 노무 단가 {breakdown.appliedUnitPrice.toFixed()}</strong> × 수량 {row.quantity}
+              </p>
+              <p className="q-muted">
+                노임 출처: {breakdown.source} ({breakdown.wagePeriod}) — 품셈 {breakdown.code} {breakdown.revision}
+              </p>
+
+              {isConfirmed && (
+                <p role="status" data-labor-confirmed-at={row.laborConfirmation!.confirmedAt}>
+                  이 근거를 {row.laborConfirmation!.confirmedAt}에 확인했습니다.
+                </p>
+              )}
+              {wasInvalidated && (
+                <p role="alert" className="q-notice">
+                  계산 근거가 바뀌어 이전 확인이 더는 유효하지 않습니다. 위 내용을 다시 확인해 주세요.
+                </p>
+              )}
+              {!isConfirmed && (
+                <button type="button" className="q-button" onClick={() => onConfirmLaborRow(row.rowId)}>
+                  확인함
+                </button>
+              )}
+            </div>
+          )}
+
+          {row.laborMode === 'manual' && (
+            <div data-labor-manual-basis>
+              <label>
+                견적 단위당 금액(KRW)
+                <input
+                  aria-label={`${row.name} 직접 입력 금액`}
+                  value={row.manualLaborUnitPrice ?? ''}
+                  onChange={(event) => onManualLaborUnitPriceChange(row.rowId, event.target.value)}
+                />
+              </label>
+              <label>
+                사유
+                <input
+                  aria-label={`${row.name} 직접 입력 사유`}
+                  value={row.overrideReason ?? ''}
+                  onChange={(event) => onOverrideReasonChange(row.rowId, event.target.value)}
+                />
+              </label>
+            </div>
+          )}
+
+          {row.laborMode === 'not-applicable' && (
+            <div data-labor-not-applicable-basis>
+              <label>
+                사유
+                <input
+                  aria-label={`${row.name} 해당 없음 사유`}
+                  value={row.overrideReason ?? ''}
+                  onChange={(event) => onOverrideReasonChange(row.rowId, event.target.value)}
+                />
+              </label>
+            </div>
+          )}
+
+          {row.laborMode === 'unresolved' && (
+            <p className="q-muted">노무비 처리 방식을 아직 고르지 않았습니다 — 위에서 하나를 선택하세요.</p>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 export function QuoteSheet({
   document,
   calculation,
+  laborBreakdowns,
+  laborWarnings,
   onQuantityChange,
   onDescriptionChange,
   onRemarkChange,
   onSupplierChange,
   onSalesRemarkChange,
   onRemoveRow,
+  onLaborModeChange,
+  onManualLaborUnitPriceChange,
+  onOverrideReasonChange,
+  onConfirmLaborRow,
 }: QuoteSheetProps) {
+  const [expandedRowIds, setExpandedRowIds] = useState<ReadonlySet<string>>(new Set());
+  const unconfirmedRowIds = new Set(
+    laborWarnings.filter((w) => w.code === 'mapping-unconfirmed' && w.rowId !== undefined).map((w) => w.rowId!),
+  );
+
+  function toggleExpanded(rowId: string): void {
+    setExpandedRowIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowId)) next.delete(rowId);
+      else next.add(rowId);
+      return next;
+    });
+  }
   const calcBySystem = new Map(calculation.systems.map((s) => [s.systemId, s]));
 
   return (
@@ -164,8 +355,11 @@ export function QuoteSheet({
                           : '미등록';
                     const totalText = rowCalc?.total !== undefined ? rowCalc.total.toFixed() : '미등록';
 
+                    const isExpanded = expandedRowIds.has(row.rowId);
+
                     return (
-                      <tr key={row.rowId} data-row-id={row.rowId}>
+                      <Fragment key={row.rowId}>
+                      <tr data-row-id={row.rowId}>
                         <td>{row.name}</td>
                         <td>{row.specification}</td>
                         <td>{row.unit}</td>
@@ -213,7 +407,17 @@ export function QuoteSheet({
                           />
                         </td>
                         <td>{materialText}</td>
-                        <td>{laborText}</td>
+                        <td>
+                          {laborText}{' '}
+                          <button
+                            type="button"
+                            className="q-button"
+                            aria-label={`${row.name} 노무 처리 ${isExpanded ? '접기' : '펼치기'}`}
+                            onClick={() => toggleExpanded(row.rowId)}
+                          >
+                            {isExpanded ? '접기' : '펼치기'}
+                          </button>
+                        </td>
                         <td>{totalText}</td>
                         <td>
                           <button
@@ -226,6 +430,18 @@ export function QuoteSheet({
                           </button>
                         </td>
                       </tr>
+                      {isExpanded && (
+                        <LaborBasisPanel
+                          row={row}
+                          breakdown={laborBreakdowns.get(row.rowId)}
+                          hasUnconfirmedWarning={unconfirmedRowIds.has(row.rowId)}
+                          onLaborModeChange={onLaborModeChange}
+                          onManualLaborUnitPriceChange={onManualLaborUnitPriceChange}
+                          onOverrideReasonChange={onOverrideReasonChange}
+                          onConfirmLaborRow={onConfirmLaborRow}
+                        />
+                      )}
+                      </Fragment>
                     );
                   })}
                   {document.derivedRows.filter(row => row.systemId === system.systemId).map(row => {

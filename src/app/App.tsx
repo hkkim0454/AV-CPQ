@@ -467,12 +467,18 @@ export function App() {
                   <QuoteSheet
                     document={status.document}
                     calculation={status.prepared.priced.calculation}
+                    laborBreakdowns={status.prepared.priced.laborBreakdowns}
+                    laborWarnings={status.prepared.priced.laborWarnings}
                     onQuantityChange={workspace.setQuantity}
                     onDescriptionChange={workspace.setDescription}
                     onRemarkChange={workspace.setRemark}
                     onSupplierChange={workspace.setSupplier}
                     onSalesRemarkChange={workspace.setSalesRemark}
                     onRemoveRow={workspace.removeRow}
+                    onLaborModeChange={workspace.setLaborMode}
+                    onManualLaborUnitPriceChange={workspace.setManualLaborUnitPrice}
+                    onOverrideReasonChange={workspace.setOverrideReason}
+                    onConfirmLaborRow={workspace.confirmLaborRow}
                   />
                   <CableRoutePanel document={status.document} catalog={resources.catalog}
                     onApply={workspace.applyCableRoutes} onPending={setPendingCableEdit} />
