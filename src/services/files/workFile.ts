@@ -147,6 +147,15 @@ const quoteRowSchema = z
     remark: z.string(),
     supplier: z.string().optional(),
     salesRemark: z.string().optional(),
+    // Task 6 노무 확인 보완 — 이 필드 하나만 허용한다. 원가·매입처를
+    // 담지 않는다는 뜻이지, 작업 파일 전체 정책을 바꾸는 것이 아니다.
+    laborConfirmation: z
+      .object({
+        basisFingerprint: z.string().min(1),
+        confirmedAt: z.string().min(1),
+      })
+      .strict()
+      .optional(),
     sourceNodeIds: z.array(z.string()).optional(),
     optionId: z.string().optional(),
     sourceEdgeIds: z.array(z.string()).optional(),

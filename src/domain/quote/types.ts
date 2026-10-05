@@ -13,6 +13,7 @@ export type DecimalText = string;
 import type { DiagramFile } from '../../import/diagram/types';
 import type { ImportWarning } from '../../import/diagram/devices';
 import type { RouteInput } from './installation';
+import type { LaborConfirmation } from '../labor/laborConfirmation';
 
 /** 근거 상태 — 자동 확정 가능 여부를 가른다 (설계서 §5.3, §7.5). */
 export type EvidenceState = 'verified' | 'review-required' | 'conflicted';
@@ -134,6 +135,14 @@ export interface QuoteRow {
   manualLaborUnitPrice?: DecimalText;
   /** 설계서 §5.3: 수동 단가에는 사유를 남긴다. */
   overrideReason?: string;
+  /**
+   * 사람이 이 행의 품셈 연결·계산 근거를 보고 "맞다"고 확인한 사실
+   * (Task 6 노무 확인 보완 §2-2). 전역 카탈로그의 `confirmed`(항상
+   * `false`)는 건드리지 않는다 — 확인은 **이 견적의 이 행에만** 묶인다.
+   * 지문이 지금 계산 근거와 다르면 확인은 무효다(domain/labor/
+   * laborConfirmation.ts가 지문을 계산한다, Task B가 무효화를 적용한다).
+   */
+  laborConfirmation?: LaborConfirmation;
 
   location?: string;
   /** 견적서 K열. */
