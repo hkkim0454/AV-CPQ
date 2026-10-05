@@ -31,14 +31,28 @@ export interface ColumnMapping {
   /** 모델명 열. 사용자 파일에서는 머리글이 '규격' 인 경우가 많다. */
   model?: string;
   purchaseUnitPrice: string;
-  currency: string;
-  unit: string;
+  /** 통화 열. 파일에 이 열 자체가 없을 수 있다 — 그러면 `defaultCurrency`를 쓴다. */
+  currency?: string;
+  /** 단위 열. 파일에 이 열 자체가 없을 수 있다 — 그러면 `defaultUnit`를 쓴다. */
+  unit?: string;
   /** 품명 열. 사람이 연결을 확인할 때 본다. */
   name?: string;
   /** 선택 열 (설계서 §8.2). */
   brand?: string;
   lengthM?: string;
   effectiveDate?: string;
+  /**
+   * 통화 열이 아예 없거나, 있어도 그 줄의 칸이 비었을 때만 채우는
+   * **사용자 명시 확인값**이다. 자동으로 추측하지 않는다 — 화면에서
+   * 사람이 "이 파일은 전부 KRW다"라고 확인한 값만 여기로 온다.
+   *
+   * 열에 **이미 있는 값은 덮지 않는다.** 그래서 통화가 섞인 파일에
+   * 이 값을 줘도 `currency-mixed` 오류는 그대로 난다 — 확인값은
+   * 누락만 채우지, 실제로 다른 값이 적힌 줄을 가리지 않는다.
+   */
+  defaultCurrency?: string;
+  /** 단위 열의 같은 규칙 — `defaultCurrency` 설명을 그대로 따른다. */
+  defaultUnit?: string;
 }
 
 export type PriceErrorCode =
@@ -128,8 +142,12 @@ export function parsePrivatePrices(table: Table, mapping: ColumnMapping): ParseR
 
   const required: Array<[keyof ColumnMapping, string]> = [
     ['purchaseUnitPrice', mapping.purchaseUnitPrice],
-    ['currency', mapping.currency],
-    ['unit', mapping.unit],
+    ...(mapping.currency !== undefined
+      ? ([['currency', mapping.currency]] as Array<[keyof ColumnMapping, string]>)
+      : []),
+    ...(mapping.unit !== undefined
+      ? ([['unit', mapping.unit]] as Array<[keyof ColumnMapping, string]>)
+      : []),
     ...(mapping.sku !== undefined
       ? ([['sku', mapping.sku]] as Array<[keyof ColumnMapping, string]>)
       : []),
@@ -262,12 +280,16 @@ export function parsePrivatePrices(table: Table, mapping: ColumnMapping): ParseR
       return;
     }
 
-    const currency = cell('currency');
-    if (currency === '') {
+    // 열에 실제로 적힌 값이 있으면 그 값을 쓴다 — 확인값은 **비었을
+    // 때만** 채운다. 그래서 통화가 섞인 파일에 확인값을 줘도 실제로
+    // 적힌 다른 값을 가리지 않는다(currency-mixed는 그대로 난다).
+    const currencyRaw = cell('currency');
+    const currency = currencyRaw !== '' ? currencyRaw : mapping.defaultCurrency;
+    if (currency === undefined || currency === '') {
       errors.push({
         code: 'currency-empty',
         row: rowNumber,
-        column: mapping.currency,
+        ...(mapping.currency !== undefined ? { column: mapping.currency } : {}),
         message: `${rowNumber}행: 통화가 비어 있다.`,
       });
       return;
@@ -278,18 +300,19 @@ export function parsePrivatePrices(table: Table, mapping: ColumnMapping): ParseR
       errors.push({
         code: 'currency-mixed',
         row: rowNumber,
-        column: mapping.currency,
+        ...(mapping.currency !== undefined ? { column: mapping.currency } : {}),
         message: `${rowNumber}행: 통화 '${currency}'가 앞의 '${firstCurrency}'와 다르다. 한 파일에 한 통화만 받는다.`,
       });
       return;
     }
 
-    const unit = cell('unit');
-    if (unit === '') {
+    const unitRaw = cell('unit');
+    const unit = unitRaw !== '' ? unitRaw : mapping.defaultUnit;
+    if (unit === undefined || unit === '') {
       errors.push({
         code: 'unit-empty',
         row: rowNumber,
-        column: mapping.unit,
+        ...(mapping.unit !== undefined ? { column: mapping.unit } : {}),
         message: `${rowNumber}행: 단위가 비어 있다. 단위가 다르면 수량과 맞지 않는다.`,
       });
       return;

@@ -21,7 +21,13 @@ export type CostLoadStatus =
   | { kind: 'idle' }
   | { kind: 'loaded'; fileName: string; count: number }
   | { kind: 'rejected'; fileName: string; message: string }
-  | { kind: 'invalid'; fileName: string; errors: readonly PriceError[] };
+  | { kind: 'invalid'; fileName: string; errors: readonly PriceError[] }
+  /**
+   * 통화·단위 열이 파일 머리글에 아예 없다 — 추측하지 않고 사람의
+   * 명시 확인을 기다린다. 확인을 받으면 호출부가 같은 파일을 다시
+   * 읽지 않고 이미 읽어 둔 표에 확인값만 더해 다시 파싱한다.
+   */
+  | { kind: 'needs-defaults'; fileName: string; missing: { currency: boolean; unit: boolean } };
 
 export interface CostControllerState<Doc> {
   readonly requestSeq: number;
@@ -47,6 +53,7 @@ interface FinishBase {
 export type CostLoadResult<Doc> =
   | ({ kind: 'read-error'; message: string } & FinishBase)
   | ({ kind: 'parse-errors'; errors: readonly PriceError[] } & FinishBase)
+  | ({ kind: 'needs-defaults'; missing: { currency: boolean; unit: boolean } } & FinishBase)
   | ({ kind: 'parsed'; entries: readonly PriceEntry[]; document: Doc } & FinishBase);
 
 /**
@@ -65,6 +72,9 @@ export function finishCostLoad<Doc>(
   }
   if (result.kind === 'parse-errors') {
     return { ...state, status: { kind: 'invalid', fileName: result.fileName, errors: result.errors } };
+  }
+  if (result.kind === 'needs-defaults') {
+    return { ...state, status: { kind: 'needs-defaults', fileName: result.fileName, missing: result.missing } };
   }
 
   // 새 세션으로 완전히 교체한다 — 옛 세션은 지운다(참조를 끊는다).

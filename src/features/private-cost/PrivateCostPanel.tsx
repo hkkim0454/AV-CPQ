@@ -1,19 +1,22 @@
 /**
  * 내 PC 원가 파일 확인 — 사내 전용(계획 Task5 "내 PC의 원가 파일과
- * 모델 확인"). 이번 분량은 집중 항목만 다룬다: 원가 파일 교체/문서
- * 교체 시 세션 폐기, 지연 응답 무효화. 열 매핑 확인 화면·통화/단위
- * 명시 입력·모델 후보 연결 UI는 Task5의 남은 체크리스트로 아직 이
- * 패널에 없다 — 지금은 실제 원가 파일의 고정 열 이름(품명/규격/
- * 매입단가/통화/단위)만 읽는다.
+ * 모델 확인"). 열 이름은 실제 원가 파일의 고정 모양(품명/규격/
+ * 매입단가/통화/단위)을 그대로 쓴다. 통화·단위 열이 머리글에 아예
+ * 없으면(예: 파일에 늘 KRW뿐이라 적어 둔 적이 없다) 사람이 명시
+ * 확인하는 입력을 보여준다 — 추측하지 않고, 열에 실제 값이 있으면
+ * 그 값을 덮지 않는다(parse.ts의 `defaultCurrency`/`defaultUnit`).
+ *
+ * 모델 후보 연결 UI(중복 후보 중 사람이 골라 rowId에 잇는 화면)는
+ * Task5의 남은 체크리스트로 아직 이 패널에 없다.
  *
  * 원가 서비스 계층(`services/private-cost/`)은 여기서만 들여온다 —
  * customer/shared/files 경로와 분리한다.
  */
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import type { QuoteDocument } from '../../domain/quote/types';
 import type { ColumnMapping } from '../../services/private-cost/parse';
 import type { TableFormat } from '../../services/private-cost/readTable';
-import { usePrivateCostController } from './usePrivateCostController';
+import { usePrivateCostController, type PrivateCostController } from './usePrivateCostController';
 
 const DEFAULT_MAPPING: ColumnMapping = {
   name: '품명',
@@ -87,11 +90,81 @@ export function PrivateCostPanel({ document }: { document: QuoteDocument }) {
           </ul>
         </div>
       )}
+      {status.kind === 'needs-defaults' && (
+        <DefaultsConfirmForm
+          fileName={status.fileName}
+          missing={status.missing}
+          onConfirm={controller.confirmDefaults}
+        />
+      )}
       {controller.session !== undefined && status.kind !== 'loaded' && (
         <p role="status" className="q-muted">
           연결된 원가 — {controller.session.size}줄
         </p>
       )}
     </section>
+  );
+}
+
+function DefaultsConfirmForm({
+  fileName,
+  missing,
+  onConfirm,
+}: {
+  fileName: string;
+  missing: { currency: boolean; unit: boolean };
+  onConfirm: PrivateCostController['confirmDefaults'];
+}) {
+  // 추측하지 않는다 — 빈 채로 시작해 사람이 직접 입력해야 한다.
+  const [currency, setCurrency] = useState('');
+  const [unit, setUnit] = useState('');
+  const ready = (!missing.currency || currency.trim() !== '') && (!missing.unit || unit.trim() !== '');
+
+  return (
+    <div role="alert" className="q-field-error">
+      <p>
+        {fileName} — {missing.currency && missing.unit
+          ? '통화·단위 열이 없다.'
+          : missing.currency
+            ? '통화 열이 없다.'
+            : '단위 열이 없다.'}{' '}
+        이 파일 전체에 적용할 값을 직접 확인해 입력해야 한다.
+      </p>
+      {missing.currency && (
+        <label>
+          통화(예: KRW)
+          <input
+            type="text"
+            aria-label="원가 파일 통화 확인"
+            value={currency}
+            onChange={(event) => setCurrency(event.target.value)}
+          />
+        </label>
+      )}
+      {missing.unit && (
+        <label>
+          단위(예: EA)
+          <input
+            type="text"
+            aria-label="원가 파일 단위 확인"
+            value={unit}
+            onChange={(event) => setUnit(event.target.value)}
+          />
+        </label>
+      )}
+      <button
+        type="button"
+        className="q-button"
+        disabled={!ready}
+        onClick={() =>
+          onConfirm({
+            ...(missing.currency ? { currency: currency.trim() } : {}),
+            ...(missing.unit ? { unit: unit.trim() } : {}),
+          })
+        }
+      >
+        확인
+      </button>
+    </div>
   );
 }

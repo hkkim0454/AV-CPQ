@@ -331,6 +331,58 @@ describe('parsePrivatePrices — 열 매핑과 검증 (설계서 §8.2, §8.3)',
   });
 });
 
+describe('parsePrivatePrices — 통화/단위 확인값 (계획 Task5, 자동 추측 금지)', () => {
+  const noCurrencyUnitMapping = { sku: 'SKU', purchaseUnitPrice: '매입단가' } as const;
+
+  it('통화·단위 열이 아예 없으면 확인값 없이는 오류다 — 추측하지 않는다', () => {
+    const noColumns = csv('SKU,매입단가\nA-1,1000\n');
+    const result = parsePrivatePrices(readTable(noColumns, 'csv'), noCurrencyUnitMapping);
+    expect(result.errors.map((e) => e.code)).toEqual(['currency-empty']);
+    expect(result.entries).toEqual([]);
+  });
+
+  it('통화·단위 열이 없어도 확인값을 주면 전체 행에 적용된다', () => {
+    const noColumns = csv('SKU,매입단가\nA-1,1000\nB-2,2000\n');
+    const result = parsePrivatePrices(readTable(noColumns, 'csv'), {
+      ...noCurrencyUnitMapping,
+      defaultCurrency: 'KRW',
+      defaultUnit: 'EA',
+    });
+    expect(result.errors).toEqual([]);
+    expect(result.entries.map((e) => ({ currency: e.currency, unit: e.unit }))).toEqual([
+      { currency: 'KRW', unit: 'EA' },
+      { currency: 'KRW', unit: 'EA' },
+    ]);
+  });
+
+  it('통화 열이 있고 어느 줄만 비었으면 확인값은 그 줄만 채운다', () => {
+    const partial = csv('SKU,매입단가,통화,단위\nA-1,1000,,EA\nB-2,2000,KRW,EA\n');
+    const result = parsePrivatePrices(readTable(partial, 'csv'), { ...MAPPING, defaultCurrency: 'KRW' });
+    expect(result.errors).toEqual([]);
+    expect(result.entries.map((e) => e.currency)).toEqual(['KRW', 'KRW']);
+  });
+
+  it('열에 이미 적힌 값은 확인값이 덮지 않는다', () => {
+    const hasValue = csv('SKU,매입단가,통화,단위\nA-1,1000,USD,EA\n');
+    const result = parsePrivatePrices(readTable(hasValue, 'csv'), { ...MAPPING, defaultCurrency: 'KRW' });
+    expect(result.errors).toEqual([]);
+    expect(result.entries[0]!.currency).toBe('USD');
+  });
+
+  it('통화가 섞인 파일은 KRW 확인값을 줘도 그대로 실패한다 — 확인값은 누락만 채운다', () => {
+    const mixed = csv('SKU,매입단가,통화,단위\nA-1,1000,KRW,EA\nB-2,2000,USD,EA\n');
+    const result = parsePrivatePrices(readTable(mixed, 'csv'), { ...MAPPING, defaultCurrency: 'KRW' });
+    expect(result.errors.some((e) => e.code === 'currency-mixed')).toBe(true);
+  });
+
+  it('단위도 같은 규칙이다 — 열이 있고 한 줄만 비면 그 줄만 확인값으로 채운다', () => {
+    const partial = csv('SKU,매입단가,통화,단위\nA-1,1000,KRW,\nB-2,2000,KRW,M\n');
+    const result = parsePrivatePrices(readTable(partial, 'csv'), { ...MAPPING, defaultUnit: 'EA' });
+    expect(result.errors).toEqual([]);
+    expect(result.entries.map((e) => e.unit)).toEqual(['EA', 'M']);
+  });
+});
+
 describe('PrivateCostSession — 메모리 전용 (설계서 §8.1, §8.4)', () => {
   const entries = [
     { entryId: `e${1}`, sku: 'A-1', purchaseUnitPrice: '1000', currency: 'KRW' as const, unit: 'EA' },

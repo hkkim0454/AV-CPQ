@@ -5,8 +5,9 @@ import { mockResources } from './fixtures';
 /**
  * Task5 "내 PC의 원가 파일과 모델 확인" — 집중 항목만 검증한다(독립
  * 검토 지적 2026-10-05): 원가 파일 교체/문서 교체 시 세션 폐기, 지연
- * 응답 무효화, 고객/작업 파일 격리. 열 매핑 확인·모델 후보 연결 UI는
- * 아직 없다 — 고정 열 이름(품명/규격/매입단가/통화/단위)만 쓴다.
+ * 응답 무효화, 고객/작업 파일 격리, 통화/단위 확인 입력(2026-10-05
+ * 추가). 모델 후보 연결 UI는 아직 없다 — 고정 열 이름(품명/규격/
+ * 매입단가/통화/단위)만 쓴다.
  *
  * 숫자는 전부 합성이다. 실제 원가 파일은 사용자 PC에만 있다.
  */
@@ -17,6 +18,10 @@ const COST_PRICE_B = '7654321';
 
 function costCsv(price: string): Buffer {
   return Buffer.from(`${COST_CSV_HEADER}\nPTZ 카메라,FIX,${price},KRW,EA\n`, 'utf8');
+}
+
+function costCsvNoCurrencyUnit(price: string): Buffer {
+  return Buffer.from(`품명,규격,매입단가\nPTZ 카메라,FIX,${price}\n`, 'utf8');
 }
 
 async function createDocument(page: import('@playwright/test').Page): Promise<void> {
@@ -92,6 +97,26 @@ test('격리 — 원가 파일을 연결한 채로 작업 파일을 저장해도
   expect(savedText).not.toContain(COST_PRICE_A);
   expect(savedText).not.toContain('cost-secret.csv');
   expect(savedText).not.toContain('privateCostSession');
+});
+
+test('통화/단위 열이 없는 원가 파일 — 추측하지 않고 확인 입력을 받은 뒤에만 인식된다', async ({ page }) => {
+  await mockResources(page);
+  await createDocument(page);
+  await selectCostFile(page, 'no-currency-unit.csv', costCsvNoCurrencyUnit(COST_PRICE_A));
+
+  const confirm = page.getByRole('alert').filter({ hasText: '통화·단위 열이 없다' });
+  await expect(confirm).toBeVisible();
+  // 확인 전에는 아직 인식되지 않는다 — 추측해서 채우지 않는다.
+  await expect(page.getByRole('status').filter({ hasText: '인식됨' })).toHaveCount(0);
+
+  const confirmButton = confirm.getByRole('button', { name: '확인' });
+  await expect(confirmButton).toBeDisabled();
+
+  await confirm.getByLabel('원가 파일 통화 확인').fill('KRW');
+  await confirm.getByLabel('원가 파일 단위 확인').fill('EA');
+  await confirmButton.click();
+
+  await expect(page.getByRole('status').filter({ hasText: '1줄 인식됨' })).toBeVisible();
 });
 
 test('격리 — 원가 파일 선택은 네트워크 요청을 전혀 내지 않는다', async ({ page }) => {

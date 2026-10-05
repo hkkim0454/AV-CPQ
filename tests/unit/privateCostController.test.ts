@@ -180,6 +180,65 @@ describe('문서 교체 — 세션이 자동으로 더는 유효하지 않다', 
   });
 });
 
+describe('통화/단위 확인 대기 — 지연 응답 무효화 규칙도 똑같이 적용된다', () => {
+  it('needs-defaults 결과도 늦게 끝난 이전 선택이면 버린다', () => {
+    let state = initialCostControllerState<string>();
+    const [s1, reqA] = beginCostLoad(state);
+    state = s1;
+    const [s2, reqB] = beginCostLoad(state);
+    state = s2;
+
+    // B가 먼저 끝나고 정상 로드된다.
+    state = finishCostLoad(state, {
+      kind: 'parsed',
+      requestId: reqB,
+      fileName: 'b.csv',
+      entries: [entry('row-1', '2000000')],
+      document: 'doc-A',
+    });
+    // A(먼저 선택, 늦게 끝남)가 뒤늦게 "통화 확인 필요"로 도착한다 — 버려야 한다.
+    state = finishCostLoad(state, {
+      kind: 'needs-defaults',
+      requestId: reqA,
+      fileName: 'a.csv',
+      missing: { currency: true, unit: false },
+    });
+
+    expect(state.status).toMatchObject({ kind: 'loaded', fileName: 'b.csv' });
+  });
+
+  it('최신 선택이면 needs-defaults 상태로 전환되고, 기존 세션은 건드리지 않는다', () => {
+    let state = loadedHelper('doc-A');
+    const existingSession = state.pinned!.session;
+
+    const [s2, req2] = beginCostLoad(state);
+    state = finishCostLoad(s2, {
+      kind: 'needs-defaults',
+      requestId: req2,
+      fileName: 'b.csv',
+      missing: { currency: true, unit: true },
+    });
+
+    expect(state.status).toEqual({ kind: 'needs-defaults', fileName: 'b.csv', missing: { currency: true, unit: true } });
+    // 확인을 기다리는 동안 이전 파일의 세션은 그대로 유효하다.
+    expect(state.pinned!.session).toBe(existingSession);
+    expect(existingSession.cleared).toBe(false);
+  });
+});
+
+function loadedHelper(document: string): CostControllerState<string> {
+  let state = initialCostControllerState<string>();
+  const [s1, req1] = beginCostLoad(state);
+  state = finishCostLoad(s1, {
+    kind: 'parsed',
+    requestId: req1,
+    fileName: 'a.csv',
+    entries: [entry('row-1', '1000000')],
+    document,
+  });
+  return state;
+}
+
 describe('격리 — 세션 상태를 직렬화해도 원가 값이 새지 않는다', () => {
   it('JSON.stringify(state)에 매입단가 값이 없다', () => {
     const state = (() => {
