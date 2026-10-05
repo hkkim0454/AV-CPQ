@@ -45,6 +45,45 @@ interface WarningListProps {
   onResolveRow(rowId: string, sku: string): void;
 }
 
+/**
+ * 승인 판매단가 표시 — 미등록(카탈로그에 키가 없음)과 명시적 0원을
+ * 구분한다(설계서 §5.6과 같은 규율). 여기서 읽는 `catalog.prices`는
+ * 공개 승인 판매단가다 — 원가 세션(`services/private-cost`)과는
+ * 무관하고, 이 파일은 그 모듈을 들여오지 않는다.
+ */
+function approvedPriceLabel(catalog: Catalog, sku: string): string {
+  const price = catalog.prices.get(sku);
+  return price === undefined ? '미등록' : `${price}원`;
+}
+
+/**
+ * 후보 한 줄에 보일 전부 — SKU·모델/규격·품명·설명(`options.description`)·
+ * 승인 판매단가·단위(O11 독립 검토 지적: 이전엔 품명이나 규격 한 쪽만
+ * 보여서, 모델은 같고 설명·가격만 다른 후보를 구분할 수 없었다).
+ * 기본/묶음 목록과 검색 목록이 전부 이 컴포넌트 하나를 같이 쓴다 —
+ * 한쪽만 고치고 다른 쪽을 빠뜨리는 일이 없게 한다.
+ */
+function CandidateDetail({ product, catalog }: { product: CatalogProduct; catalog: Catalog }) {
+  const description = product.options['description'];
+  return (
+    <div className="q-candidate-detail">
+      <div className="q-candidate-name">
+        {product.quoteName}
+        {product.model !== '' && ` · 모델 ${product.model}`}
+        {product.quoteSpec !== '' && ` · 규격 ${product.quoteSpec}`}
+      </div>
+      {description !== undefined && description !== '' && (
+        <div className="q-candidate-desc">{description}</div>
+      )}
+      <div className="q-candidate-meta">
+        <span>SKU {product.sku}</span>
+        <span>단위 {product.unit}</span>
+        <span>판매단가 {approvedPriceLabel(catalog, product.sku)}</span>
+      </div>
+    </div>
+  );
+}
+
 function CandidateList({
   candidates,
   catalog,
@@ -66,10 +105,11 @@ function CandidateList({
           const product = bySku.get(sku);
           return (
             <li key={sku}>
-              <span>
-                {sku}
-                {product !== undefined ? ` — ${product.quoteName}` : ''}
-              </span>
+              {product !== undefined ? (
+                <CandidateDetail product={product} catalog={catalog} />
+              ) : (
+                <span>{sku}</span>
+              )}
               <button type="button" className="q-button" onClick={() => onSelect(sku)}>
                 선택
               </button>
@@ -98,9 +138,7 @@ function CandidateList({
           <ul className="q-resolve-candidates">
             {products.map((product) => (
               <li key={product.sku}>
-                <span>
-                  {product.quoteSpec !== '' ? product.quoteSpec : product.quoteName} ({product.sku})
-                </span>
+                <CandidateDetail product={product} catalog={catalog} />
                 <button type="button" className="q-button" onClick={() => onSelect(product.sku)}>
                   선택
                 </button>
@@ -144,9 +182,7 @@ function SearchResolve({
         <ul className="q-resolve-candidates">
           {matches.map((product) => (
             <li key={product.sku}>
-              <span>
-                {product.quoteName} ({product.sku})
-              </span>
+              <CandidateDetail product={product} catalog={catalog} />
               <button type="button" className="q-button" onClick={() => onSelect(product.sku)}>
                 연결
               </button>

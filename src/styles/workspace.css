@@ -47,13 +47,37 @@
 
 .q-resolve-candidates li {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
   padding: 6px 10px;
   border: 1px solid var(--q-line);
   border-radius: var(--q-r-chip);
   font-size: 12px;
+}
+
+.q-candidate-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.q-candidate-name {
+  font-weight: 600;
+}
+
+.q-candidate-desc {
+  color: var(--q-muted);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.q-candidate-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--q-muted);
 }
 
 .q-resolve-candidates-grouped {

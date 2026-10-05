@@ -6,7 +6,11 @@ const SKU_NO_PRICE = 'E2E-002';
 const SKU_ZERO_PRICE = 'E2E-003';
 const SKU_AMBIGUOUS_A = 'E2E-010';
 const SKU_AMBIGUOUS_B = 'E2E-011';
+const SKU_UNIT_EA = 'E2E-020';
+const SKU_UNIT_SET = 'E2E-021';
 const DESCRIPTION = '합성 설명 문구 — E2E 전용';
+const AMB_A_DESCRIPTION = '전면 패널에 아이패드 거치대 제외';
+const AMB_B_DESCRIPTION = '전면 패널에 아이패드 거치대 포함';
 const SHA = 'c'.repeat(64);
 
 function customProducts(): unknown {
@@ -52,7 +56,10 @@ function customProducts(): unknown {
         evidence: 'verified',
       },
       // 같은 모델 문자열(quoteSpec)에 두 제품이 걸린다 — 모호한 매칭
-      // 경고(device-ambiguous-match)의 후보 선택 검증용이다.
+      // 경고(device-ambiguous-match)의 후보 선택 검증용이다. 실제
+      // V-160HD(아이패드 거치대 제외/포함, 600만/700만원)를 본떠
+      // 설명·가격만 다르게 둔다(O11 독립 검토 지적 — 모델만 같고
+      // 설명·가격이 다른 후보를 구분할 수 있어야 한다).
       {
         productId: SKU_AMBIGUOUS_A,
         sku: SKU_AMBIGUOUS_A,
@@ -61,7 +68,7 @@ function customProducts(): unknown {
         quoteName: 'E2E 후보 A',
         quoteSpec: 'AMB-MODEL',
         unit: 'EA',
-        options: { group: '합성 장비' },
+        options: { description: AMB_A_DESCRIPTION, group: '합성 장비' },
         currency: 'KRW',
         evidence: 'verified',
       },
@@ -73,6 +80,31 @@ function customProducts(): unknown {
         quoteName: 'E2E 후보 B',
         quoteSpec: 'AMB-MODEL',
         unit: 'EA',
+        options: { description: AMB_B_DESCRIPTION, group: '합성 장비' },
+        currency: 'KRW',
+        evidence: 'verified',
+      },
+      // 같은 모델, 단위만 다른 두 후보 — 단위(EA/SET)로 구분되는지 본다.
+      {
+        productId: SKU_UNIT_EA,
+        sku: SKU_UNIT_EA,
+        brand: '',
+        model: 'UNIT-MODEL',
+        quoteName: 'E2E 단위후보',
+        quoteSpec: 'UNIT-MODEL',
+        unit: 'EA',
+        options: { group: '합성 장비' },
+        currency: 'KRW',
+        evidence: 'verified',
+      },
+      {
+        productId: SKU_UNIT_SET,
+        sku: SKU_UNIT_SET,
+        brand: '',
+        model: 'UNIT-MODEL',
+        quoteName: 'E2E 단위후보',
+        quoteSpec: 'UNIT-MODEL',
+        unit: 'SET',
         options: { group: '합성 장비' },
         currency: 'KRW',
         evidence: 'verified',
@@ -94,6 +126,8 @@ function customPrices(): unknown {
       [SKU_ZERO_PRICE]: { sellingUnitPrice: '0', currency: 'KRW' },
       [SKU_AMBIGUOUS_A]: { sellingUnitPrice: '70000', currency: 'KRW' },
       [SKU_AMBIGUOUS_B]: { sellingUnitPrice: '80000', currency: 'KRW' },
+      [SKU_UNIT_EA]: { sellingUnitPrice: '10000', currency: 'KRW' },
+      [SKU_UNIT_SET]: { sellingUnitPrice: '30000', currency: 'KRW' },
     },
   };
 }
@@ -118,6 +152,19 @@ function diagramWithUnresolvedDevices(): string {
     nodes: [
       { id: 'amb-1', data: { model: 'AMB-MODEL', systemName: '시스템1' } },
       { id: 'unknown-1', data: { model: 'NOPE-MODEL-XYZ', name: '알 수 없는 장비', systemName: '시스템1' } },
+    ],
+    edges: [],
+    lineTypes: [],
+  });
+}
+
+/** 모호한 모델 둘 — 하나는 설명/가격만, 하나는 단위만 다른 후보 쌍이다. */
+function diagramWithDisplayAmbiguousDevices(): string {
+  return JSON.stringify({
+    version: '1',
+    nodes: [
+      { id: 'amb-1', data: { model: 'AMB-MODEL', systemName: '시스템1' } },
+      { id: 'unit-1', data: { model: 'UNIT-MODEL', systemName: '시스템1' } },
     ],
     edges: [],
     lineTypes: [],
@@ -623,4 +670,56 @@ test('본체+옵션 2종 — 본체를 해결해도 옵션 행은 그대로고, 
   await expect(warningPanel).toContainText('OPT-B-UNRESOLVED');
   await expect(warningPanel).not.toContainText('BODY-UNRESOLVED');
   await expect(page.locator('.q-quote-table tbody tr', { hasText: 'E2E 테스트 품목' })).toBeVisible();
+});
+
+test('후보 표시 — 같은 모델이라도 설명·가격·단위로 구분되고, 고른 SKU의 값이 정확히 반영된다(O11 독립 검토)', async ({
+  page,
+}) => {
+  await setupCustomCatalog(page);
+  await page.goto('/');
+
+  await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
+  await page.getByLabel('구성도 파일 선택').setInputFiles({
+    name: 'diagram.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(diagramWithDisplayAmbiguousDevices()),
+  });
+
+  const warningPanel = page.getByRole('alert').filter({ hasText: '확인이 필요합니다' });
+
+  // --- 1) 같은 모델(AMB-MODEL), 설명·가격만 다른 두 후보 ---
+  // "첫 번째를 고른다"가 아니라 설명·SKU·판매단가로 각 후보를 식별할 수
+  // 있어야 한다 — 전에는 품명만 보여서 구분이 안 됐다. 후보 줄(li)은
+  // 경고 자체의 li 안에 중첩되므로 `.q-resolve-candidates li`로
+  // 정확히 그 줄만 가리킨다(바깥 li와 겹치는 strict-mode 충돌 방지).
+  const candidates = warningPanel.locator('.q-resolve-candidates li');
+  const candidateA = candidates.filter({ hasText: 'E2E 후보 A' });
+  await expect(candidateA).toContainText(AMB_A_DESCRIPTION);
+  await expect(candidateA).toContainText(`SKU ${SKU_AMBIGUOUS_A}`);
+  await expect(candidateA).toContainText('단위 EA');
+  await expect(candidateA).toContainText('판매단가 70000원');
+
+  const candidateB = candidates.filter({ hasText: 'E2E 후보 B' });
+  await expect(candidateB).toContainText(AMB_B_DESCRIPTION);
+  await expect(candidateB).toContainText(`SKU ${SKU_AMBIGUOUS_B}`);
+  await expect(candidateB).toContainText('판매단가 80000원');
+
+  // B를 명시로 고른다 — 실제로 B의 가격(80000)이 반영되는지,
+  // A의 가격(70000)이 섞여 들어가지 않는지 확인한다.
+  await candidateB.getByRole('button', { name: '선택' }).click();
+  const resolvedAmbRow = page.locator('.q-quote-table tbody tr', { hasText: 'E2E 후보 B' });
+  await expect(resolvedAmbRow.locator('td').nth(6)).toHaveText('80000'); // 재료비 칸.
+
+  // --- 2) 같은 모델(UNIT-MODEL), 단위만 다른 두 후보 ---
+  const candidateEa = candidates.filter({ hasText: `SKU ${SKU_UNIT_EA}` });
+  await expect(candidateEa).toContainText('단위 EA');
+  await expect(candidateEa).toContainText('판매단가 10000원');
+  const candidateSet = candidates.filter({ hasText: `SKU ${SKU_UNIT_SET}` });
+  await expect(candidateSet).toContainText('단위 SET');
+  await expect(candidateSet).toContainText('판매단가 30000원');
+
+  await candidateSet.getByRole('button', { name: '선택' }).click();
+  const resolvedUnitRow = page.locator('.q-quote-table tbody tr', { hasText: 'E2E 단위후보' });
+  await expect(resolvedUnitRow.locator('td').nth(2)).toHaveText('SET'); // 단위 칸 — EA(10000)가 아니라 SET(30000).
+  await expect(resolvedUnitRow.locator('td').nth(6)).toHaveText('30000'); // 재료비 칸.
 });
