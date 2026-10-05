@@ -136,6 +136,63 @@ test('모델 후보 연결 — SKU가 없는 행은 모델명 후보 중 사람�
   await expect(row.getByText(/원가 1234567/)).toBeVisible();
 });
 
+test('감사 — 오프라인에서도 원가 선택·연결·저장이 되고, 요청·콘솔·저장소·작업 파일 어디에도 원가가 새지 않는다', async ({
+  page,
+  context,
+}) => {
+  await mockResources(page);
+  await createDocument(page);
+
+  const requests: string[] = [];
+  page.on('request', (req) => requests.push(req.url()));
+  const consoleMessages: string[] = [];
+  page.on('console', (msg) => consoleMessages.push(msg.text()));
+
+  // 초기 자산 로딩이 끝난 뒤 오프라인으로 전환한다 — 이 지점부터는
+  // 네트워크가 전혀 없어도 원가 선택·연결·저장이 전부 돼야 한다.
+  await context.setOffline(true);
+
+  const secretPrice = '919191917';
+  const secretFileName = 'cost-offline-secret.csv';
+  const csv = Buffer.from(`품명,규격,매입단가,통화,단위\nPTZ 카메라,FIX-SPEC,${secretPrice},KRW,EA\n`, 'utf8');
+  await selectCostFile(page, secretFileName, csv);
+  await expect(page.getByRole('status').filter({ hasText: '1줄 인식됨' })).toBeVisible();
+
+  const row = page.locator('.q-private-cost tbody tr', { hasText: '합성 테스트 품목' });
+  await row.getByRole('button', { name: '연결' }).click();
+  await expect(row.getByText(new RegExp(`원가 ${secretPrice}`))).toBeVisible();
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: '작업 파일로 저장' }).click(),
+  ]);
+  const savedText = readFileSync((await download.path())!, 'utf8');
+
+  await context.setOffline(false);
+
+  // 네트워크 — 이 흐름 전체에서 어떤 요청도 비밀 가격·원가 파일명을 담지 않는다.
+  expect(requests.some((url) => url.includes(secretPrice))).toBe(false);
+  expect(requests.some((url) => url.includes(secretFileName))).toBe(false);
+
+  // 콘솔 — 어디에도 비밀 가격을 찍지 않는다.
+  expect(consoleMessages.some((text) => text.includes(secretPrice))).toBe(false);
+
+  // 저장소 — localStorage/sessionStorage 어디에도 없다.
+  const storages = await page.evaluate(() => {
+    const dump = (storage: Storage): string =>
+      Array.from({ length: storage.length }, (_, i) => storage.key(i))
+        .map((key) => `${key}=${storage.getItem(key ?? '')}`)
+        .join(';');
+    return { local: dump(window.localStorage), session: dump(window.sessionStorage) };
+  });
+  expect(storages.local).not.toContain(secretPrice);
+  expect(storages.session).not.toContain(secretPrice);
+
+  // 작업 파일 — 저장된 JSON에도 없다.
+  expect(savedText).not.toContain(secretPrice);
+  expect(savedText).not.toContain(secretFileName);
+});
+
 test('격리 — 원가 파일 선택은 네트워크 요청을 전혀 내지 않는다', async ({ page }) => {
   await mockResources(page);
   await createDocument(page);
