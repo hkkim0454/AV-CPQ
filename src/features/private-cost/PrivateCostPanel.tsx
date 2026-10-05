@@ -6,8 +6,16 @@
  * 확인하는 입력을 보여준다 — 추측하지 않고, 열에 실제 값이 있으면
  * 그 값을 덮지 않는다(parse.ts의 `defaultCurrency`/`defaultUnit`).
  *
- * 모델 후보 연결 UI(중복 후보 중 사람이 골라 rowId에 잇는 화면)는
- * Task5의 남은 체크리스트로 아직 이 패널에 없다.
+ * SKU가 견적 행에 있고 원가 파일에도 그 SKU가 있으면 자동으로
+ * 연결된다(internalLines의 기존 규칙). 그 외의 행은 모델명 후보 중
+ * 사람이 직접 골라 연결해야 한다 — 비슷한 모델이 여럿이면 전부
+ * 보여주고 하나를 임의로 고르지 않는다(useCostLinks/candidates.ts).
+ *
+ * 이 화면은 내부 확인용이다 — 여기서 만든 rowId→entryId 연결과 원가
+ * 비교 숫자는 QuoteDocument에 들어가지 않고, 고객용/공유용 출력과도
+ * 분리된 전용 경로로만 접근한다(Task6에서 영업팀용 출력만 연결 예정,
+ * 아직 다운로드 연결·오프라인/네트워크/스토리지/로그 감사 검증은
+ * 남은 작업이다).
  *
  * 원가 서비스 계층(`services/private-cost/`)은 여기서만 들여온다 —
  * customer/shared/files 경로와 분리한다.
@@ -17,6 +25,9 @@ import type { QuoteDocument } from '../../domain/quote/types';
 import type { ColumnMapping } from '../../services/private-cost/parse';
 import type { TableFormat } from '../../services/private-cost/readTable';
 import { usePrivateCostController, type PrivateCostController } from './usePrivateCostController';
+import { useCostLinks } from './useCostLinks';
+import type { InternalLine } from '../../services/private-cost/calculate';
+import type { UnresolvedRowCandidates } from '../../services/private-cost/candidates';
 
 const DEFAULT_MAPPING: ColumnMapping = {
   name: '품명',
@@ -35,6 +46,7 @@ function formatOf(name: string): TableFormat | undefined {
 export function PrivateCostPanel({ document }: { document: QuoteDocument }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const controller = usePrivateCostController(document);
+  const costLinks = useCostLinks(document, controller.session);
   const { status } = controller;
 
   return (
@@ -102,7 +114,78 @@ export function PrivateCostPanel({ document }: { document: QuoteDocument }) {
           연결된 원가 — {controller.session.size}줄
         </p>
       )}
+      {controller.session !== undefined && costLinks.lines.length > 0 && (
+        <table className="q-quote-table">
+          <thead>
+            <tr>
+              <th>품명</th>
+              <th>규격</th>
+              <th>원가 대비</th>
+            </tr>
+          </thead>
+          <tbody>
+            {costLinks.lines.map((line) => (
+              <CostLineRow
+                key={line.rowId}
+                line={line}
+                unresolved={costLinks.unresolved.find((u) => u.rowId === line.rowId)}
+                onConfirmLink={(entryId) => costLinks.confirmLink(line.rowId, entryId)}
+              />
+            ))}
+          </tbody>
+        </table>
+      )}
     </section>
+  );
+}
+
+function CostLineRow({
+  line,
+  unresolved,
+  onConfirmLink,
+}: {
+  line: InternalLine;
+  unresolved: UnresolvedRowCandidates | undefined;
+  onConfirmLink(entryId: string): void;
+}) {
+  return (
+    <tr>
+      <td>{line.name}</td>
+      <td>{line.specification}</td>
+      <td>
+        {line.costRegistered && line.costLinkStale !== true ? (
+          <span>
+            원가 {line.purchaseUnitPrice?.toFixed()} · 가산율{' '}
+            {line.markupRate !== undefined ? `${line.markupRate.times(100).toFixed(1)}%` : '계산 불가'} · 이익률{' '}
+            {line.marginRate !== undefined ? `${line.marginRate.times(100).toFixed(1)}%` : '계산 불가'}
+          </span>
+        ) : (
+          <>
+            {line.costLinkStale === true && (
+              <p role="alert" className="q-field-error">
+                이 연결은 더 이상 유효하지 않다 — 원가 파일이 바뀌었다. 다시 연결하세요.
+              </p>
+            )}
+            {unresolved === undefined ? (
+              <span className="q-muted">미등록</span>
+            ) : unresolved.candidates.length === 0 ? (
+              <span className="q-muted">후보 없음 — 미등록</span>
+            ) : (
+              <ul className="q-resolve-candidates">
+                {unresolved.candidates.map((candidate) => (
+                  <li key={candidate.entryId}>
+                    {candidate.name ?? candidate.model} ({candidate.unit})
+                    <button type="button" className="q-button" onClick={() => onConfirmLink(candidate.entryId)}>
+                      연결
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </td>
+    </tr>
   );
 }
 

@@ -119,6 +119,23 @@ test('통화/단위 열이 없는 원가 파일 — 추측하지 않고 확인 �
   await expect(page.getByRole('status').filter({ hasText: '1줄 인식됨' })).toBeVisible();
 });
 
+test('모델 후보 연결 — SKU가 없는 행은 모델명 후보 중 사람이 직접 골라 연결한다', async ({ page }) => {
+  await mockResources(page);
+  await createDocument(page);
+  // 고정 카탈로그 품목의 SKU(FIX-0001)를 원가 파일에 넣지 않는다 —
+  // 모델명(규격 FIX-SPEC)으로만 찾아야 하는 상황을 만든다.
+  const csv = Buffer.from('품명,규격,매입단가,통화,단위\nPTZ 카메라,FIX-SPEC,1234567,KRW,EA\n', 'utf8');
+  await selectCostFile(page, 'cost-model-only.csv', csv);
+  await expect(page.getByRole('status').filter({ hasText: '1줄 인식됨' })).toBeVisible();
+
+  const row = page.locator('.q-private-cost tbody tr', { hasText: '합성 테스트 품목' });
+  await expect(row).toBeVisible();
+  await expect(row.getByText('미등록')).toHaveCount(0);
+  await row.getByRole('button', { name: '연결' }).click();
+
+  await expect(row.getByText(/원가 1234567/)).toBeVisible();
+});
+
 test('격리 — 원가 파일 선택은 네트워크 요청을 전혀 내지 않는다', async ({ page }) => {
   await mockResources(page);
   await createDocument(page);
