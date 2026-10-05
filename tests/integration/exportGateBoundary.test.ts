@@ -89,12 +89,53 @@ describe('실제 승인 카탈로그 전제 확인', () => {
 });
 
 describe('assertExportAllowed — 공통 출력 경계의 단일 게이트', () => {
-  it('blocking이면 던진다', () => {
-    expect(() => assertExportAllowed({ blocking: true } as PreparedQuote)).toThrow(ExportBlockedError);
+  it('blocking이면 guides를 보기도 전에 던진다', () => {
+    expect(() => assertExportAllowed({ blocking: true } as PreparedQuote, {} as GuideTemplateSet)).toThrow(
+      ExportBlockedError,
+    );
+  });
+});
+
+/**
+ * **"blocking 플래그만 보는 시험"으로는 부족하다**(2026-10-05 독립 검토
+ * 재지적) — `blocking: false`인 `prepared`라도, **그 문서가 기록한
+ * 가이드 템플릿 기준(`versions.template`)이 지금 넘겨받은 `guides`와
+ * 다르면** 과거 한때는 유효했던 계산 결과를 지금 기준인 것처럼 출력하는
+ * 셈이다. `assertExportAllowed`가 `guides`까지 받아 현재 기준과 직접
+ * 대조하는지, 가짜 객체가 아니라 **실제 승인 카탈로그로 만든 prepared**를
+ * 세 등급 함수에 직접 넘겨 확인한다.
+ */
+describe('과거에는 유효했던(blocking:false) prepared도 지금 guides와 템플릿 기준이 다르면 거부한다', () => {
+  function withStaleTemplate(): PreparedQuote {
+    const p = realPrepared();
+    return {
+      ...p,
+      blocking: false, // 이 시험은 blocking이 아니라 basis 정합만 가린다.
+      document: {
+        ...p.document,
+        versions: { ...p.document.versions, template: 'STALE-TEMPLATE-FINGERPRINT-시험용' },
+      },
+    };
+  }
+
+  it('고객용(2단계)이 거부한다', () => {
+    expect(() => buildCustomerDownload(withStaleTemplate(), allGuides())).toThrow(ExportBlockedError);
   });
 
-  it('blocking이 아니면 통과한다', () => {
-    expect(() => assertExportAllowed({ blocking: false } as PreparedQuote)).not.toThrow();
+  it('공유용(1단계)이 거부한다', () => {
+    expect(() => buildSharedDownload(withStaleTemplate(), allGuides(), EMPTY_NOTES)).toThrow(ExportBlockedError);
+  });
+
+  it('영업팀용(0단계)이 거부한다', () => {
+    expect(() => buildSalesDownload(withStaleTemplate(), allGuides(), EMPTY_NOTES, [], new Map())).toThrow(
+      ExportBlockedError,
+    );
+  });
+
+  it('템플릿 기준이 지금 guides와 같으면(정상 경로) 통과해 실제 바이트를 만든다', () => {
+    const p = { ...realPrepared(), blocking: false };
+    const file = buildCustomerDownload(p, allGuides());
+    expect(file.bytes.length).toBeGreaterThan(0);
   });
 });
 

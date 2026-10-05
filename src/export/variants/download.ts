@@ -21,6 +21,7 @@ import { buildMultiSystemCustomerGuideWorkbook } from '../customer/guideMultiSys
 import { buildSharedProjection, type SharedNotes } from '../shared/projection';
 import { buildMultiSystemSharedGuideWorkbook } from '../shared/workbookMulti';
 import {
+  guideTemplateFingerprint,
   selectGuide,
   type GuideTemplate,
   type GuideTemplateSet,
@@ -54,14 +55,33 @@ export function guideBySystemOf(
 }
 
 /**
- * 공통 출력 경계의 단일 게이트 — `prepared.blocking`이면 등급과 무관하게
- * 전부 거부한다(2026-10-05 독립 검토 지적: 전엔 화면 버튼의 disabled
- * 속성만이 유일한 방어선이었다 — 이 세 함수를 UI 없이 직접 불러도
- * blocking인 `prepared`로는 바이트를 만들 수 없어야 한다).
+ * 공통 출력 경계의 단일 게이트 — 등급과 무관하게 전부 거부한다
+ * (2026-10-05 독립 검토 지적: 전엔 화면 버튼의 disabled 속성만이 유일한
+ * 방어선이었다 — 이 세 함수를 UI 없이 직접 불러도 막혀야 한다).
+ *
+ * **`blocking` 플래그만 보는 것으로는 부족하다**(재지적) — `prepared`가
+ * 과거 한때는(그 시점 기준으로) 유효했더라도(`blocking: false`), **지금
+ * 넘겨받은 `guides`와 그 문서가 기록한 가이드 템플릿 기준이 다르면**
+ * 옛 계산 결과를 지금 기준인 것처럼 출력하는 셈이다. `prepareQuote`의
+ * `assertSameTemplate`(재계산·재열기 경로)과 같은 비교를, 실제로 바이트를
+ * 쓰는 이 경계에서 **한 번 더** 한다 — 호출부가 신선한 `prepared`를
+ * 들고 있었다는 것만 믿지 않는다.
+ *
+ * 노임·카탈로그 기준 불일치는 이 함수의 범위 밖이다 — 그건 화면 쪽
+ * `status.kind === 'basis-conflict'`가 `prepared` 자체를 아예 만들지
+ * 않는 방식으로 이미 막는다(`computeDocumentBasisConflicts`). 이 함수가
+ * 추가로 보는 것은 "지금 넘겨받은 guides와 비교해도 여전히 맞는가"뿐이다.
  */
-export function assertExportAllowed(prepared: PreparedQuote): void {
+export function assertExportAllowed(prepared: PreparedQuote, guides: GuideTemplateSet): void {
   if (prepared.blocking) {
     throw new ExportBlockedError('해결되지 않은 구성도/품셈/계산 경고가 있어 출력할 수 없다.');
+  }
+  const currentTemplate = guideTemplateFingerprint(guides);
+  if (prepared.document.versions.template !== currentTemplate) {
+    throw new ExportBlockedError(
+      '이 견적은 지금과 다른 가이드 템플릿 기준으로 계산됐다 — 출력하지 않는다. ' +
+        '명시적으로 재계산을 거쳐야 한다.',
+    );
   }
 }
 
@@ -90,7 +110,7 @@ export function assertSingleCompleteGroup(document: QuoteDocument): void {
 
 /** 고객용(2단계) — 원가 없음, 설명/품셈 없음. */
 export function buildCustomerDownload(prepared: PreparedQuote, guides: GuideTemplateSet): ExportFile {
-  assertExportAllowed(prepared);
+  assertExportAllowed(prepared, guides);
   assertSingleCompleteGroup(prepared.document);
   const exported = buildCustomerProjection(prepared.document, prepared.priced.calculation);
   const guideBySystemId = guideBySystemOf(prepared.document, guides, false);
@@ -107,7 +127,7 @@ export function buildSharedDownload(
   guides: GuideTemplateSet,
   notes: SharedNotes,
 ): ExportFile {
-  assertExportAllowed(prepared);
+  assertExportAllowed(prepared, guides);
   assertSingleCompleteGroup(prepared.document);
   const shared = buildSharedProjection(prepared, notes);
   const guideBySystemId = guideBySystemOf(prepared.document, guides, false);

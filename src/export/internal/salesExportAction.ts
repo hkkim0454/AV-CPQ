@@ -25,7 +25,7 @@ export function buildSalesDownload(
   lines: readonly InternalLine[],
   aiNotesByRow: ReadonlyMap<string, string>,
 ): ExportFile {
-  assertExportAllowed(prepared);
+  assertExportAllowed(prepared, guides);
   assertSingleCompleteGroup(prepared.document);
   const shared = buildSharedProjection(prepared, notes);
   const guideBySystemId = guideBySystemOf(prepared.document, guides, true);
