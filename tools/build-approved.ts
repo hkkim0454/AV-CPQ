@@ -233,6 +233,11 @@ export interface ParsedArgs {
   confirmProductionWrite: boolean;
 }
 
+/** `--xxx` 모양이거나 빈 문자열이면 "값"이 아니라 옵션 토큰이거나 빈 경로다. */
+function isMissingValue(value: string | undefined): boolean {
+  return value === undefined || value === '' || value.startsWith('--');
+}
+
 /** `--raw`/`--out`/`--confirm-production-write` → 환경변수 → 기본값(staging) 순으로 가른다. */
 export function parseArgs(argv: readonly string[]): ParsedArgs {
   let rawArg: string | undefined;
@@ -242,15 +247,20 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
   while (i < argv.length) {
     const token = argv[i]!;
     if (token === '--raw') {
-      // 값 없는 옵션을 환경변수/기본값으로 조용히 흘려보내지 않는다 — 즉시 실패한다.
-      if (i + 1 >= argv.length) throw new Error("'--raw' 뒤에 경로가 없다.");
-      rawArg = argv[i + 1];
+      // 다음 토큰이 값이 아니라 또 다른 옵션(`--out` 등)이거나 아예 없거나
+      // 빈 문자열이면, 그걸 값으로 삼켜 조용히 잘못된 경로를 만들지 않는다
+      // — 즉시 실패한다(Codex 재지적: 전엔 `--raw --out`가 raw='--out'으로
+      // 조용히 통과했다).
+      const value = argv[i + 1];
+      if (isMissingValue(value)) throw new Error("'--raw' 뒤에 경로 값이 없다.");
+      rawArg = value;
       i += 2;
       continue;
     }
     if (token === '--out') {
-      if (i + 1 >= argv.length) throw new Error("'--out' 뒤에 경로가 없다.");
-      outArg = argv[i + 1];
+      const value = argv[i + 1];
+      if (isMissingValue(value)) throw new Error("'--out' 뒤에 경로 값이 없다.");
+      outArg = value;
       i += 2;
       continue;
     }
@@ -357,14 +367,22 @@ function findLeftovers(outDir: string, fsApi: ApprovedWriteFsApi): string[] {
  *
  * 두 rename 사이에 프로세스가 죽으면 이 함수가 다시 돌 기회조차 없다 —
  * 그래서 **매 호출 시작에** 이전 실행의 흔적(`.bak-*`/`.tmp-*`)이 있는지
- * 먼저 본다. 있으면 **조용히 치우지 않고** 사람이 먼저 확인하도록 막는다.
+ * 먼저 본다. 있으면 **조용히 치우지 않고** 사람이 먼저 확인하도록 막는다
+ * (이 흔적 검출은 **자동 복구가 아니다** — 사람이 직접 확인·복구한 뒤
+ * 다시 실행해야 한다는 정책일 뿐이다).
  */
 export function writeApprovedSet(
   files: Record<string, unknown>,
-  outDir: string,
+  outDirInput: string,
   safety: { repoRoot: string; rawPath?: string },
   fsApi: ApprovedWriteFsApi = defaultFsApi,
 ): void {
+  // 끝 구분자·상대 경로·'..' 표현을 전부 하나의 정규화 경로로 고정하고,
+  // 그 뒤로는 이 값만 쓴다(Codex 재지적: 끝 슬래시가 있으면
+  // `${outDir}.tmp-...` 문자열 이어붙이기가 outDir **안쪽의 자식**이
+  // 되어 버려, 부모 디렉터리를 자기 자식으로 rename하려 들었다).
+  const outDir = resolve(outDirInput);
+
   assertSafeWriteTarget(outDir, safety);
 
   const leftovers = findLeftovers(outDir, fsApi);

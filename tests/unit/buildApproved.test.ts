@@ -239,6 +239,31 @@ describe('parseArgs — 무인자 기본은 staging, 잘못된 옵션은 즉시 
     const { confirmProductionWrite } = parseArgs(['--out', 'data/approved', '--confirm-production-write']);
     expect(confirmProductionWrite).toBe(true);
   });
+
+  it("'--out' 뒤에 다른 옵션(--raw)이 오면 그걸 값으로 삼키지 않고 '--out' 자체를 사유로 거부한다", () => {
+    // 전엔 '--raw'를 '--out'의 값으로 삼켜서, 나중에 'file.json'이
+    // "알 수 없는 인자"로 걸려 엉뚱한 이유로 실패했다(Codex 재지적).
+    expect(() => parseArgs(['--out', '--raw', 'file.json'])).toThrow(/--out/);
+  });
+
+  it("'--raw' 뒤에 다른 옵션(--out)이 오면 값으로 삼키지 않고 거부한다", () => {
+    // 전엔 raw='--out'으로 **조용히 통과**했다(에러조차 없었다) — 가장 나쁜 경우.
+    expect(() => parseArgs(['--raw', '--out'])).toThrow(/--raw/);
+  });
+
+  it("'--out' 값이 빈 문자열이면 거부한다", () => {
+    expect(() => parseArgs(['--out', ''])).toThrow(/--out/);
+  });
+
+  it("'--raw' 값이 빈 문자열이면 거부한다", () => {
+    expect(() => parseArgs(['--raw', ''])).toThrow(/--raw/);
+  });
+
+  it('정상적인 두 옵션 조합은 그대로 통과한다(과잉 거부가 아니다)', () => {
+    const { out, raw } = parseArgs(['--out', 'data/approved', '--raw', 'x.json']);
+    expect(out).toBe('data/approved');
+    expect(raw).toBe('x.json');
+  });
 });
 
 describe('writeApprovedSet — 완성 세트 전환', () => {
@@ -476,5 +501,51 @@ describe('writeApprovedSet — 완성 세트 전환', () => {
     expect(content.sourceSha256).toBe(SHA);
     // 정리만 실패해 백업이 남아 있다(지우지 않은 것이지, 잃어버린 게 아니다).
     expect(siblingsOf(outDir).some((n) => n.includes('.bak-'))).toBe(true);
+  });
+
+  describe('outDir 표현 — 끝 구분자·상대경로·".."를 전부 같은 대상으로 정규화한다', () => {
+    // Codex 재지적: 검사용 경로만 resolve하고 실제 파일 연산은 원문
+    // outDir 문자열을 그대로 썼다. 끝에 '/'가 있으면 `${outDir}.tmp-...`
+    // 이어붙이기가 outDir **안쪽의 자식**이 되어, 나중에 outDir(부모)을
+    // 그 자식 자리로 rename하려 드는 상태가 됐다.
+
+    it('끝에 구분자가 있어도 임시/백업을 안쪽 자식이 아니라 형제로 만든다', () => {
+      const outDir = freshOutDir();
+      const result = prepareApprovedFiles(validCatalog());
+      if (!result.ok) throw new Error('unreachable');
+
+      writeApprovedSet(result.files, outDir + sep, safety());
+
+      // 다섯 파일이 정확히 outDir 자리에 들어갔다.
+      const written = JSON.parse(readFileSync(join(outDir, 'products.json'), 'utf8'));
+      expect(written.sourceSha256).toBe(SHA);
+      // outDir **자신의 내용물**에 '.tmp-'/'.bak-'로 시작하는 하위 폴더가
+      // 없다 — 있었다면 자식으로 잘못 만들어진 것이다.
+      const ownEntries = readdirSync(outDir);
+      expect(ownEntries.some((n) => n.startsWith('.tmp-') || n.startsWith('.bak-'))).toBe(false);
+      // 형제 레벨(부모 디렉터리)에도 흔적이 없다 — 전환이 깔끔히 끝났다.
+      expect(siblingsOf(outDir).some((n) => n.includes('.tmp-') || n.includes('.bak-'))).toBe(false);
+    });
+
+    it("상대경로·'..'가 섞인 표현도 끝 구분자 없는 표현과 같은 대상에 쓴다", () => {
+      const root = freshScratchRoot();
+      const canonical = join(root, 'approved');
+      const viaDotDot = join(root, 'nested-detour', '..', 'approved');
+      const viaTrailingSlash = `${canonical}${sep}`;
+
+      const result = prepareApprovedFiles(validCatalog());
+      if (!result.ok) throw new Error('unreachable');
+      writeApprovedSet(result.files, viaDotDot, safety());
+
+      // '..'로 돌아간 표현이 실제로 canonical 경로에 썼다.
+      expect(existsSync(canonical)).toBe(true);
+      expect(JSON.parse(readFileSync(join(canonical, 'products.json'), 'utf8')).sourceSha256).toBe(SHA);
+
+      // 이미 자리가 있으니, 끝 슬래시 표현으로 다시 써도(=같은 대상) 정상적으로 교체된다.
+      writeOldFiles(canonical, '{"neverUsed":true}'); // 교체 전 상태를 확실히 갈아둔다
+      writeApprovedSet(result.files, viaTrailingSlash, safety());
+      expect(JSON.parse(readFileSync(join(canonical, 'products.json'), 'utf8')).sourceSha256).toBe(SHA);
+      expect(siblingsOf(canonical).some((n) => n.includes('.tmp-') || n.includes('.bak-'))).toBe(false);
+    });
   });
 });
