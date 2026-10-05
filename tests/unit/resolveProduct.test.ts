@@ -96,4 +96,35 @@ describe('withResolvedProduct', () => {
     );
     expect(resolved2.internalDescription).toBe('카탈로그 설명');
   });
+
+  describe('노무 확인·수동 단가·사유 — 재연결 경계(Task 6 보완 Task B)', () => {
+    function rowWithLaborState(sku: string): ItemRow {
+      return row({
+        sku,
+        productId: sku,
+        laborMode: 'manual',
+        manualLaborUnitPrice: '5000',
+        overrideReason: '수동 입력 — 테스트',
+        laborConfirmation: { basisFingerprint: 'fp-old', confirmedAt: '2026-10-05' },
+      });
+    }
+
+    it('같은 SKU로 다시 연결(새로고침)하면 수동 단가·사유·확인이 그대로 남는다', () => {
+      const before = rowWithLaborState('SKU-SAME');
+      const resolved = withResolvedProduct(before, product({ sku: 'SKU-SAME', productId: 'SKU-SAME' }), '1000');
+      expect(resolved.manualLaborUnitPrice).toBe('5000');
+      expect(resolved.overrideReason).toBe('수동 입력 — 테스트');
+      expect(resolved.laborConfirmation).toEqual({ basisFingerprint: 'fp-old', confirmedAt: '2026-10-05' });
+    });
+
+    it('다른 SKU로 재연결하면 옛 수동 단가·사유·확인이 남지 않는다', () => {
+      const before = rowWithLaborState('SKU-OLD');
+      const resolved = withResolvedProduct(before, product({ sku: 'SKU-NEW', productId: 'SKU-NEW' }), '1000');
+      expect(resolved.manualLaborUnitPrice).toBeUndefined();
+      expect(resolved.overrideReason).toBeUndefined();
+      expect(resolved.laborConfirmation).toBeUndefined();
+      // 새 제품에 품셈 연결이 없으면 laborMode는 unresolved로 떨어진다 — manual을 그대로 들고 가지 않는다.
+      expect(resolved.laborMode).toBe('unresolved');
+    });
+  });
 });

@@ -29,12 +29,21 @@ export type ItemRow = Extract<SheetRow, { type: 'item' }>;
 export function withResolvedProduct(row: ItemRow, product: CatalogProduct, price: DecimalText | undefined): ItemRow {
   const hadManualDescription = row.internalDescription !== undefined;
   const catalogDescription = product.options['description'];
+  // 같은 SKU로 "다시 연결"하는 것은 재조회·새로고침이지 재연결이 아니다 —
+  // 사람이 수동으로 입력한 단가·사유·노무 확인은 그대로 둔다. SKU가
+  // 바뀌면 그 값들은 더 이상 이 제품을 근거로 하지 않으므로 명시로
+  // 지운다(독립 검토 지적 — `...rest` 스프레드가 이 칸들을 가리지 않아
+  // 재연결 후에도 살아남았다).
+  const isSameSku = row.sku !== undefined && row.sku === product.sku;
   const {
     sku: _sku,
     productId: _productId,
     sellingUnitPrice: _price,
     laborMappingId: _laborMappingId,
     internalDescription: _description,
+    manualLaborUnitPrice: _manualLaborUnitPrice,
+    overrideReason: _overrideReason,
+    laborConfirmation: _laborConfirmation,
     ...rest
   } = row;
 
@@ -54,5 +63,8 @@ export function withResolvedProduct(row: ItemRow, product: CatalogProduct, price
     ...(product.laborMappingId !== undefined
       ? { laborMode: 'mapped' as const, laborMappingId: product.laborMappingId }
       : { laborMode: 'unresolved' as const }),
+    ...(isSameSku && row.manualLaborUnitPrice !== undefined ? { manualLaborUnitPrice: row.manualLaborUnitPrice } : {}),
+    ...(isSameSku && row.overrideReason !== undefined ? { overrideReason: row.overrideReason } : {}),
+    ...(isSameSku && row.laborConfirmation !== undefined ? { laborConfirmation: row.laborConfirmation } : {}),
   };
 }
