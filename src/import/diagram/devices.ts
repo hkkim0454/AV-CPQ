@@ -74,10 +74,15 @@ export interface ImportWarning {
   sourceCableKey?: string;
   requiredCableMeters?: string;
   /**
-   * `device-ambiguous-match`일 때만 있다 — 모델명이 걸린 SKU들
-   * (`matchByModel`의 `ambiguousSkus`). 화면이 사람에게 고르게 하는
-   * 선택지다. 후보가 없는 경우(`device-not-in-catalog`)는 비워 두고
-   * 추측하지 않는다 — 화면이 카탈로그 검색으로 직접 찾게 한다.
+   * 화면이 사람에게 고르게 하는 **선택지 SKU 목록**이다. 두 경로에서 채워진다.
+   *
+   * 1. `device-ambiguous-match` — 모델명이 여러 제품에 걸린 경우
+   *    (`matchByModel`의 `ambiguousSkus`).
+   * 2. `device-not-in-catalog` 중 **4단계 모델명 검색이 후보를 찾은 경우**
+   *    (계획 2026-10-06). 이때는 `modelSearchCandidates`에 판단 근거가 함께 온다.
+   *
+   * 둘 중 어느 쪽도 아니면 **비워 두고 추측하지 않는다** — 화면이 카탈로그
+   * 검색으로 직접 찾게 한다.
    */
   candidates?: readonly string[];
   /**
