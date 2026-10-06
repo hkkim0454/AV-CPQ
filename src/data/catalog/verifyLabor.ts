@@ -146,6 +146,19 @@ function verifyRow(sheet: RawSheet, row: RawRow): LaborRowVerification {
     return { ...at, verdict: '비대상' };
   }
 
+  // 재현할 수 없는 행은 **미검증**이다 — 불일치로 세면 "추출이 틀렸다"는
+  // 뜻이 되어, 고칠 수 없는 것을 고치려 들게 된다(설계서 §8.3).
+  if (row.laborFormulaUnrecognized === true) {
+    return { ...at, verdict: '미검증', reason: '노무비 단가 수식이 아는 모양이 아니다' };
+  }
+  if (row.tradeAmountOverridden === true) {
+    return {
+      ...at,
+      verdict: '미검증',
+      reason: '직종 금액 칸이 수식이 아니라 상수로 덮여 있다 — 지금 노임으로 재현되지 않는다',
+    };
+  }
+
   const original = readOriginalLaborUnitPrice(row);
   if (original.value === undefined) return { ...at, verdict: '미검증', reason: original.reason! };
 
@@ -179,7 +192,16 @@ function verifyRow(sheet: RawSheet, row: RawRow): LaborRowVerification {
   if (surcharge === undefined) return { ...at, verdict: '미검증', reason: '할증이 숫자가 아니다' };
 
   // ⛔ `×할증` 이 아니라 `×(1+할증)` 이다. 할증 0.2는 1.2배지 0.2배가 아니다.
-  const expected = excelInt(standard.times(surcharge.plus(1)).times(rate.value));
+  //
+  // 배율은 **`INT` 다음에** 곱한다. 원본이
+  // `=INT(SUM((할증*표준단가),표준단가)*요율)*0.3` 이기 때문이다. 안으로 넣으면
+  // 1원씩 어긋난다(실측 케이블 233행: 203,887.8 이 맞고 203,888 이 틀리다).
+  const base = excelInt(standard.times(surcharge.plus(1)).times(rate.value));
+  const multiplier = row.laborMultiplier === undefined ? undefined : parseDecimal(row.laborMultiplier);
+  if (row.laborMultiplier !== undefined && multiplier === undefined) {
+    return { ...at, verdict: '미검증', reason: '배율이 숫자가 아니다' };
+  }
+  const expected = multiplier === undefined ? base : base.times(multiplier);
   if (!expected.equals(original.value)) {
     return { ...at, verdict: '불일치', reason: '역산 결과가 원본의 노무비 단가와 다르다' };
   }

@@ -54,6 +54,19 @@ export interface RawRow {
   laborUnitPrice?: DecimalText;
   laborUnitPriceFormula?: string;
   laborUnitPriceCached?: DecimalText;
+  /**
+   * 노무비 단가 수식 끝에 붙어 있던 배율(`…)*0.3` 의 `0.3`).
+   *
+   * 추출기가 **아는 모양일 때만** 읽는다. 규격 문자열에서 유추하지 않는다.
+   */
+  laborMultiplier?: DecimalText;
+  /** 노무비 단가 수식이 아는 모양이 아니다 — 해석하지 않았다. */
+  laborFormulaUnrecognized?: true;
+  /**
+   * 직종 금액 칸이 **수식이 아니라 상수**다. 누군가 옛 노임으로 계산한 값을
+   * 타이핑해 넣은 것이라 지금 노임으로 재현되지 않는다(실측: CMS 9행).
+   */
+  tradeAmountOverridden?: true;
   /** `비 고`. */
   remark?: string;
   /** 품셈 코드 — **머리글이 없는 열**이다. `품목별 요율%` 왼쪽의 블록으로 찾는다. */

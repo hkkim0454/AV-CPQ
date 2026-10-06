@@ -170,6 +170,9 @@ export function buildLabor(
         surcharge: product.surcharge ?? '0',
         // 요율이 비면 1. 0으로 두면 노무 단가가 통째로 0원이 된다.
         itemRate: product.itemRate ?? '1',
+        // 원본 수식에 배율이 박혀 있던 행만. 없으면 넣지 않는다 — 1을
+        // 억지로 채우면 "배율이 있었다"는 사실이 사라진다.
+        ...(product.laborMultiplier === undefined ? {} : { multiplier: product.laborMultiplier }),
         confirmed: false,
         note: MAPPING_NOTE,
       });

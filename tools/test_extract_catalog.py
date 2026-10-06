@@ -15,6 +15,7 @@ import tempfile
 from pathlib import Path
 
 from openpyxl import Workbook
+from openpyxl.utils import get_column_letter as gl
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.stdout.reconfigure(encoding="utf-8")
@@ -103,7 +104,8 @@ def write_sheet(ws, layout, body=()):
 
 def write_product(ws, row, layout, *, name, spec="SPEC", unit="EA", selling=None,
                   labor=None, code=None, rate=None, surcharge=None, trade1=None,
-                  maker=None, sales_note=None, description=None, remark=None):
+                  maker=None, sales_note=None, description=None, remark=None,
+                  trade1_amount=None):
     """제품 한 행. `maker`/`sales_note` 는 **금지 열을 일부러 채우는** 시험용이다."""
     c = layout["cols"]
     ws.cell(row=row, column=1).value = row
@@ -121,6 +123,13 @@ def write_product(ws, row, layout, *, name, spec="SPEC", unit="EA", selling=None
     ws.cell(row=row, column=c["surcharge"]).value = surcharge
     if trade1 is not None:
         ws.cell(row=row, column=c["trade1"]).value = trade1
+        # 직종별 '금액' 칸 — 원본은 `=공수*노임` 이다. 상수로 덮인 경우를
+        # 흉내내려면 `trade1_amount` 로 숫자를 직접 준다.
+        amount_col = c["trade1"] + 1
+        ws.cell(row=row, column=amount_col).value = (
+            trade1_amount if trade1_amount is not None
+            else f"={gl(c['trade1'])}{row}*{gl(amount_col)}$3"
+        )
 
 
 SAMPLE = dict(name="합성 스위처", spec="SYN-100", selling=1000000, labor=50000,
@@ -357,6 +366,105 @@ def test_led_sheet_skipped_even_when_visible():
         assert "합성 LED 캐비넷" not in destination.read_text(encoding="utf-8")
 
 
+# --- 시험: 노무비 단가 수식의 배율 -------------------------------------------
+#
+# 원본 일부 행은 `=INT(SUM((할증*표준단가),표준단가)*요율)*0.3` 처럼 **열에 없는
+# 배율**이 수식 끝에 붙어 있다(실측 18행). 그 배율을 읽지 못하면 노무비가
+# 최대 3.3배 부풀어 들어간다.
+def labor_formula(row, layout, multiplier=None):
+    c = layout["cols"]
+    base = (f"=INT(SUM(({gl(c['surcharge'])}{row}*{gl(c['surcharge'] + 1)}{row}),"
+            f"{gl(c['surcharge'] + 1)}{row})*{gl(c['rate'])}{row})")
+    return base if multiplier is None else f"{base}*{multiplier}"
+
+
+def test_reads_multiplier_from_formula():
+    """수식 끝의 배율을 읽어 덤프에 담는다."""
+    with tempfile.TemporaryDirectory() as tmp:
+        source = build(tmp, body=[dict(SAMPLE, labor=None)])
+        from openpyxl import load_workbook
+        wb = load_workbook(source)
+        ws = wb.active
+        ws.cell(row=4, column=H2_LAYOUT["cols"]["labor"]).value = labor_formula(4, H2_LAYOUT, "0.3")
+        wb.save(source)
+        wb.close()
+        destination = Path(tmp) / "out.json"
+        ec.extract(source, destination)
+        rec = json.loads(destination.read_text(encoding="utf-8"))["sheets"][0]["rows"][0]
+        assert rec.get("laborMultiplier") == "0.3", f"배율을 못 읽었다: {rec.get('laborMultiplier')!r}"
+        assert "laborFormulaUnrecognized" not in rec, rec
+
+
+def test_no_multiplier_on_plain_formula():
+    """배율이 없는 표준 수식에는 배율을 붙이지 않는다."""
+    with tempfile.TemporaryDirectory() as tmp:
+        source = build(tmp, body=[dict(SAMPLE, labor=None)])
+        from openpyxl import load_workbook
+        wb = load_workbook(source)
+        wb.active.cell(row=4, column=H2_LAYOUT["cols"]["labor"]).value = labor_formula(4, H2_LAYOUT)
+        wb.save(source)
+        wb.close()
+        destination = Path(tmp) / "out.json"
+        ec.extract(source, destination)
+        rec = json.loads(destination.read_text(encoding="utf-8"))["sheets"][0]["rows"][0]
+        assert "laborMultiplier" not in rec, rec
+        assert "laborFormulaUnrecognized" not in rec, rec
+
+
+def test_unknown_formula_is_flagged_not_guessed():
+    """모르는 모양이면 **해석하지 않고 표시만** 한다. 일반 계산기를 만들지 않는다."""
+    with tempfile.TemporaryDirectory() as tmp:
+        source = build(tmp, body=[dict(SAMPLE, labor=None)])
+        from openpyxl import load_workbook
+        wb = load_workbook(source)
+        wb.active.cell(row=4, column=H2_LAYOUT["cols"]["labor"]).value = "=ROUNDUP(G4*1.1,-3)"
+        wb.save(source)
+        wb.close()
+        destination = Path(tmp) / "out.json"
+        ec.extract(source, destination)
+        rec = json.loads(destination.read_text(encoding="utf-8"))["sheets"][0]["rows"][0]
+        assert rec.get("laborFormulaUnrecognized") is True, rec
+        assert "laborMultiplier" not in rec, rec
+
+
+def test_multiplier_is_not_guessed_from_spec():
+    """⛔ 규격 문자열(`SM 4C-30m`)에서 배율을 유추하지 않는다."""
+    with tempfile.TemporaryDirectory() as tmp:
+        source = build(tmp, body=[dict(SAMPLE, spec="SM 4C-30m", labor=None)])
+        from openpyxl import load_workbook
+        wb = load_workbook(source)
+        wb.active.cell(row=4, column=H2_LAYOUT["cols"]["labor"]).value = labor_formula(4, H2_LAYOUT)
+        wb.save(source)
+        wb.close()
+        destination = Path(tmp) / "out.json"
+        ec.extract(source, destination)
+        rec = json.loads(destination.read_text(encoding="utf-8"))["sheets"][0]["rows"][0]
+        assert "laborMultiplier" not in rec, "규격에서 0.3 을 유추하면 안 된다"
+
+
+def test_constant_trade_amount_is_flagged():
+    """직종 금액 칸이 **수식이 아니라 상수**면 표시한다 (실측: CMS 9행).
+
+    누군가 옛 노임으로 계산한 값을 타이핑해 넣은 것이라 지금 노임으로
+    재현되지 않는다. 설계서 §8.3 — 조용히 신뢰하지 않는다.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        source = build(tmp, body=[dict(SAMPLE, trade1_amount=31618.3)])
+        destination = Path(tmp) / "out.json"
+        ec.extract(source, destination)
+        rec = json.loads(destination.read_text(encoding="utf-8"))["sheets"][0]["rows"][0]
+        assert rec.get("tradeAmountOverridden") is True, rec
+
+
+def test_formula_trade_amount_is_not_flagged():
+    """정상(`=공수*노임`)은 표시하지 않는다."""
+    with tempfile.TemporaryDirectory() as tmp:
+        destination = Path(tmp) / "out.json"
+        ec.extract(build(tmp), destination)
+        rec = json.loads(destination.read_text(encoding="utf-8"))["sheets"][0]["rows"][0]
+        assert "tradeAmountOverridden" not in rec, rec
+
+
 def main():
     print("tools/test_extract_catalog.py")
     check("하반기 배치에서 머리글로 올바른 열을 읽는다", test_reads_h2_layout)
@@ -375,6 +483,12 @@ def main():
     check("병합을 anchor 범위 밖으로 끌어오지 않는다", test_merge_does_not_forward_fill)
     check("머리글 행을 찾는다", test_finds_header_row)
     check("LED 시트는 visible 이어도 이름으로 걸러진다", test_led_sheet_skipped_even_when_visible)
+    check("노무비 수식 끝의 배율을 읽는다", test_reads_multiplier_from_formula)
+    check("배율 없는 표준 수식에는 배율을 붙이지 않는다", test_no_multiplier_on_plain_formula)
+    check("모르는 수식은 해석하지 않고 표시만 한다", test_unknown_formula_is_flagged_not_guessed)
+    check("규격 문자열에서 배율을 유추하지 않는다", test_multiplier_is_not_guessed_from_spec)
+    check("직종 금액 칸이 상수면 표시한다", test_constant_trade_amount_is_flagged)
+    check("정상 금액 수식은 표시하지 않는다", test_formula_trade_amount_is_not_flagged)
     print()
     if _FAILURES:
         print(f"실패 {len(_FAILURES)} / 통과 {_PASSED}")

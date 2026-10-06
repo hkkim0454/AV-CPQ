@@ -110,6 +110,8 @@ export const laborMappingSchema = z
     conversionFactor: decimalText,
     surcharge: decimalText,
     itemRate: decimalText,
+    /** 원본 수식에 박힌 배율. `INT` **다음에** 곱한다. */
+    multiplier: decimalText.optional(),
     // 자동 추출 산출물은 전부 false여야 한다 (설계서 §5.3).
     confirmed: z.literal(false),
     note: z.string().min(1),

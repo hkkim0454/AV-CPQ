@@ -54,6 +54,8 @@ export interface ClassifiedRow {
   laborCode?: string;
   itemRate?: DecimalText;
   surcharge?: DecimalText;
+  /** 원본 노무비 수식에 박혀 있던 배율. `INT` 다음에 곱한다(품셈 교체 Task 2 보강). */
+  laborMultiplier?: DecimalText;
   trades?: Array<{ trade: string; quantity: DecimalText }>;
 }
 
@@ -96,6 +98,7 @@ export function classifyRow(raw: RawRow): ClassifiedRow {
     ...(raw.laborCode !== undefined ? { laborCode: raw.laborCode } : {}),
     ...(raw.itemRate !== undefined ? { itemRate: raw.itemRate } : {}),
     ...(raw.surcharge !== undefined ? { surcharge: raw.surcharge } : {}),
+    ...(raw.laborMultiplier !== undefined ? { laborMultiplier: raw.laborMultiplier } : {}),
     ...(raw.trades !== undefined ? { trades: raw.trades } : {}),
   };
 }

@@ -63,6 +63,8 @@ export interface LaborBreakdown {
   surcharge: Decimal;
   itemRate: Decimal;
   conversionFactor: Decimal;
+  /** 원본 수식에 박힌 배율. `INT` **다음에** 곱했다. 없으면 생략한다. */
+  multiplier?: Decimal;
   /** 절사 방법 — 원본이 INT를 쓴다. */
   roundingMethod: 'INT';
   /** 최종 단가 — 견적서 H열에 들어간다. */
@@ -135,15 +137,22 @@ export function calculateLaborUnitPrice(
   const itemRate = dec(mapping.itemRate);
   const conversionFactor = dec(mapping.conversionFactor);
 
+  // ⚠ 배율은 **`INT` 다음에** 곱한다. 원본 수식이
+  // `=INT(SUM((할증*표준단가),표준단가)*요율)*0.3` 이라 INT 가 먼저다.
+  // 안으로 넣으면 1원씩 어긋난다(실측 케이블 233행: 203,887.8 vs 203,888).
+  const multiplier = mapping.multiplier === undefined ? undefined : dec(mapping.multiplier);
   const unitMismatch = warnings.some((w) => w.code === 'wage-unit-mismatch');
+  const beforeMultiplier = excelInt(
+    standardUnitPrice
+      .times(new Decimal(1).plus(surcharge))
+      .times(itemRate)
+      .times(conversionFactor),
+  );
   const appliedUnitPrice = unitMismatch
     ? ZERO
-    : excelInt(
-        standardUnitPrice
-          .times(new Decimal(1).plus(surcharge))
-          .times(itemRate)
-          .times(conversionFactor),
-      );
+    : multiplier === undefined
+      ? beforeMultiplier
+      : beforeMultiplier.times(multiplier);
 
   if (!mapping.confirmed) {
     warnings.push({
@@ -171,6 +180,7 @@ export function calculateLaborUnitPrice(
     surcharge,
     itemRate,
     conversionFactor,
+    ...(multiplier === undefined ? {} : { multiplier }),
     roundingMethod: 'INT',
     appliedUnitPrice,
     warnings,
@@ -248,6 +258,7 @@ export function computeCurrentLaborFingerprint(
     itemRate: mapping.itemRate,
     surcharge: mapping.surcharge,
     conversionFactor: mapping.conversionFactor,
+    ...(mapping.multiplier === undefined ? {} : { multiplier: mapping.multiplier }),
     quantity: identity.quantity,
     ruleVersion: identity.ruleVersion,
   });

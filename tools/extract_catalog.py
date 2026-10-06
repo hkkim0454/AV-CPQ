@@ -85,6 +85,26 @@ SURCHARGE_OFFSET = 1
 STANDARD_PRICE_OFFSET = 2
 FIRST_TRADE_OFFSET = 3
 
+# --- 노무비 단가 수식 — **아는 모양만** 받아들인다 ---------------------------
+#
+# 원본의 노무비 단가 칸은 실측상 두 모양뿐이다.
+#
+#     =INT(SUM((할증*표준단가),표준단가)*요율)          ← 표준 (1,356행)
+#     =INT(SUM((할증*표준단가),표준단가)*요율)*0.3       ← 끝에 배율 (18행)
+#
+# 배율은 **열에 없는 수**다. 못 읽으면 노무비가 최대 3.3배 부풀어 들어간다.
+# 실측상 배율이 규격의 길이와 일치하지만(`SM 4C-30m` → 0.3), ⛔ **규격
+# 문자열에서 유추하지 않는다.** 수식에 적힌 수만 쓴다.
+#
+# ⛔ **수식을 일반적으로 푸는 계산기를 만들지 않는다.** 위 두 모양에
+# 어긋나면 해석하지 않고 `laborFormulaUnrecognized` 로 표시만 한다. 그래야
+# 다음 판에서 수식이 바뀌어도 조용히 틀리지 않는다 — 판단은 TS 쪽 검증이 한다.
+_CELL_REF = r"\$?[A-Z]{1,3}\$?\d+"
+LABOR_FORMULA = re.compile(
+    rf"^=INT\(SUM\(\({_CELL_REF}\*{_CELL_REF}\),{_CELL_REF}\)\*{_CELL_REF}\)"
+    rf"(?:\*(\d+(?:\.\d+)?))?$"
+)
+
 #: 숫자로 읽을 칸. 나머지는 문자열 그대로 옮긴다.
 NUMERIC_FIELDS = ("materialUnitPrice", "laborUnitPrice", "itemRate", "surcharge")
 
@@ -413,6 +433,40 @@ def read_cell(formula_ws, cached_ws, row, column):
             "text": text_of(raw)}
 
 
+def read_labor_formula(formula_ws, row, column):
+    """노무비 단가 칸의 수식에서 **배율**을 읽는다.
+
+    돌려주는 값:
+      `(배율, 모름)` — 배율은 문자열이거나 `None`. `모름` 이 참이면 아는
+      모양이 아니라 해석하지 않았다는 뜻이다.
+    """
+    raw = formula_ws.cell(row=row, column=column).value
+    if not isinstance(raw, str) or not raw.startswith("="):
+        return None, False
+    found = LABOR_FORMULA.match(raw.replace(" ", ""))
+    if found is None:
+        return None, True
+    return found.group(1), False
+
+
+def trade_amount_overridden(formula_ws, row, trade_columns):
+    """직종 금액 칸(`공수`의 오른쪽)이 **수식이 아니라 상수**인가.
+
+    원본은 `=공수*노임` 이어야 한다. 상수가 들어 있으면 누군가 옛 노임으로
+    계산한 값을 타이핑해 넣은 것이라 지금 노임으로 재현되지 않는다
+    (실측: CMS 9행의 두 칸). 설계서 §8.3 — 조용히 신뢰하지 않는다.
+    """
+    for column in trade_columns:
+        if formula_ws.cell(row=row, column=column).value in (None, "", 0):
+            continue
+        amount = formula_ws.cell(row=row, column=column + 1).value
+        if amount is None or amount == "":
+            continue
+        if not (isinstance(amount, str) and amount.startswith("=")):
+            return True
+    return False
+
+
 def extract_trades(formula_ws, cached_ws, row, trade_columns, trade_names):
     """직종별 품. 0과 빈칸은 담지 않는다 — 품이 없는 직종은 줄에 없어야 한다."""
     out = []
@@ -529,9 +583,21 @@ def extract(source: Path, destination: Path) -> None:
                         record[field] = value
                         empty = False
 
+            multiplier, unrecognized = read_labor_formula(
+                formula_ws, row, layout["fields"]["laborUnitPrice"]
+            )
+            if multiplier is not None:
+                record["laborMultiplier"] = multiplier
+                empty = False
+            if unrecognized:
+                record["laborFormulaUnrecognized"] = True
+                empty = False
+
             trades, unresolved = extract_trades(
                 formula_ws, cached_ws, row, trade_columns, trade_names
             )
+            if trades and trade_amount_overridden(formula_ws, row, trade_columns):
+                record["tradeAmountOverridden"] = True
             if trades:
                 record["trades"] = trades
                 empty = False
