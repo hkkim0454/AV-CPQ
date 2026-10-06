@@ -256,3 +256,125 @@ describe('matchByModel — `/`로 묶인 모델명 (실측 22건 구제)', () =>
     expect(r.product?.sku).toBe('TVD-0029');
   });
 });
+
+/**
+ * 품명·규격·설명 안에 섞여 있는 모델명 찾기 (계획 2026-10-06).
+ *
+ * `12배줌, BRC-H800`처럼 품명에 모델명이 섞여 있으면 1~3단계가 못 찾는다.
+ * 4단계는 그런 경우를 **후보로만** 올린다. **자동으로 붙이지 않는다** —
+ * 설명 칸에는 `CR-N700전용`처럼 **다른 제품의 모델명**이 적혀 있기 때문이다.
+ */
+function productWith(
+  sku: string,
+  quoteName: string,
+  quoteSpec: string,
+  description?: string,
+): CatalogProduct {
+  const p = product(sku, quoteName, quoteSpec);
+  return description === undefined ? p : { ...p, options: { description } };
+}
+
+describe('4단계 — 이름 안에서 모델명 찾기', () => {
+  it('품명에 섞여 있어도 후보로 올린다 — `12배줌, BRC-H800`', () => {
+    const c = catalog([productWith('VID-0006', '1" Exmor R PTZ Camera', '12배줌, BRC-H800')]);
+    const r = matchByModel('BRC-H800', c);
+    expect(r.nameCandidates?.map((x) => x.sku)).toEqual(['VID-0006']);
+  });
+
+  it('후보를 올려도 제품과 단가를 채우지 않는다 — 사람이 고른다', () => {
+    const c = catalog(
+      [productWith('VID-0006', '1" Exmor R PTZ Camera', '12배줌, BRC-H800')],
+      { 'VID-0006': '3552000' },
+    );
+    const r = matchByModel('BRC-H800', c);
+    expect(r.product).toBeUndefined();
+    expect(r.sellingUnitPrice).toBeUndefined();
+    expect(r.matchedBy).toBe('none');
+  });
+
+  it('설명 칸에만 있어도 후보로 올린다 — `2분배기` / 설명 `WJD-2DV`', () => {
+    const c = catalog([productWith('HEC-0031', 'CATV 분배기', '2분배기', 'WJD-2DV')]);
+    const r = matchByModel('WJD-2DV', c);
+    expect(r.nameCandidates?.map((x) => x.sku)).toEqual(['HEC-0031']);
+  });
+
+  it('어느 칸에서 맞았는지 남긴다 — 사람이 판단할 근거다', () => {
+    const c = catalog([productWith('HEC-0031', 'CATV 분배기', '2분배기', 'WJD-2DV')]);
+    expect(matchByModel('WJD-2DV', c).nameCandidates?.[0]?.fields).toEqual(['description']);
+  });
+
+  it('여러 칸에서 맞아도 후보는 한 번만 올리고 칸은 전부 남긴다', () => {
+    const c = catalog([productWith('AUD-0045', 'Digital Signal Processor', 'BLU-101, AEC/Bluelink지원')]);
+    const r = matchByModel('BLU-101', c);
+    expect(r.nameCandidates).toHaveLength(1);
+    expect(r.nameCandidates?.[0]?.fields).toEqual(['model', 'quoteSpec']);
+  });
+
+  /**
+   * ⚠ 이 시험은 **경계 규칙을 검증하지 않는다.** `MR-4S`는 정규화하면 `MR4S`
+   * 4글자라 `MIN_KEY_LENGTH`(5)에 막혀 4단계에 오지도 않는다. 경계 검증은
+   * 아래 `VTX-A8` 시험이 한다. 여기서는 **길이 제한이 살아 있는지**만 본다.
+   */
+  it('길이 제한에 막혀 4단계에 오지 않는다 — `MR-4S` (정규화 4글자)', () => {
+    const c = catalog([productWith('X-1', '모듈러 프레임', 'MR-4S-4K')]);
+    const r = matchByModel('MR-4S', c);
+    expect(r.product).toBeUndefined();
+    expect(r.nameCandidates).toBeUndefined();
+  });
+
+  /**
+   * **경계 규칙을 실제로 검증하는 시험.** `VTX-A8`은 정규화해도 5글자라
+   * 4단계까지 온다. 경계에서 `-`를 빼면 이 시험이 실패한다(역방향 확인함).
+   *
+   * 실물: AUD-0289 `VTX A8` / AUD-0291 `VTX-A8-AF` — 서로 다른 제품이다.
+   */
+  it('뒤에 다른 글자가 붙은 제품에 걸리지 않는다 — `VTX-A8` vs `VTX-A8-AF`', () => {
+    const c = catalog([productWith('AUD-0291', '라인어레이', 'VTX-A8-AF')]);
+    expect(matchByModel('VTX-A8', c).nameCandidates).toBeUndefined();
+  });
+
+  /**
+   * 기호를 전부 지우고 포함 관계만 보면 `loc(kinghd)micable`에 걸린다.
+   * 원문에서 찾으므로 `g`와 `HD` 사이의 공백이 남아 걸리지 않는다.
+   * **경계 규칙이 아니라 "원문에서 찾는다"는 설계를 지키는 시험이다.**
+   */
+  it('단어 내부에 우연히 들어 있어도 걸리지 않는다 — `KIN-GHD` vs `Locking HDMI Cable`', () => {
+    const c = catalog([productWith('CBL-0016', 'Locking HDMI Cable 1m', 'UMC-001')]);
+    expect(matchByModel('KIN-GHD', c).nameCandidates).toBeUndefined();
+  });
+
+  it('숫자가 앞에 붙은 다른 값에 걸리지 않는다 — `24인치모니터` vs `124인치모니터`', () => {
+    const c = catalog([productWith('TVD-9999', '모니터', '삼성 124인치모니터')]);
+    expect(matchByModel('24인치모니터', c).nameCandidates).toBeUndefined();
+  });
+
+  it('한글이 앞에 붙은 다른 값에 걸리지 않는다 — `대형모니터` vs `초대형모니터`', () => {
+    const c = catalog([productWith('TVD-9998', '디스플레이', '삼성 초대형모니터')]);
+    expect(matchByModel('대형모니터', c).nameCandidates).toBeUndefined();
+  });
+
+  it('1~3단계가 이미 붙였으면 4단계로 가지 않는다', () => {
+    const c = catalog([
+      productWith('VID-0138', 'UHD Matrix Frame', 'XDM-12'),
+      productWith('VID-0139', 'Dante Module', 'XDM-DAN-M36', 'XDM-12, 20, 36 동일 적용'),
+    ]);
+    const r = matchByModel('XDM-12', c);
+    expect(r.product?.sku).toBe('VID-0138');
+    expect(r.nameCandidates).toBeUndefined();
+  });
+
+  it('1~3단계가 모호로 끝났으면 4단계로 좁히지 않는다', () => {
+    const c = catalog([
+      productWith('A-0001', '제품 A', 'SAME-MODEL'),
+      productWith('B-0001', '제품 B', 'SAME-MODEL'),
+    ]);
+    const r = matchByModel('SAME-MODEL', c);
+    expect(r.ambiguousSkus).toEqual(['A-0001', 'B-0001']);
+    expect(r.nameCandidates).toBeUndefined();
+  });
+
+  it('너무 짧은 모델명은 4단계로 가지 않는다', () => {
+    const c = catalog([productWith('X-1', '무엇', '어떤 AB 제품')]);
+    expect(matchByModel('AB', c).nameCandidates).toBeUndefined();
+  });
+});

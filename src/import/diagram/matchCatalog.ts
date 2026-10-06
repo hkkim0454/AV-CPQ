@@ -28,6 +28,21 @@ export type MatchKind =
   | 'model-fragment'
   | 'none';
 
+/** 모델명을 찾은 칸. 칸마다 신뢰도가 다르다 — `description`이 가장 약하다. */
+export type MatchField = 'model' | 'quoteName' | 'quoteSpec' | 'description';
+
+/**
+ * 품명·규격·설명 **안에서** 모델명이 발견된 제품.
+ *
+ * **이것만으로 붙이지 않는다.** 설명 칸에는 `CR-N700전용`처럼 *다른 제품의*
+ * 모델명이 적혀 있다(`VID-0028`). 그대로 붙이면 부속품이 본체 자리에 들어간다.
+ */
+export interface NameCandidate {
+  readonly sku: string;
+  /** 맞은 칸 전부. 하나로 줄이지 않는다 — 사람이 판단할 근거다. */
+  readonly fields: readonly MatchField[];
+}
+
 export interface MatchResult {
   readonly product?: CatalogProduct;
   /** 카탈로그에 없거나 단가가 미등록이면 `undefined`. **`0`으로 채우지 않는다.** */
@@ -37,6 +52,11 @@ export interface MatchResult {
   readonly ambiguousSkus?: readonly string[];
   /** `model-fragment`로 맞은 경우 어느 조각이 맞았는지. 사람이 검토할 근거다. */
   readonly matchedFragment?: string;
+  /**
+   * 1~3단계가 아무것도 못 찾았을 때만 채운다. **사람에게 보여 줄 후보일 뿐이다.**
+   * `matchedBy`는 `none`으로 남고 `product`도 비어 있다.
+   */
+  readonly nameCandidates?: readonly NameCandidate[];
 }
 
 /**
@@ -145,7 +165,62 @@ export function matchByModel(model: string | undefined, catalog: Catalog): Match
   }
 
   // 3) `/`로 묶인 값에서 조각 하나가 정확히 맞는 경우
-  return matchFragment(trimmed, catalog, index);
+  const fragment = matchFragment(trimmed, catalog, index);
+  if (fragment.product !== undefined || fragment.ambiguousSkus !== undefined) return fragment;
+
+  // 4) 품명·규격·설명 **안에서** 찾기. 붙이지 않고 후보만 돌려준다.
+  const candidates = findInNames(trimmed, catalog);
+  if (candidates.length === 0) return fragment;
+  return { ...fragment, nameCandidates: candidates };
+}
+
+/**
+ * 모델명을 찾기 위한 정규식.
+ *
+ * 모델명을 영숫자·한글 덩어리로 쪼개고 **사이에만** 구분 기호를 허용한다.
+ * 앞뒤는 영숫자·한글·하이픈·언더스코어가 **아니어야** 한다.
+ *
+ * **하이픈을 경계로 인정하지 않는 것이 핵심이다.** 인정하면 `MR-4S`가
+ * `MR-4S-4K`에 걸린다 — 다른 제품이고 단가도 품셈도 틀린다(이 파일 머리말).
+ *
+ * **한글도 같다.** 인정하면 `대형모니터`가 `초대형모니터`에 걸린다.
+ */
+const EDGE = '0-9A-Za-z가-힣\\-_';
+
+function namePattern(model: string): RegExp | undefined {
+  const chunks = model.split(/[^0-9A-Za-z가-힣]+/u).filter((c) => c !== '');
+  if (chunks.length === 0) return undefined;
+  const escaped = chunks.map((c) => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  // 구분 기호는 `normalizeModel`이 지우는 것과 같은 집합으로 맞춘다.
+  const body = escaped.join('[\\s\\-_/().,"”“*#]*');
+  return new RegExp(`(?<![${EDGE}])${body}(?![${EDGE}])`, 'iu');
+}
+
+const SEARCH_FIELDS: readonly MatchField[] = ['model', 'quoteName', 'quoteSpec', 'description'];
+
+function valueOf(product: CatalogProduct, field: MatchField): string | undefined {
+  if (field === 'description') {
+    const value = product.options['description'];
+    return typeof value === 'string' ? value : undefined;
+  }
+  return product[field];
+}
+
+/** 1~3단계가 못 찾았을 때만 부른다. **후보만** 돌려주고 붙이지 않는다. */
+function findInNames(model: string, catalog: Catalog): NameCandidate[] {
+  const pattern = namePattern(model);
+  if (pattern === undefined) return [];
+
+  const found: NameCandidate[] = [];
+  for (const product of catalog.products) {
+    const fields = SEARCH_FIELDS.filter((field) => {
+      const value = valueOf(product, field);
+      return value !== undefined && pattern.test(value);
+    });
+    // 같은 제품은 한 번만 올리되, 맞은 칸은 전부 남긴다.
+    if (fields.length > 0) found.push({ sku: product.sku, fields });
+  }
+  return found;
 }
 
 /**
