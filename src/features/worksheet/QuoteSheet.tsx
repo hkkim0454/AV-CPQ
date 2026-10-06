@@ -8,10 +8,10 @@
  */
 import { Fragment, useEffect, useState } from 'react';
 import type { CalculationSnapshot } from '../../domain/calculation/calculate';
-import type { LaborBreakdown } from '../../domain/labor/calculateLabor';
+import type { RowLaborBreakdown } from '../../domain/labor/calculateLabor';
 import type { LaborWarning } from '../../domain/labor/types';
 import type { LaborMode, QuoteDocument, SheetRow } from '../../domain/quote/types';
-import { validateQuantityInput } from '../../domain/quote/validateInput';
+import { validateDecimalInput, validateQuantityInput, type DecimalValidation } from '../../domain/quote/validateInput';
 
 type ItemRow = Extract<SheetRow, { type: 'item' }>;
 
@@ -19,7 +19,7 @@ interface QuoteSheetProps {
   document: QuoteDocument;
   calculation: CalculationSnapshot;
   /** 행별 품셈 계산 근거 — 확인 패널이 그대로 보여준다(설계서 §5.3). */
-  laborBreakdowns: ReadonlyMap<string, LaborBreakdown>;
+  laborBreakdowns: ReadonlyMap<string, RowLaborBreakdown>;
   laborWarnings: readonly LaborWarning[];
   onQuantityChange(rowId: string, value: string): void;
   onDescriptionChange(rowId: string, value: string): void;
@@ -30,18 +30,27 @@ interface QuoteSheetProps {
   onLaborModeChange(rowId: string, mode: LaborMode): void;
   onManualLaborUnitPriceChange(rowId: string, value: string): void;
   onOverrideReasonChange(rowId: string, value: string): void;
-  onConfirmLaborRow(rowId: string): void;
+  onConfirmLaborRow(rowId: string, displayedFingerprint: string): void;
 }
 
-function QuantityCell({
+/**
+ * 검증을 거친 뒤에만 commit하는 입력칸 — 수량·직접 입력 금액이 함께
+ * 쓴다. 타이핑 중간 상태(빈 문자열·'-'·'abc' 등)는 로컬 draft에만
+ * 머무르고, 유효한 값일 때만 `onCommit`을 부른다(계획 §4.2 "원래
+ * 문서를 덮어쓰지 않는다" — 계산 엔진에 잘못된 문자열이 넘어가는
+ * 경로를 애초에 화면에서 막는다. 독립 검토 지적).
+ */
+function ValidatedDecimalCell({
   rowId,
   value,
   label,
+  validate,
   onCommit,
 }: {
   rowId: string;
   value: string;
   label: string;
+  validate(raw: string): DecimalValidation;
   onCommit(rowId: string, value: string): void;
 }) {
   const [draft, setDraft] = useState(value);
@@ -53,7 +62,7 @@ function QuantityCell({
   }, [value]);
 
   function commit(): void {
-    const result = validateQuantityInput(draft);
+    const result = validate(draft);
     if (!result.ok) {
       setError(result.reason);
       return;
@@ -135,12 +144,12 @@ function LaborBasisPanel({
   onConfirmLaborRow,
 }: {
   row: ItemRow;
-  breakdown: LaborBreakdown | undefined;
+  breakdown: RowLaborBreakdown | undefined;
   hasUnconfirmedWarning: boolean;
   onLaborModeChange(rowId: string, mode: LaborMode): void;
   onManualLaborUnitPriceChange(rowId: string, value: string): void;
   onOverrideReasonChange(rowId: string, value: string): void;
-  onConfirmLaborRow(rowId: string): void;
+  onConfirmLaborRow(rowId: string, displayedFingerprint: string): void;
 }) {
   const canBeMapped = row.laborMappingId !== undefined;
   const isConfirmed = row.laborConfirmation !== undefined && !hasUnconfirmedWarning;
@@ -212,7 +221,10 @@ function LaborBasisPanel({
                 <strong>적용 노무 단가 {breakdown.appliedUnitPrice.toFixed()}</strong> × 수량 {row.quantity}
               </p>
               <p className="q-muted">
-                노임 출처: {breakdown.source} ({breakdown.wagePeriod}) — 품셈 {breakdown.code} {breakdown.revision}
+                품셈 출처: {breakdown.source} ({breakdown.revision}) — 코드 {breakdown.code}
+              </p>
+              <p className="q-muted">
+                적용 노임표: {breakdown.wageTableSource} ({breakdown.wagePeriod}, 표 {breakdown.wageTableId})
               </p>
 
               {isConfirmed && (
@@ -226,7 +238,11 @@ function LaborBasisPanel({
                 </p>
               )}
               {!isConfirmed && (
-                <button type="button" className="q-button" onClick={() => onConfirmLaborRow(row.rowId)}>
+                <button
+                  type="button"
+                  className="q-button"
+                  onClick={() => onConfirmLaborRow(row.rowId, breakdown.currentFingerprint)}
+                >
                   확인함
                 </button>
               )}
@@ -237,18 +253,21 @@ function LaborBasisPanel({
             <div data-labor-manual-basis>
               <label>
                 견적 단위당 금액(KRW)
-                <input
-                  aria-label={`${row.name} 직접 입력 금액`}
+                <ValidatedDecimalCell
+                  rowId={row.rowId}
                   value={row.manualLaborUnitPrice ?? ''}
-                  onChange={(event) => onManualLaborUnitPriceChange(row.rowId, event.target.value)}
+                  label={`${row.name} 직접 입력 금액`}
+                  validate={(raw) => validateDecimalInput(raw, '직접 입력 금액')}
+                  onCommit={onManualLaborUnitPriceChange}
                 />
               </label>
               <label>
                 사유
-                <input
-                  aria-label={`${row.name} 직접 입력 사유`}
+                <TextCell
+                  rowId={row.rowId}
                   value={row.overrideReason ?? ''}
-                  onChange={(event) => onOverrideReasonChange(row.rowId, event.target.value)}
+                  label={`${row.name} 직접 입력 사유`}
+                  onCommit={onOverrideReasonChange}
                 />
               </label>
             </div>
@@ -258,10 +277,11 @@ function LaborBasisPanel({
             <div data-labor-not-applicable-basis>
               <label>
                 사유
-                <input
-                  aria-label={`${row.name} 해당 없음 사유`}
+                <TextCell
+                  rowId={row.rowId}
                   value={row.overrideReason ?? ''}
-                  onChange={(event) => onOverrideReasonChange(row.rowId, event.target.value)}
+                  label={`${row.name} 해당 없음 사유`}
+                  onCommit={onOverrideReasonChange}
                 />
               </label>
             </div>
@@ -364,10 +384,11 @@ export function QuoteSheet({
                         <td>{row.specification}</td>
                         <td>{row.unit}</td>
                         <td>
-                          <QuantityCell
+                          <ValidatedDecimalCell
                             rowId={row.rowId}
                             value={row.quantity}
                             label={`${row.name} 수량`}
+                            validate={validateQuantityInput}
                             onCommit={onQuantityChange}
                           />
                         </td>

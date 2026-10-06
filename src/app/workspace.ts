@@ -12,8 +12,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { buildGuideBasis, GuideBasisError, type BasisVersions } from '../data/catalog/guideBasis';
 import { prepareQuote, type PreparedQuote } from '../export/variants/prepare';
 import { priceQuote } from '../domain/quote/priceQuote';
-import { computeRowConfirmationFingerprint } from '../domain/labor/calculateLabor';
-import { withLaborConfirmed, withLaborModeSwitch } from '../domain/quote/laborRowEdits';
+import { confirmLaborRowIfDisplayedFingerprintMatches, withLaborModeSwitch } from '../domain/quote/laborRowEdits';
 import { indirectCostsFor, type IndirectProfileId } from '../export/ooxml/guideTemplate';
 import { toRow, CURRENT_RULE_VERSION } from '../domain/quote/buildDocument';
 import { computeDocumentBasisConflicts, describeBasisConflicts } from '../domain/quote/basisConflict';
@@ -154,11 +153,13 @@ export interface Workspace {
   setOverrideReason(rowId: string, value: string): void;
   /**
    * 지금 화면에 보이는 계산 근거를 사람이 확인했다는 사실을 그 행에
-   * 싣는다. 지금 근거로 지문을 새로 만든다 — 확인 버튼을 누른 시점의
-   * 근거가 곧 저장되는 지문이다. 매핑을 찾을 수 없으면(이론상 생기지
-   * 않아야 하지만) 아무것도 하지 않는다.
+   * 싣는다. `displayedFingerprint`는 화면이 **그 순간 보여준**
+   * `breakdown.currentFingerprint`를 그대로 넘겨야 한다 — 이 액션이
+   * 클릭 시점에 다시 계산한 지금 지문과 비교해, 둘이 다르면(화면이
+   * 그린 뒤 근거가 바뀌었으면) 확인하지 않는다. 매핑을 찾을 수
+   * 없거나 기준 충돌(basis-conflict) 상태여도 아무것도 하지 않는다.
    */
-  confirmLaborRow(rowId: string): void;
+  confirmLaborRow(rowId: string, displayedFingerprint: string): void;
   setHeader(patch: Partial<QuoteHeader>): void;
   setProfile(systemId: string, profile: IndirectProfileId): void;
   setIndirectRule(systemId: string, itemId: string, patch: { applied?: boolean; rate?: string }): void;
@@ -844,27 +845,40 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
   );
 
   const confirmLaborRow = useCallback(
-    (rowId: string) => {
-      if (basis === undefined) return;
+    (rowId: string, displayedFingerprint: string) => {
+      // basis-conflict(기준이 바뀌어 재계산을 기다리는 중)에서는
+      // `basis.reference`가 지금 채택된 기준이 아닐 수 있다 — 버튼이
+      // 숨겨지는 것과 별개로 액션 자신이 거부한다(2026-10-05 독립 검토
+      // 지적: D23에서 이미 같은 이유로 버튼 disabled와 핸들러 내부 검사를
+      // 분리했다 — 여기도 같은 경계를 지킨다).
+      if (basis === undefined || prepareResult === undefined || prepareResult.kind !== 'ok') return;
       commit((document) => ({
         ...document,
         rows: document.rows.map((r) => {
-          if (r.type !== 'item' || r.rowId !== rowId || r.laborMode !== 'mapped' || r.laborMappingId === undefined) {
-            return r;
-          }
-          const fingerprint = computeRowConfirmationFingerprint(r.rowId, r.laborMappingId, basis.reference, {
+          if (r.type !== 'item' || r.rowId !== rowId) return r;
+          const identity = {
             ...(r.productId !== undefined ? { productId: r.productId } : {}),
             ...(r.sku !== undefined ? { sku: r.sku } : {}),
             unit: r.unit,
             quantity: r.quantity,
             ruleVersion: document.versions.rule,
-          });
-          if (fingerprint === undefined) return r;
-          return { type: 'item', ...withLaborConfirmed(r, fingerprint, new Date().toISOString()) };
+          };
+          // "그 순간 재계산"은 지금 지문을 표시 지문과 **비교**하는
+          // 것이지, 새로 계산해 그냥 저장하는 것이 아니다(독립 검토
+          // 지적) — 둘이 다르면(화면이 그린 뒤 근거가 바뀌었으면)
+          // 확인하지 않는다.
+          const updated = confirmLaborRowIfDisplayedFingerprintMatches(
+            r,
+            basis.reference,
+            identity,
+            displayedFingerprint,
+            new Date().toISOString(),
+          );
+          return updated === undefined ? r : { type: 'item', ...updated };
         }),
       }));
     },
-    [commit, basis],
+    [commit, basis, prepareResult],
   );
 
   const setHeader = useCallback(

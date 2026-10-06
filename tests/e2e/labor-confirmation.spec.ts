@@ -137,3 +137,85 @@ test('확인 뒤 계산 근거(수량)가 바뀌면 다시 막힌다 — 화면 
   await page.getByRole('button', { name: '확인함' }).click();
   await expect(page.getByRole('button', { name: 'Excel 다운로드' })).toBeEnabled();
 });
+
+/**
+ * 독립 검토 지적: 기존 양성 시나리오 3건이 전부 `mapped` 행만 시험했다.
+ * 품셈 연결이 없는(= `unresolved`) 행에서 직접 입력·해당 없음을 **화면
+ * 조작만으로** 고르고, 잘못된 금액을 입력해도 화면이 깨지지 않으며,
+ * 지우고 복구하는 흐름까지 실제로 확인한다.
+ */
+async function buildUnresolvedQuote(page: Page): Promise<void> {
+  await mockResources(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: '품목 직접 선택' }).click();
+  await page.getByLabel('품목 검색').fill('합성 테스트 품목');
+  await page.getByRole('button', { name: '추가', exact: true }).click();
+  await page.getByRole('button', { name: '견적 만들기' }).click();
+}
+
+test('직접 입력(manual) — 잘못된 금액은 화면이 깨지지 않고 막으며, 금액·사유를 채우면 풀린다', async ({ page }) => {
+  await buildUnresolvedQuote(page);
+  await expect(page.getByRole('button', { name: 'Excel 다운로드' })).toBeDisabled();
+
+  await page.getByRole('button', { name: '합성 테스트 품목 노무 처리 펼치기' }).click();
+  await page.getByRole('radio', { name: '직접 입력' }).check();
+
+  const amountInput = page.getByLabel('합성 테스트 품목 직접 입력 금액');
+  const reasonInput = page.getByLabel('합성 테스트 품목 직접 입력 사유');
+
+  // 잘못된 값(음수 표시 '-')을 입력해도 화면이 깨지지 않고, 입력칸 옆에
+  // 사유를 보여주며 commit하지 않는다 — Excel 다운로드는 계속 비활성.
+  await amountInput.fill('-');
+  await amountInput.blur();
+  await expect(page.getByRole('alert').filter({ hasText: '음수' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Excel 다운로드' })).toBeDisabled();
+  // 페이지가 여전히 정상 동작한다는 증거 — 다른 버튼도 그대로 응답한다.
+  await expect(page.getByRole('button', { name: '합성 테스트 품목 노무 처리 접기' })).toBeVisible();
+
+  // 명시적 0원 + 사유를 채우면 풀린다.
+  await amountInput.fill('0');
+  await amountInput.blur();
+  await reasonInput.fill('무상 작업 — E2E 시험');
+  await reasonInput.blur();
+  await expect(page.getByRole('button', { name: 'Excel 다운로드' })).toBeEnabled();
+
+  // 사유를 지우면 다시 막힌다.
+  await reasonInput.fill('');
+  await reasonInput.blur();
+  await expect(page.getByRole('button', { name: 'Excel 다운로드' })).toBeDisabled();
+
+  // 사유를 복구하면 다시 풀린다.
+  await reasonInput.fill('무상 작업 — 복구');
+  await reasonInput.blur();
+  await expect(page.getByRole('button', { name: 'Excel 다운로드' })).toBeEnabled();
+});
+
+test('해당 없음(not-applicable) — 사유 입력으로만 풀리고, mode 전환 시 이전 manual 값은 남지 않는다', async ({ page }) => {
+  await buildUnresolvedQuote(page);
+  await page.getByRole('button', { name: '합성 테스트 품목 노무 처리 펼치기' }).click();
+
+  // 먼저 manual로 금액·사유를 채운다.
+  await page.getByRole('radio', { name: '직접 입력' }).check();
+  await page.getByLabel('합성 테스트 품목 직접 입력 금액').fill('5000');
+  await page.getByLabel('합성 테스트 품목 직접 입력 금액').blur();
+  await page.getByLabel('합성 테스트 품목 직접 입력 사유').fill('수동 입력 사유');
+  await page.getByLabel('합성 테스트 품목 직접 입력 사유').blur();
+  await expect(page.getByRole('button', { name: 'Excel 다운로드' })).toBeEnabled();
+
+  // 해당 없음으로 전환한다 — 사유 없이는 막힌다.
+  await page.getByRole('radio', { name: '해당 없음' }).check();
+  await expect(page.getByRole('button', { name: 'Excel 다운로드' })).toBeDisabled();
+
+  const notApplicableReason = page.getByLabel('합성 테스트 품목 해당 없음 사유');
+  await expect(notApplicableReason).toHaveValue('');
+  await notApplicableReason.fill('노무 불필요');
+  await notApplicableReason.blur();
+  await expect(page.getByRole('button', { name: 'Excel 다운로드' })).toBeEnabled();
+
+  // 다시 직접 입력으로 전환해도 옛 수동 금액·사유가 살아나지 않는다 —
+  // mode 전환 계약(이전 상태를 남기지 않는다)을 화면에서 직접 본다.
+  await page.getByRole('radio', { name: '직접 입력' }).check();
+  await expect(page.getByLabel('합성 테스트 품목 직접 입력 금액')).toHaveValue('');
+  await expect(page.getByLabel('합성 테스트 품목 직접 입력 사유')).toHaveValue('');
+  await expect(page.getByRole('button', { name: 'Excel 다운로드' })).toBeDisabled();
+});

@@ -47,7 +47,11 @@ const requests = result.document.rows
     (r): r is typeof r & { type: 'item'; laborMappingId: string } =>
       r.type === 'item' && r.laborMode === 'mapped' && r.laborMappingId !== undefined,
   )
-  .map((r) => ({ rowId: r.rowId, laborMappingId: r.laborMappingId }));
+  .map((r) => ({
+    rowId: r.rowId,
+    laborMappingId: r.laborMappingId,
+    identity: { unit: r.unit, quantity: r.quantity, ruleVersion: result.document.versions.rule },
+  }));
 
 const laborResult = calculateLaborForRows(requests, labor);
 const calculation = calculateQuote(result.document, {

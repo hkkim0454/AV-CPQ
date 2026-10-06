@@ -109,12 +109,15 @@ describe('withResolvedProduct', () => {
       });
     }
 
-    it('같은 SKU로 다시 연결(새로고침)하면 수동 단가·사유·확인이 그대로 남는다', () => {
+    it('같은 SKU로 다시 연결(새로고침)하면 수동 단가·사유·확인·laborMode가 그대로 남는다', () => {
       const before = rowWithLaborState('SKU-SAME');
       const resolved = withResolvedProduct(before, product({ sku: 'SKU-SAME', productId: 'SKU-SAME' }), '1000');
       expect(resolved.manualLaborUnitPrice).toBe('5000');
       expect(resolved.overrideReason).toBe('수동 입력 — 테스트');
       expect(resolved.laborConfirmation).toEqual({ basisFingerprint: 'fp-old', confirmedAt: '2026-10-05' });
+      // 독립 검토 지적: 재조회에서 수동 값만 남고 모드가 mapped/unresolved로
+      // 강제되는 중간 상태를 만들지 않는다 — 사람이 고른 'manual'을 그대로 둔다.
+      expect(resolved.laborMode).toBe('manual');
     });
 
     it('다른 SKU로 재연결하면 옛 수동 단가·사유·확인이 남지 않는다', () => {
@@ -125,6 +128,47 @@ describe('withResolvedProduct', () => {
       expect(resolved.laborConfirmation).toBeUndefined();
       // 새 제품에 품셈 연결이 없으면 laborMode는 unresolved로 떨어진다 — manual을 그대로 들고 가지 않는다.
       expect(resolved.laborMode).toBe('unresolved');
+    });
+
+    it('같은 SKU라도 productId가 다르면 재연결로 본다 — 수동 단가·사유·확인·모드를 전부 새로 정한다', () => {
+      const before = row({
+        sku: 'SKU-DUP',
+        productId: 'PID-OLD',
+        laborMode: 'manual',
+        manualLaborUnitPrice: '5000',
+        overrideReason: '수동 입력 — 테스트',
+        laborConfirmation: { basisFingerprint: 'fp-old', confirmedAt: '2026-10-05' },
+      });
+      const resolved = withResolvedProduct(
+        before,
+        product({ sku: 'SKU-DUP', productId: 'PID-NEW', laborMappingId: 'LM-NEW' }),
+        '1000',
+      );
+      expect(resolved.manualLaborUnitPrice).toBeUndefined();
+      expect(resolved.overrideReason).toBeUndefined();
+      expect(resolved.laborConfirmation).toBeUndefined();
+      expect(resolved.laborMode).toBe('mapped');
+      expect(resolved.laborMappingId).toBe('LM-NEW');
+    });
+
+    it('같은 SKU·productId라도 단위가 다르면 재연결로 본다', () => {
+      const before = row({
+        sku: 'SKU-UNIT',
+        productId: 'SKU-UNIT',
+        unit: 'EA',
+        laborMode: 'manual',
+        manualLaborUnitPrice: '5000',
+        overrideReason: '수동 입력 — 테스트',
+      });
+      const resolved = withResolvedProduct(
+        before,
+        product({ sku: 'SKU-UNIT', productId: 'SKU-UNIT', unit: '10EA' }),
+        '1000',
+      );
+      expect(resolved.manualLaborUnitPrice).toBeUndefined();
+      expect(resolved.overrideReason).toBeUndefined();
+      expect(resolved.laborMode).toBe('unresolved');
+      expect(resolved.unit).toBe('10EA');
     });
   });
 });

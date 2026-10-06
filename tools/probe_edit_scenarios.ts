@@ -277,7 +277,11 @@ function build(profile: IndirectProfileId): void {
       (r): r is typeof r & { type: 'item'; laborMappingId: string } =>
         r.type === 'item' && r.laborMode === 'mapped' && r.laborMappingId !== undefined,
     )
-    .map((r) => ({ rowId: r.rowId, laborMappingId: r.laborMappingId }));
+    .map((r) => ({
+      rowId: r.rowId,
+      laborMappingId: r.laborMappingId,
+      identity: { unit: r.unit, quantity: r.quantity, ruleVersion: prepared.document.versions.rule },
+    }));
 
   const baselineLabor = calculateLaborForRows(requests, basis.reference);
   const baselineCalc = calculateQuote(prepared.document, {
@@ -831,7 +835,12 @@ function buildMixed(): void {
       (r): r is typeof r & { type: 'item'; laborMappingId: string } =>
         r.type === 'item' && r.laborMode === 'mapped' && r.laborMappingId !== undefined,
     )
-    .map((r) => ({ rowId: r.rowId, laborMappingId: r.laborMappingId, systemId: r.systemId }));
+    .map((r) => ({
+      rowId: r.rowId,
+      laborMappingId: r.laborMappingId,
+      systemId: r.systemId,
+      identity: { unit: r.unit, quantity: r.quantity, ruleVersion: prepared.document.versions.rule },
+    }));
   const baselineLabor = calculateLaborForRows(requestsAll, basis.reference);
   const baselineCalc = calculateQuote(prepared.document, { laborUnitPrices: baselineLabor.unitPrices });
 

@@ -159,6 +159,34 @@ describe('calculateLaborUnitPrice — 설계서 §5.2, §5.6', () => {
     expect(r.tradeAmounts[0]!.wageUnit).toBe('M/D');
     expect(r.tradeAmounts[0]!.quantity.toFixed()).toBe('0.06');
   });
+
+  /**
+   * 독립 검토 지적: 화면이 `breakdown.source`를 "노임 출처"라는 이름으로
+   * 보여주고 있었다. `source`는 **품셈 항목**(`item.source`)의 출처다 —
+   * 적용된 노임표(`WageTable.source`/`wageTableId`)와는 다른 축이다.
+   * `buildGuideBasis`가 노임만 가이드 것으로 바꾸고 품셈은 배포본
+   * 그대로 두므로, 실제로는 둘이 다른 값일 때가 흔하다. 두 출처가
+   * 서로 다른 합성 값일 때도 섞이지 않고 각자 제 값을 내놓는지 본다.
+   */
+  it('품셈 출처와 적용 노임표 출처는 서로 다른 축이다 — 섞어서 내놓지 않는다', () => {
+    const itemWithOwnSource: LaborItem = { ...item, source: '품셈 전용 출처 — A' };
+    const wagesWithOwnSource: WageTable = { ...wages, wageTableId: 'WAGE-다른-출처', source: '노임표 전용 출처 — B' };
+    const mapping: LaborMapping = {
+      laborMappingId: 'm1',
+      sku: 'SKU-1',
+      laborItemId: 'L-001',
+      conversionFactor: '1',
+      surcharge: '0',
+      itemRate: '1',
+      confirmed: true,
+      note: '',
+    };
+    const r = calculateLaborUnitPrice(itemWithOwnSource, mapping, wagesWithOwnSource);
+    expect(r.source).toBe('품셈 전용 출처 — A');
+    expect(r.wageTableSource).toBe('노임표 전용 출처 — B');
+    expect(r.wageTableId).toBe('WAGE-다른-출처');
+    expect(r.source).not.toBe(r.wageTableSource);
+  });
 });
 
 describe('calculateLaborForRows — 행별 노무 단가 주입', () => {
@@ -174,7 +202,7 @@ describe('calculateLaborForRows — 행별 노무 단가 주입', () => {
       note: '',
     };
     const result = calculateLaborForRows(
-      [{ rowId: 'r1', laborMappingId: 'm1' }],
+      [{ rowId: 'r1', laborMappingId: 'm1', identity: { unit: 'EA', quantity: '1', ruleVersion: 'rule-v1' } }],
       { items: [item], mappings: [mapping], wages },
     );
     expect(result.unitPrices.get('r1')?.toFixed()).toBe('19800');
@@ -182,7 +210,7 @@ describe('calculateLaborForRows — 행별 노무 단가 주입', () => {
 
   it('존재하지 않는 매핑 id는 경고로 남기고 단가를 만들지 않는다', () => {
     const result = calculateLaborForRows(
-      [{ rowId: 'r1', laborMappingId: 'nope' }],
+      [{ rowId: 'r1', laborMappingId: 'nope', identity: { unit: 'EA', quantity: '1', ruleVersion: 'rule-v1' } }],
       { items: [item], mappings: [], wages },
     );
     expect(result.unitPrices.has('r1')).toBe(false);
@@ -226,19 +254,17 @@ describe('calculateLaborForRows — 행별 노무 단가 주입', () => {
       });
     }
 
+    const identity = { unit: 'EA', quantity: '1', ruleVersion: 'rule-v1' };
+
     it('같은 매핑을 쓰는 두 행 중 한 행만 확인하면 다른 행은 여전히 막힌다', () => {
       const requests: LaborRowRequest[] = [
         {
           rowId: 'r1',
           laborMappingId: 'm1',
-          confirmation: {
-            laborConfirmation: { basisFingerprint: fingerprintFor('r1'), confirmedAt: '2026-10-05' },
-            unit: 'EA',
-            quantity: '1',
-            ruleVersion: 'rule-v1',
-          },
+          identity,
+          existingConfirmation: { basisFingerprint: fingerprintFor('r1'), confirmedAt: '2026-10-05' },
         },
-        { rowId: 'r2', laborMappingId: 'm1' },
+        { rowId: 'r2', laborMappingId: 'm1', identity },
       ];
       const result = calculateLaborForRows(requests, reference);
 
@@ -257,12 +283,8 @@ describe('calculateLaborForRows — 행별 노무 단가 주입', () => {
         {
           rowId: 'r1',
           laborMappingId: 'm1',
-          confirmation: {
-            laborConfirmation: { basisFingerprint: fingerprintFor('r1', { quantity: '999' }), confirmedAt: '2026-10-05' },
-            unit: 'EA',
-            quantity: '1',
-            ruleVersion: 'rule-v1',
-          },
+          identity,
+          existingConfirmation: { basisFingerprint: fingerprintFor('r1', { quantity: '999' }), confirmedAt: '2026-10-05' },
         },
       ];
       const result = calculateLaborForRows(requests, reference);
@@ -271,8 +293,14 @@ describe('calculateLaborForRows — 행별 노무 단가 주입', () => {
       expect(r1.blocking).toBe(true);
     });
 
+    it('breakdown.currentFingerprint는 확인 여부와 무관하게 항상 있다 — 화면이 처음 확인할 때도 쓸 수 있다', () => {
+      const result = calculateLaborForRows([{ rowId: 'r1', laborMappingId: 'm1', identity }], reference);
+      const r1 = result.breakdowns.get('r1')!;
+      expect(r1.currentFingerprint).toBe(fingerprintFor('r1'));
+      expect(r1.blocking).toBe(true); // 아직 확인 전이니 막혀 있다 — 지문만 먼저 계산된다.
+    });
+
     it('computeRowConfirmationFingerprint가 만든 지문을 그대로 확인에 쓰면 그 행만 풀린다 — 화면 "확인함" 버튼이 쓸 계산과 재검증이 같은 결과를 낸다', () => {
-      const identity = { unit: 'EA', quantity: '1', ruleVersion: 'rule-v1' };
       const fingerprint = computeRowConfirmationFingerprint('r1', 'm1', reference, identity);
       expect(fingerprint).toBe(fingerprintFor('r1'));
 
@@ -281,7 +309,8 @@ describe('calculateLaborForRows — 행별 노무 단가 주입', () => {
           {
             rowId: 'r1',
             laborMappingId: 'm1',
-            confirmation: { laborConfirmation: { basisFingerprint: fingerprint!, confirmedAt: '2026-10-05' }, ...identity },
+            identity,
+            existingConfirmation: { basisFingerprint: fingerprint!, confirmedAt: '2026-10-05' },
           },
         ],
         reference,

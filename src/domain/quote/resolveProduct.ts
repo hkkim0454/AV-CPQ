@@ -29,18 +29,27 @@ export type ItemRow = Extract<SheetRow, { type: 'item' }>;
 export function withResolvedProduct(row: ItemRow, product: CatalogProduct, price: DecimalText | undefined): ItemRow {
   const hadManualDescription = row.internalDescription !== undefined;
   const catalogDescription = product.options['description'];
-  // 같은 SKU로 "다시 연결"하는 것은 재조회·새로고침이지 재연결이 아니다 —
-  // 사람이 수동으로 입력한 단가·사유·노무 확인은 그대로 둔다. SKU가
-  // 바뀌면 그 값들은 더 이상 이 제품을 근거로 하지 않으므로 명시로
-  // 지운다(독립 검토 지적 — `...rest` 스프레드가 이 칸들을 가리지 않아
-  // 재연결 후에도 살아남았다).
-  const isSameSku = row.sku !== undefined && row.sku === product.sku;
+  // "같은 제품을 다시 조회"(재계산 새로고침)인지, 실제로 **다른** 제품
+  //으로 재연결하는 것인지는 sku만으로 가르지 않는다 — sku는 같은데
+  // productId나 unit이 다르면 그것도 identity 변경이다(독립 검토
+  // 지적: sku만 보면, 재조회인데도 laborMode가 mapped/unresolved로
+  // 강제되면서 수동 단가·사유만 orphan으로 남는 중간 상태가 생겼다).
+  // 재조회면 laborMode(사람이 고른 mapped/manual/not-applicable)와
+  // 수동 단가·사유·확인을 전부 그대로 둔다. identity가 바뀌면 전부
+  // 새로 정한다 — 중간 상태를 만들지 않는다.
+  const identityUnchanged =
+    row.sku !== undefined &&
+    row.sku === product.sku &&
+    row.productId === product.productId &&
+    row.unit === product.unit;
+
   const {
     sku: _sku,
     productId: _productId,
     sellingUnitPrice: _price,
-    laborMappingId: _laborMappingId,
     internalDescription: _description,
+    laborMode: _laborMode,
+    laborMappingId: _laborMappingId,
     manualLaborUnitPrice: _manualLaborUnitPrice,
     overrideReason: _overrideReason,
     laborConfirmation: _laborConfirmation,
@@ -60,11 +69,16 @@ export function withResolvedProduct(row: ItemRow, product: CatalogProduct, price
       : catalogDescription !== undefined && catalogDescription !== ''
         ? { internalDescription: catalogDescription }
         : {}),
-    ...(product.laborMappingId !== undefined
-      ? { laborMode: 'mapped' as const, laborMappingId: product.laborMappingId }
-      : { laborMode: 'unresolved' as const }),
-    ...(isSameSku && row.manualLaborUnitPrice !== undefined ? { manualLaborUnitPrice: row.manualLaborUnitPrice } : {}),
-    ...(isSameSku && row.overrideReason !== undefined ? { overrideReason: row.overrideReason } : {}),
-    ...(isSameSku && row.laborConfirmation !== undefined ? { laborConfirmation: row.laborConfirmation } : {}),
+    ...(identityUnchanged
+      ? {
+          laborMode: row.laborMode,
+          ...(product.laborMappingId !== undefined ? { laborMappingId: product.laborMappingId } : {}),
+          ...(row.manualLaborUnitPrice !== undefined ? { manualLaborUnitPrice: row.manualLaborUnitPrice } : {}),
+          ...(row.overrideReason !== undefined ? { overrideReason: row.overrideReason } : {}),
+          ...(row.laborConfirmation !== undefined ? { laborConfirmation: row.laborConfirmation } : {}),
+        }
+      : product.laborMappingId !== undefined
+        ? { laborMode: 'mapped' as const, laborMappingId: product.laborMappingId }
+        : { laborMode: 'unresolved' as const }),
   };
 }

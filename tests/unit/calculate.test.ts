@@ -555,6 +555,33 @@ describe('calculateQuote — 직접 입력(manual)·해당 없음(not-applicable
     expect(calculateQuote(doc).blocking).toBe(true);
   });
 
+  /**
+   * 독립 검토 지적: QuoteSheet의 직접 입력 칸은 타이핑 중간 상태
+   * (빈 문자열·'-'·'abc' 등)를 그대로 commit할 수 있다. `dec()`는 그런
+   * 값에 `TypeError`를 던지도록 설계돼 있다(§5.6 "조용히 0으로 바꾸지
+   * 않는다") — 그런데 그 설계는 **계산에 쓸 완성된 값**을 전제한 것이지,
+   * 사람이 입력 중인 초안까지 던지라는 뜻은 아니었다. 사람이 타이핑
+   * 중인 초안은 계산 엔진이 아니라 화면의 로컬 draft가 걸러야 맞지만,
+   * 화면이 실수로 그대로 넘기더라도 계산 엔진 자신이 깨지면 안 된다 —
+   * 그래서 잘못된 문자열도 "금액 없음과 같은 차단"으로 다루지, 예외로
+   * 흘리지 않는다.
+   */
+  it.each(['', '-', 'abc', 'Infinity', '1.2.3'])(
+    'manual: 금액이 잘못된 문자열(%s)이면 예외를 던지지 않고 차단한다',
+    (badAmount) => {
+      const doc = makeDocument({
+        systems: [system('S1', { indirect: [] })],
+        rows: [rowWith({ laborMode: 'manual', manualLaborUnitPrice: badAmount, overrideReason: '합성 사유' })],
+      });
+      let snap: ReturnType<typeof calculateQuote> | undefined;
+      expect(() => {
+        snap = calculateQuote(doc);
+      }).not.toThrow();
+      expect(snap?.blocking).toBe(true);
+      expect(snap?.warnings.some((w) => w.code === 'manual-labor-incomplete')).toBe(true);
+    },
+  );
+
   it('not-applicable: 사유가 없으면 차단한다', () => {
     const doc = makeDocument({
       systems: [system('S1', { indirect: [] })],

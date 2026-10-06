@@ -26,7 +26,7 @@
 import { calculateQuote, type CalculationInput, type CalculationSnapshot } from '../calculation/calculate';
 import {
   calculateLaborForRows,
-  type LaborBreakdown,
+  type RowLaborBreakdown,
   type LaborReference,
 } from '../labor/calculateLabor';
 import type { LaborWarning } from '../labor/types';
@@ -35,7 +35,7 @@ import type { QuoteDocument } from './types';
 export interface PricedQuote {
   calculation: CalculationSnapshot;
   /** 행별 일위대가 근거. 화면이 그대로 보여준다 (설계서 §5.3). */
-  laborBreakdowns: Map<string, LaborBreakdown>;
+  laborBreakdowns: Map<string, RowLaborBreakdown>;
   laborWarnings: LaborWarning[];
   /** 계산 경고와 품셈 경고를 합쳐 하나라도 막으면 true. */
   blocking: boolean;
@@ -71,18 +71,17 @@ export function priceQuote(
     .map((row) => ({
       rowId: row.rowId,
       laborMappingId: row.laborMappingId,
-      ...(row.laborConfirmation === undefined
-        ? {}
-        : {
-            confirmation: {
-              laborConfirmation: row.laborConfirmation,
-              ...(row.productId !== undefined ? { productId: row.productId } : {}),
-              ...(row.sku !== undefined ? { sku: row.sku } : {}),
-              unit: row.unit,
-              quantity: row.quantity,
-              ruleVersion: document.versions.rule,
-            },
-          }),
+      // 확인 여부와 무관하게 항상 싣는다 — breakdown.currentFingerprint가
+      // 이걸로 나오고, 화면의 "확인함"이 처음 확인할 때도 이 지문이
+      // 필요하다(독립 검토 지적).
+      identity: {
+        ...(row.productId !== undefined ? { productId: row.productId } : {}),
+        ...(row.sku !== undefined ? { sku: row.sku } : {}),
+        unit: row.unit,
+        quantity: row.quantity,
+        ruleVersion: document.versions.rule,
+      },
+      ...(row.laborConfirmation === undefined ? {} : { existingConfirmation: row.laborConfirmation }),
     }));
 
   const labor = calculateLaborForRows(requests, laborReference);
@@ -100,4 +99,4 @@ export function priceQuote(
   };
 }
 
-export type { LaborReference, LaborBreakdown };
+export type { LaborReference, RowLaborBreakdown };

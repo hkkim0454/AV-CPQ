@@ -16,6 +16,7 @@ import type {
   DerivedRow,
   IndirectCostRule,
   DocumentVersions,
+  DecimalText,
 } from '../quote/types';
 import {
   Decimal,
@@ -141,6 +142,23 @@ function isItem(row: SheetRow): row is SheetRow & { type: 'item' } & QuoteRow {
 }
 
 /**
+ * `manualLaborUnitPrice`를 읽는다 — **화면이 사람 타이핑 중간 상태를
+ * 그대로 넘겨도 계산 엔진이 깨지지 않아야 한다**(독립 검토 지적: 빈
+ * 문자열·'-'·'abc'·'Infinity' 등은 `dec()`가 예외를 던진다. `dec()`
+ * 자신의 "조용히 0으로 바꾸지 않는다" 설계는 그대로 두되, 여기서는
+ * 그 예외를 "금액 없음"과 같은 차단으로 다룬다 — 사람이 아직 다 안
+ * 쓴 값도 완전한 값의 부재일 뿐, 계산 엔진을 멈출 이유는 아니다).
+ */
+function decOrUndefinedTolerant(value: DecimalText | undefined): Decimal | undefined {
+  if (value === undefined) return undefined;
+  try {
+    return dec(value);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * 행의 적용 노무 단가. `mapped`는 `laborUnitPrices`에서 주입받는다.
  *
  * `isDerivedRow`가 true면(잡자재비·배관 기타자재 등 규칙이 만든 행)
@@ -171,7 +189,7 @@ function resolveLaborUnitPrice(
       return undefined;
     }
     case 'manual': {
-      const amount = decOrUndefined(row.manualLaborUnitPrice);
+      const amount = decOrUndefinedTolerant(row.manualLaborUnitPrice);
       const amountOk = amount !== undefined && !amount.isNegative();
       const reasonOk = row.overrideReason !== undefined && row.overrideReason.trim() !== '';
       if (!amountOk || !reasonOk) {

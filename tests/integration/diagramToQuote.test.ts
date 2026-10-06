@@ -213,7 +213,11 @@ function withLabor(document: Parameters<typeof calculateQuote>[0]) {
       (r): r is typeof r & { type: 'item'; laborMappingId: string } =>
         r.type === 'item' && r.laborMode === 'mapped' && r.laborMappingId !== undefined,
     )
-    .map((r) => ({ rowId: r.rowId, laborMappingId: r.laborMappingId }));
+    .map((r) => ({
+      rowId: r.rowId,
+      laborMappingId: r.laborMappingId,
+      identity: { unit: r.unit, quantity: r.quantity, ruleVersion: document.versions.rule },
+    }));
   return calculateLaborForRows(requests, labor);
 }
 
