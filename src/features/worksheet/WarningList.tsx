@@ -33,6 +33,7 @@
 import { useState } from 'react';
 import type { Catalog, CatalogProduct } from '../../data/catalog/load';
 import type { ImportWarning } from '../../import/diagram/devices';
+import { isDescriptionOnlyCandidate, type ModelSearchCandidate } from '../../import/diagram/matchCatalog';
 
 interface WarningListProps {
   warnings: readonly ImportWarning[];
@@ -84,25 +85,58 @@ function CandidateDetail({ product, catalog }: { product: CatalogProduct; catalo
   );
 }
 
+/**
+ * 4단계 모델명 검색이 올린 후보의 **근거** — 어느 칸에서 어떤 글자가 맞았는지다
+ * (계획 2026-10-06 §5·§6). 설명 칸에서만 맞은 것은 *다른 제품의 부속품*일 수 있어
+ * 경고를 함께 적는다. 금액만 보여주고 고르게 하지 않는다.
+ */
+function MatchEvidence({ candidate }: { candidate: ModelSearchCandidate }) {
+  const label: Record<string, string> = {
+    model: '모델',
+    quoteSpec: '규격',
+    quoteName: '품명',
+    description: '설명',
+  };
+  const descriptionOnly = isDescriptionOnlyCandidate(candidate);
+  return (
+    <p className="q-muted">
+      {candidate.matches.map((m, i) => (
+        <span key={`${m.field}-${i}`}>
+          {i > 0 ? ' · ' : ''}
+          {label[m.field] ?? m.field} 칸에서 ‘{m.text}’
+        </span>
+      ))}
+      {descriptionOnly && (
+        <strong> ⚠ 설명 칸에서만 맞았습니다. 그 제품에 쓰는 다른 제품일 수 있습니다.</strong>
+      )}
+    </p>
+  );
+}
+
 function CandidateList({
   candidates,
   catalog,
   onSelect,
   groupByFamily = false,
+  evidence,
 }: {
   candidates: readonly string[];
   catalog: Catalog;
   onSelect(sku: string): void;
   /** 제조사별 종류(품셈 묶음)별로 묶어 "아래로 펼쳐진" 목록을 보여준다. */
   groupByFamily?: boolean;
+  /** 4단계 후보일 때만 있다. SKU 별 판단 근거다. */
+  evidence?: readonly ModelSearchCandidate[];
 }) {
   const bySku = new Map(catalog.products.map((p) => [p.sku, p]));
+  const evidenceBySku = new Map((evidence ?? []).map((c) => [c.sku, c]));
 
   if (!groupByFamily) {
     return (
       <ul className="q-resolve-candidates">
         {candidates.map((sku) => {
           const product = bySku.get(sku);
+          const found = evidenceBySku.get(sku);
           return (
             <li key={sku}>
               {product !== undefined ? (
@@ -110,6 +144,7 @@ function CandidateList({
               ) : (
                 <span>{sku}</span>
               )}
+              {found !== undefined && <MatchEvidence candidate={found} />}
               <button type="button" className="q-button" onClick={() => onSelect(sku)}>
                 선택
               </button>
@@ -269,6 +304,9 @@ export function WarningList({
                   <CandidateList
                     candidates={warning.candidates}
                     catalog={catalog}
+                    {...(warning.modelSearchCandidates !== undefined
+                      ? { evidence: warning.modelSearchCandidates }
+                      : {})}
                     onSelect={(sku) => onResolveOption(warning.optionId!, sku)}
                   />
                 ) : (
@@ -283,6 +321,9 @@ export function WarningList({
                   <CandidateList
                     candidates={warning.candidates}
                     catalog={catalog}
+                    {...(warning.modelSearchCandidates !== undefined
+                      ? { evidence: warning.modelSearchCandidates }
+                      : {})}
                     onSelect={(sku) => onResolveDevice(warning.nodeId!, sku)}
                   />
                 ) : (

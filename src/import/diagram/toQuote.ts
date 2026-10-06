@@ -47,6 +47,9 @@ function remarkFor(line: DeviceLine): string {
   if (line.matchedBy === 'model-fragment' && line.matchedFragment !== undefined) {
     return `구성도 — 모델 '${line.matchedFragment}'로 조회`;
   }
+  // 4단계는 후보만 올리고 제품을 붙이지 않는다. `matchedBy`가 'none'에서
+  // 'model-search'로 바뀌었다고 해서 "미등록"이라는 사실이 비고에서 사라지면 안 된다.
+  if (line.matchedBy === 'model-search') return '구성도 — 카탈로그 미등록. 후보 있음, 확인 필요';
   if (line.matchedBy === 'none') return '구성도 — 카탈로그 미등록. 확인 필요';
   return '구성도';
 }

@@ -27,7 +27,7 @@
 import type { DecimalText } from '../../domain/quote/types';
 import type { Catalog, CatalogProduct } from '../../data/catalog/load';
 import { dec, text } from '../../domain/calculation/rounding';
-import { matchByModel, type MatchResult } from './matchCatalog';
+import { matchByModel, type MatchResult, type ModelSearchCandidate } from './matchCatalog';
 import type { DiagramFile, DiagramNode } from './types';
 
 export type ImportWarningCode =
@@ -80,6 +80,13 @@ export interface ImportWarning {
    * 추측하지 않는다 — 화면이 카탈로그 검색으로 직접 찾게 한다.
    */
   candidates?: readonly string[];
+  /**
+   * 4단계 모델명 검색이 올린 후보의 **근거** — 어느 칸에서 어떤 글자가 맞았는지다
+   * (계획 2026-10-06 §5·§6). `candidates`가 SKU만 담는 데 비해 이쪽은 판단 근거를
+   * 담는다. 설명 칸에서만 맞은 후보는 *다른 제품의 부속품*일 수 있어서, 화면이
+   * 그 사실을 사람에게 보여주지 않으면 본체로 잘못 연결된다.
+   */
+  modelSearchCandidates?: readonly ModelSearchCandidate[];
   /**
    * 옵션 카드 경고에만 있다. 옵션은 **optionId로 합쳐진다** — 같은
    * 노드의 본체 경고와 `nodeId`가 같을 수 있으므로, 이 값이 있으면
@@ -203,6 +210,19 @@ export function buildDeviceLines(
           nodeId: node.id,
           candidates: match.ambiguousSkus,
         });
+      } else if (match.modelSearchCandidates !== undefined) {
+        // 4단계가 찾은 후보다. **자동으로 붙이지 않고** 사람이 고르게 한다.
+        warnings.push({
+          code: 'device-not-in-catalog',
+          blocking: true,
+          message:
+            `'${model || name}'과 정확히 일치하는 제품이 카탈로그에 없다. ` +
+            `모델명이 들어 있는 제품 ${match.modelSearchCandidates.length}건을 후보로 올린다. ` +
+            '어느 것인지 사람이 확인해야 한다.',
+          nodeId: node.id,
+          candidates: match.modelSearchCandidates.map((c) => c.sku),
+          modelSearchCandidates: match.modelSearchCandidates,
+        });
       } else {
         warnings.push({
           code: 'device-not-in-catalog',
@@ -289,9 +309,19 @@ export function buildDeviceLines(
         warnings.push({
           code: 'device-not-in-catalog',
           blocking: true,
-          message: `옵션 '${definition.model}'이 카탈로그에 없다. 단가가 미등록이다.`,
+          message:
+            optionMatch.modelSearchCandidates !== undefined
+              ? `옵션 '${definition.model}'과 정확히 일치하는 제품이 카탈로그에 없다. ` +
+                `모델명이 들어 있는 제품 ${optionMatch.modelSearchCandidates.length}건을 후보로 올린다.`
+              : `옵션 '${definition.model}'이 카탈로그에 없다. 단가가 미등록이다.`,
           nodeId: node.id,
           optionId,
+          ...(optionMatch.modelSearchCandidates !== undefined
+            ? {
+                candidates: optionMatch.modelSearchCandidates.map((c) => c.sku),
+                modelSearchCandidates: optionMatch.modelSearchCandidates,
+              }
+            : {}),
         });
       } else if (optionMatch.sellingUnitPrice === undefined) {
         warnings.push({
