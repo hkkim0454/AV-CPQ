@@ -5,19 +5,29 @@
 TypeScript 쪽(`src/data/catalog/`)이 정한다. 여기서는 셀을 읽어 옮기기만 한다.
 그래야 분류 규칙을 바꿀 때 원본을 다시 열지 않아도 된다.
 
-## 읽지 않는 열 — 구조로 보장한다
+## 열 번호를 외우지 않는다 — 머리글로 찾는다 (품셈 교체 Task 1)
 
-| 열 | 내용 | 이유 |
-|---|---|---|
-| M (13) | 제조사/구매처 | **매입처 정보** (설계서 §8.1, 결정 D1) |
-| N (14) | 영업비고 | **매입처 정보** |
+예전에는 `READ_COLUMNS = {"laborCode": 16, ...}` 처럼 **열 번호를 상수로**
+적었다. 2026 하반기 파일에서 열이 밀리자 16번이 `제조사/구매처`가 되어
+**매입처가 카탈로그로 들어갔다**(합성 시트로 재현함 —
+`tools/test_extract_catalog.py`).
 
-이 스크립트에는 13·14 인덱스가 **어디에도 없다.** `READ_COLUMNS`에 없으면 읽히지 않는다.
-금지 목록을 따로 두고 거르는 방식이 아니라, 읽을 열만 적는 allowlist다.
+그래서 지금은 2행(상위)·3행(하위) 머리글을 읽어 **역할로** 열을 찾는다.
+`재료비`+`단 가`가 판매단가이고 `노무비`+`단 가`가 노무비 단가다.
+**상위만으로도, 하위만으로도 정하지 않는다** — 상반기와 하반기 둘 다
+`재료비`·`노무비` 아래에 `단 가`·`금액`이 한 쌍씩 있기 때문이다.
 
-그 밖에 읽지 않는 열: F(수량 — 샘플값이라 카탈로그에 무의미),
-H~K(금액 수식), O(노무비 메모), S(표준단가 수식 — 우리가 다시 계산한다),
-U/W/Y…(직종별 금액 수식).
+못 찾거나(결손), 같은 머리글이 두 열에 있거나(모호), 구조가 어긋나면
+**추출 전체를 중단한다.** 그 열만 건너뛰지 않는다.
+
+## 읽지 않는 열 — 머리글로 막는다
+
+`제조사` · `구매처` · `영업비고` · `원가` 중 하나라도 **읽기 대상 열의
+머리글**에 있으면 `SystemExit`로 멈춘다. 중단 메시지에는 **열 문자와
+머리글만** 적는다 — 그 열의 값이 매입처일 수 있다(설계서 §8.1, 결정 D1).
+
+그 밖에 읽지 않는 열: 수량(샘플값이라 카탈로그에 무의미), 각종 금액 수식,
+노무비 메모, 직종별 금액 수식.
 
 ## 원본은 읽기만 한다
 
@@ -32,6 +42,7 @@ import hashlib
 import json
 import os
 import re
+import unicodedata
 import sys
 from datetime import date
 from pathlib import Path
@@ -41,29 +52,41 @@ from openpyxl.utils import get_column_letter
 
 sys.stdout.reconfigure(encoding="utf-8")
 
-# --- 읽을 열 (allowlist). 13·14는 여기에 없다 ---------------------------------
-READ_COLUMNS = {
-    "number": 1,            # A 번호
-    "name": 2,              # B 품명 (계층 있음 — 분류는 TS가 한다)
-    "spec": 3,              # C 규격
-    "description": 4,       # D 설명
-    "unit": 5,              # E 단위
-    "materialUnitPrice": 7, # G 재료비 단가 = 판매단가
-    "remark": 12,           # L 비고
-    "laborCode": 16,        # P 품셈 코드
-    "itemRate": 17,         # Q 품목별 요율
-    "surcharge": 18,        # R 할증
-}
+# --- 금지 머리글. 읽기 대상 열에 하나라도 있으면 전체 중단 ---------------------
+FORBIDDEN_HEADER_TOKENS = ("제조사", "구매처", "영업비고", "원가")
 
-# --- 직종별 '품' 열. 노임은 col+1의 3행, 직종 이름은 col의 2행 -----------------
-TRADE_COLUMNS_COMMON = [20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44, 46, 48, 50, 52]
-#                       T   V   X   Z   AB  AD  AF  AH  AJ  AL  AN  AP  AR  AT  AV  AX  AZ
-TRADE_COLUMNS_CMS = [64, 66, 68, 70]
-#                    BL  BN  BP  BR   — 단위가 M/M이다 (결정 문서 D1)
+# --- 머리글 역할표 -----------------------------------------------------------
+#
+# `sub` 가 `ANY` 면 하위 머리글을 보지 않는다. 튜플이면 그 중 하나여야 한다.
+# 상위만으로 정할 수 있는 역할(`번호`·`품명`…)과, 상위·하위를 함께 봐야만
+# 정해지는 역할(`재료비`+`단 가`)을 구분한다.
+ANY = None
 
-HEADER_TRADE_ROW = 2
-HEADER_UNIT_WAGE_ROW = 3
-FIRST_BODY_ROW = 4
+COLUMN_SPECS = (
+    ("number", ("번호",), ANY),
+    ("name", ("품명",), ANY),
+    ("spec", ("규격",), ANY),
+    ("description", ("설명",), ANY),
+    ("unit", ("단위",), ANY),
+    ("materialUnitPrice", ("재료비",), ("단가",)),   # 판매단가
+    ("laborUnitPrice", ("노무비",), ("단가",)),      # 역산 대조용 (Task 2)
+    ("remark", ("비고",), ANY),
+    ("itemRate", ("품목별요율%", "품목별요율"), ANY),
+    ("surcharge", ("할증",), ANY),
+)
+
+#: `품목별 요율%` 를 기준으로 한 품셈 블록의 상대 위치. 머리글이 없는
+#: 품셈 코드 열을 "요율의 왼쪽"만으로 정하지 않고 이 블록 전체를 확인한다.
+#:
+#:     [품셈 코드] [품목별 요율%] [할증] [표준 단가] [직종1] [노임1] [직종2] …
+#:         -1            0         +1      +2        +3
+LABOR_CODE_OFFSET = -1
+SURCHARGE_OFFSET = 1
+STANDARD_PRICE_OFFSET = 2
+FIRST_TRADE_OFFSET = 3
+
+#: 숫자로 읽을 칸. 나머지는 문자열 그대로 옮긴다.
+NUMERIC_FIELDS = ("materialUnitPrice", "laborUnitPrice", "itemRate", "surcharge")
 
 # 이 계획의 범위 밖 (결정 문서 D1, 계획 Global Constraints)
 SKIP_SHEETS = {
@@ -72,6 +95,169 @@ SKIP_SHEETS = {
     "간접비_DS",             # 발주처 프로파일 — 별도 계획
     "간접비_SDC, SDI",       # 발주처 프로파일 — 별도 계획
 }
+
+
+def normalize_header(value):
+    """머리글 비교용 정규화. 공백·개행을 없애고 전각을 반각으로 맞춘다.
+
+    원본에 `품   명`, `단 가` 처럼 공백이 섞여 있고 시트마다 다르다.
+    숫자 머리글(`할증` 아래의 `0`)도 문자열로 다룬다.
+    """
+    if value is None:
+        return ""
+    text = unicodedata.normalize("NFKC", str(value))
+    return "".join(text.split())
+
+
+def stop(sheet, message):
+    """추출 전체를 멈춘다. **셀 값을 적지 않는다** — 열 문자와 머리글만 적는다."""
+    raise SystemExit(f"[{sheet}] {message}")
+
+
+def header_grid(worksheet, top_row, sub_row):
+    """(행, 열) → 정규화한 머리글.
+
+    병합 영역은 **anchor 셀의 값을 그 범위 안에서만** 펼친다. 머리글이
+    비었다고 왼쪽 값을 계속 끌어오면(forward fill) 병합 범위 밖의 엉뚱한
+    열이 이름을 얻는다.
+
+    세로로 2·3행에 걸쳐 병합된 열(`품명` 등)은 하위 머리글이 **없는 것**으로
+    본다. 안 그러면 `품명`이 상위이자 하위가 되어 복합 역할 판정이 깨진다.
+    """
+    grid = {}
+    for row in (top_row, sub_row):
+        for column in range(1, worksheet.max_column + 1):
+            grid[(row, column)] = normalize_header(worksheet.cell(row=row, column=column).value)
+
+    spans_both_rows = set()
+    for merged in worksheet.merged_cells.ranges:
+        anchor = normalize_header(worksheet.cell(row=merged.min_row, column=merged.min_col).value)
+        if anchor == "":
+            continue
+        for row in (top_row, sub_row):
+            if merged.min_row <= row <= merged.max_row:
+                for column in range(merged.min_col, merged.max_col + 1):
+                    grid[(row, column)] = anchor
+        if merged.min_row <= top_row and merged.max_row >= sub_row:
+            for column in range(merged.min_col, merged.max_col + 1):
+                spans_both_rows.add(column)
+
+    roles = {}
+    for column in range(1, worksheet.max_column + 1):
+        top = grid.get((top_row, column), "")
+        sub = "" if column in spans_both_rows else grid.get((sub_row, column), "")
+        roles[column] = (top, sub)
+    return roles
+
+
+def find_header_rows(worksheet, sheet_name):
+    """머리글 행을 **찾는다.** `2·3행`이라고 외우지 않는다.
+
+    `품명` 이 있는 행이 상위 머리글 행이고, 그 다음이 하위 머리글 행이며,
+    본문은 그 다음 행부터다. 못 찾으면 중단한다.
+    """
+    for row in range(1, min(worksheet.max_row, 8) + 1):
+        for column in range(1, min(worksheet.max_column, 12) + 1):
+            if normalize_header(worksheet.cell(row=row, column=column).value) == "품명":
+                return row, row + 1, row + 2
+    stop(sheet_name, "머리글 행을 찾지 못했다 — '품 명' 머리글이 없다")
+
+
+def check_forbidden(sheet_name, column, roles):
+    """읽기 대상 열의 머리글에 금지 낱말이 있으면 전체 중단."""
+    top, sub = roles.get(column, ("", ""))
+    for header in (top, sub):
+        for token in FORBIDDEN_HEADER_TOKENS:
+            if token and token in header:
+                stop(
+                    sheet_name,
+                    f"{get_column_letter(column)}열의 머리글 '{header}' 에 금지 낱말 '{token}' 이 있다. "
+                    "읽으면 매입처·원가가 카탈로그로 들어간다 — 추출을 멈춘다.",
+                )
+
+
+def resolve_columns(worksheet, sheet_name):
+    """머리글로 읽을 열을 정한다. 결손·모호·구조 불일치는 전부 중단."""
+    top_row, sub_row, first_body_row = find_header_rows(worksheet, sheet_name)
+    roles = header_grid(worksheet, top_row, sub_row)
+
+    fields = {}
+    for field, tops, subs in COLUMN_SPECS:
+        matches = [
+            column
+            for column, (top, sub) in roles.items()
+            if top in tops and (subs is ANY or sub in subs)
+        ]
+        if not matches:
+            wanted = "/".join(tops) + ("" if subs is ANY else " + " + "/".join(subs))
+            stop(sheet_name, f"머리글 '{wanted}' 에 해당하는 열이 없다")
+        if len(matches) > 1:
+            letters = ", ".join(get_column_letter(c) for c in matches)
+            stop(sheet_name, f"머리글 '{'/'.join(tops)}' 이 여러 열({letters})에 있어 어느 쪽인지 정할 수 없다")
+        fields[field] = matches[0]
+
+    # --- 품셈 블록 — 코드 열에는 머리글이 없다 --------------------------------
+    rate_column = fields["itemRate"]
+    code_column = rate_column + LABOR_CODE_OFFSET
+    if code_column < 1:
+        stop(sheet_name, f"품목별 요율%({get_column_letter(rate_column)}열) 왼쪽에 품셈 코드 열이 없다")
+    check_forbidden(sheet_name, code_column, roles)
+    code_top, code_sub = roles.get(code_column, ("", ""))
+    if code_top != "" or code_sub != "":
+        stop(
+            sheet_name,
+            f"품셈 코드 자리({get_column_letter(code_column)}열)에 머리글 '{code_top or code_sub}' 이 있다. "
+            "이 자리는 머리글이 없어야 한다 — 열 구조가 예상과 다르다.",
+        )
+    fields["laborCode"] = code_column
+
+    if fields["surcharge"] != rate_column + SURCHARGE_OFFSET:
+        stop(
+            sheet_name,
+            f"할증 열이 {get_column_letter(fields['surcharge'])}열인데 "
+            f"품목별 요율%({get_column_letter(rate_column)}열) 바로 오른쪽이 아니다",
+        )
+    standard_column = rate_column + STANDARD_PRICE_OFFSET
+    if normalize_header(roles.get(standard_column, ("", ""))[1]) != "표준단가":
+        stop(
+            sheet_name,
+            f"표준 단가 자리({get_column_letter(standard_column)}열)의 하위 머리글이 '표준단가'가 아니다",
+        )
+
+    # --- 직종 쌍 — col 이 직종·품, col+1 이 노임 -------------------------------
+    first_trade = rate_column + FIRST_TRADE_OFFSET
+    trade_columns = []
+    for column in range(first_trade, worksheet.max_column, 2):
+        name = roles[column][0]
+        if name == "":
+            continue
+        check_forbidden(sheet_name, column, roles)
+        if column + 1 > worksheet.max_column:
+            stop(sheet_name, f"직종 {get_column_letter(column)}열의 노임 열이 시트 밖이다")
+        trade_columns.append(column)
+
+    # 노임 자리(홀수 칸)에 **자기 직종과 다른 이름**이 있으면 짝이 어긋난 것이다.
+    for column in range(first_trade + 1, worksheet.max_column + 1, 2):
+        stray = roles[column][0]
+        if stray != "" and stray != roles.get(column - 1, ("", ""))[0]:
+            stop(
+                sheet_name,
+                f"노임 자리({get_column_letter(column)}열)에 별도 머리글 '{stray}' 이 있다 — 직종 쌍이 어긋났다",
+            )
+
+    if not trade_columns:
+        stop(sheet_name, f"직종 열을 하나도 찾지 못했다(표준 단가 오른쪽 {get_column_letter(first_trade)}열부터 비어 있다)")
+
+    for column in fields.values():
+        check_forbidden(sheet_name, column, roles)
+
+    return {
+        "fields": fields,
+        "trade_columns": trade_columns,
+        "top_row": top_row,
+        "sub_row": sub_row,
+        "first_body_row": first_body_row,
+    }
 
 
 def decimal_text(value):
@@ -240,24 +426,33 @@ def extract_trades(formula_ws, cached_ws, row, trade_columns, trade_names):
     return out, unresolved
 
 
-def read_wage_header(formula_ws, cached_ws, trade_columns):
-    """2행 직종 이름 + 3행 단위 + 3행(col+1) 노임."""
+def read_wage_header(formula_ws, cached_ws, layout, sheet_name):
+    """상위 행의 직종 이름 + 하위 행의 단위 + 하위 행(col+1)의 노임.
+
+    `col+1 이 노임 열`이라는 좌표 계약을 여기서 확인한다. 노임을 숫자로
+    읽지 못하면 중단한다 — 노임이 비면 노무비가 통째로 0이 된다.
+    """
+    top_row, sub_row = layout["top_row"], layout["sub_row"]
     names = {}
     wages = []
-    for column in trade_columns:
-        name = text_of(formula_ws.cell(row=HEADER_TRADE_ROW, column=column).value)
+    for column in layout["trade_columns"]:
+        name = text_of(formula_ws.cell(row=top_row, column=column).value)
         if name is None:
             continue
         # 원본에 '통신관련 기능사'처럼 공백이 섞여 있다. 그대로 쓰되 양끝만 정리한다.
         names[column] = name
-        unit = text_of(formula_ws.cell(row=HEADER_UNIT_WAGE_ROW, column=column).value)
-        amount = decimal_text(
-            formula_ws.cell(row=HEADER_UNIT_WAGE_ROW, column=column + 1).value
-        )
+        unit = text_of(formula_ws.cell(row=sub_row, column=column).value)
+        amount = decimal_text(formula_ws.cell(row=sub_row, column=column + 1).value)
         if amount is None:
-            amount = decimal_text(
-                cached_ws.cell(row=HEADER_UNIT_WAGE_ROW, column=column + 1).value
+            amount = decimal_text(cached_ws.cell(row=sub_row, column=column + 1).value)
+        if amount is None:
+            stop(
+                sheet_name,
+                f"직종 {get_column_letter(column)}열의 노임 자리"
+                f"({get_column_letter(column + 1)}{sub_row})에 숫자가 없다 — 좌표 계약이 어긋났다",
             )
+        if unit is None:
+            stop(sheet_name, f"직종 {get_column_letter(column)}열에 단위(M/D·M/M)가 없다")
         wages.append(
             {
                 "trade": name,
@@ -291,19 +486,18 @@ def extract(source: Path, destination: Path) -> None:
             continue
 
         cached_ws = cached_wb[name]
-        trade_columns = list(TRADE_COLUMNS_COMMON)
-        if name == "CMS":
-            trade_columns += TRADE_COLUMNS_CMS
+        layout = resolve_columns(formula_ws, name)
+        trade_columns = layout["trade_columns"]
 
-        trade_names, wages = read_wage_header(formula_ws, cached_ws, trade_columns)
+        trade_names, wages = read_wage_header(formula_ws, cached_ws, layout, name)
 
         rows_out = []
-        for row in range(FIRST_BODY_ROW, formula_ws.max_row + 1):
+        for row in range(layout["first_body_row"], formula_ws.max_row + 1):
             record = {"row": row}
             empty = True
-            for field, column in READ_COLUMNS.items():
+            for field, column in layout["fields"].items():
                 raw = formula_ws.cell(row=row, column=column).value
-                if field in ("materialUnitPrice", "itemRate", "surcharge"):
+                if field in NUMERIC_FIELDS:
                     cell = read_cell(formula_ws, cached_ws, row, column)
                     value = cell.get("value")
                     if value is not None:
@@ -311,6 +505,12 @@ def extract(source: Path, destination: Path) -> None:
                         empty = False
                     elif "formula" in cell:
                         record[field + "Formula"] = cell["formula"]
+                        # 캐시값을 **버리지 않고** 함께 넘긴다. 노무비 단가는
+                        # 대부분 셀 참조 수식이라 여기로 오는데, 역산 대조
+                        # (Task 2)가 그 값을 봐야 한다. 믿을지 말지는 TS 쪽이
+                        # 정한다 — 캐시가 없으면 `미검증`이다(설계서 §8.3).
+                        if cell.get("cached") is not None:
+                            record[field + "Cached"] = cell["cached"]
                         empty = False
                 else:
                     value = text_of(raw)
