@@ -23,7 +23,25 @@ const MAPPING_NOTE =
   '표준품셈 통합문서에서 자동 추출. 사람이 확인하기 전까지 확정에 쓰지 않는다.';
 
 export interface BuildLaborOptions {
+  /**
+   * 노임표의 반기 표기. **호출부가 원시 덤프에서 읽어 넘긴다.**
+   *
+   * 예전 기본값은 `'26년 상반기'`였고 `build-approved.ts`가 인자 없이 불러서,
+   * 하반기 자료에 상반기 이름이 붙을 수 있었다(하반기 계획 Task 2).
+   * 지금은 `prepareApprovedFiles`가 덤프에 반기가 없으면 아예 막는다.
+   * 여기 남은 기본값은 **시험 편의용**이지 생성 경로가 기대는 값이 아니다.
+   */
   periodLabel?: string;
+  /**
+   * 품셈 매핑을 만들지 **않을** 행. `"<시트> <행>"` 모양이다.
+   *
+   * 노무비 역산이 원본과 **어긋난** 행이 여기 온다(품셈 교체 Task 2).
+   * 어긋났다는 것은 우리가 다시 계산한 노무비가 원본이 적어 둔 값과 다르다는
+   * 뜻이다 — 실측에서 원본 수식에 **열에 없는 계수**(`×0.3` 등)가 박혀 있어
+   * 우리 계산이 3배 넘게 높아지는 행들이 그랬다. 매핑을 만들면 그 값이 그대로
+   * 견적에 들어간다. 만들지 않으면 `laborMode: 'unresolved'`로 **막힌다.**
+   */
+  excludeRows?: ReadonlySet<string>;
 }
 
 export interface BuildLaborResult {
@@ -88,6 +106,12 @@ export function buildLabor(
     for (const product of classified.products) {
       const sku = makeSku(sheet.name, product.row);
       const trades = product.trades ?? [];
+
+      // 역산이 어긋난 행은 매핑을 만들지 않는다 — 우리 계산이 원본과 다르다.
+      if (options.excludeRows?.has(`${sheet.name} ${product.row}`) === true) {
+        unmappedSkus.push(sku);
+        continue;
+      }
 
       // Review Focus 5 — 근거가 없으면 매핑을 만들지 않는다.
       if (product.laborCode === undefined || trades.length === 0) {

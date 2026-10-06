@@ -257,6 +257,15 @@ def resolve_columns(worksheet, sheet_name):
         "top_row": top_row,
         "sub_row": sub_row,
         "first_body_row": first_body_row,
+        # 표준 단가 열의 **상위** 머리글이 반기 표기다(`26년 하반기`).
+        # 하위는 `표준단가`다. 이 값이 노임표의 이름이 된다(계획 Task 2) —
+        # `buildLabor`의 기본값 `'26년 상반기'`에 기대지 않기 위해서다.
+        #
+        # 머리글 **원문**을 쓴다. 정규화한 값(`26년하반기`)을 쓰면 가이드
+        # 템플릿의 표기(`26년 하반기`)와 글자가 달라져, 같은 반기인데도
+        # 노임표 ID가 갈린다.
+        "period_label": text_of(worksheet.cell(row=top_row, column=standard_column).value)
+        or roles.get(standard_column, ("", ""))[0],
     }
 
 
@@ -477,6 +486,8 @@ def extract(source: Path, destination: Path) -> None:
     cached_wb = load_workbook(source, data_only=True)
 
     sheets_out = []
+    # 반기 표기는 시트마다 같아야 한다 — 다르면 어느 반기 자료인지 알 수 없다.
+    period_labels = set()
     for formula_ws in formula_wb.worksheets:
         name = formula_ws.title
         if name in SKIP_SHEETS:
@@ -531,15 +542,29 @@ def extract(source: Path, destination: Path) -> None:
             if not empty:
                 rows_out.append(record)
 
+        period_labels.add(layout["period_label"])
         sheets_out.append({"name": name, "wages": wages, "rows": rows_out})
 
     formula_wb.close()
     cached_wb.close()
 
+    period_labels.discard("")
+    if len(period_labels) != 1:
+        raise SystemExit(
+            "반기 표기를 하나로 정할 수 없다 — 시트마다 표준 단가 열의 상위 머리글이 다르다 "
+            f"({len(period_labels)}가지). 어느 반기 자료인지 모르는 채로 쓰지 않는다."
+        )
+    period_label = next(iter(period_labels))
+
     payload = {
         "schemaVersion": 1,
         # 파일명·경로를 담지 않는다. 해시만으로 어느 판인지 확인할 수 있다.
-        "source": {"sha256": sha256_of(source), "extractedOn": date.today().isoformat()},
+        "source": {
+            "sha256": sha256_of(source),
+            "extractedOn": date.today().isoformat(),
+            # 파일이 스스로 적어 둔 반기. 생성 단계가 기본값 대신 이걸 쓴다.
+            "periodLabel": period_label,
+        },
         "sheets": sheets_out,
     }
 
@@ -550,7 +575,7 @@ def extract(source: Path, destination: Path) -> None:
 
     total = sum(len(s["rows"]) for s in sheets_out)
     print(f"saved: {destination}")
-    print(f"sheets: {len(sheets_out)}  rows: {total}")
+    print(f"sheets: {len(sheets_out)}  rows: {total}  반기: {period_label}")
     for sheet in sheets_out:
         print(f"  {sheet['name']}: rows={len(sheet['rows'])} trades={len(sheet['wages'])}")
 

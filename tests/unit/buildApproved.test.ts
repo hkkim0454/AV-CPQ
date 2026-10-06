@@ -58,7 +58,8 @@ function validRow(): RawSheet['rows'][number] {
 function validCatalog(): RawCatalog {
   return {
     schemaVersion: 1,
-    source: { sha256: SHA, extractedOn: '2026-10-05' },
+    // 반기 표기가 없으면 `prepareApprovedFiles`가 막는다(하반기 계획 Task 2).
+    source: { sha256: SHA, extractedOn: '2026-10-05', periodLabel: '26년 하반기' },
     sheets: [{ name: 'CCTV', wages: COMMON_WAGES, rows: [validRow()] }],
   };
 }

@@ -3,7 +3,13 @@
  *
  *   .local/raw/catalog-raw.json  →  (기본) .local/staging/approved/*.json
  *
- * 실행:  npx vite-node tools/build-approved.ts [--raw <경로>] [--out <경로>] [--confirm-production-write]
+ * 실행:  npx vite-node tools/build-approved-cli.ts [--raw <경로>] [--out <경로>] [--confirm-production-write]
+ *
+ * ⚠ **실행 진입점은 `build-approved-cli.ts` 다.** 이 파일은 `main` 을 내보내기만
+ * 한다. 예전에는 여기에 `process.argv[1]` 로 진입을 판정하는 줄이 있었는데,
+ * `vite-node` 는 argv 에서 스크립트 경로를 아예 빼 버리기 때문에 그 조건이 영영
+ * 거짓이었다 — **`npm run build:approved` 가 아무 일도 하지 않고 조용히 끝났다**
+ * (실측으로 확인함). 진입을 파일 하나로 분리해 그 판정 자체를 없앴다.
  *
  * 다섯 파일을 만든다.
  *   products.json        제품 (가격 없음)
@@ -46,7 +52,6 @@ import {
   realpathSync,
 } from 'node:fs';
 import { resolve, dirname, basename, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { buildProducts } from '../src/data/catalog/buildProducts';
 import { buildLabor, type BuildLaborResult } from '../src/data/catalog/buildLabor';
@@ -58,6 +63,14 @@ import {
   laborMappingsFileSchema,
 } from '../src/data/catalog/schema';
 import { auditApprovedPayload } from '../src/data/catalog/audit';
+import {
+  verifyLaborRows,
+  describeMismatch,
+  compareGuideWages,
+  type LaborVerificationResult,
+  type MismatchApproval,
+} from '../src/data/catalog/verifyLabor';
+import { readGuideTemplate } from '../src/export/ooxml/guideTemplate';
 import type { RawCatalog } from '../src/data/catalog/rawTypes';
 import type { BuildProductsResult } from '../src/data/catalog/buildProducts';
 
@@ -68,6 +81,8 @@ export interface PreparedApproved {
   files: Record<string, unknown>;
   stats: BuildProductsResult['stats'];
   labor: BuildLaborResult;
+  /** 노무비 역산 분류 — 네 갈래의 합이 전체 행 수와 맞는다. */
+  verification: LaborVerificationResult;
 }
 
 export interface BlockedApproved {
@@ -84,12 +99,57 @@ export interface BlockedApproved {
  * 노임 충돌·감사 실패·SKU 중복·sourceSha256 불일치 중 **하나라도 있으면**
  * `ok: false`를 돌려주고, 호출부는 그 경우 `writeApprovedSet`을 부르지 않는다.
  */
-export function prepareApprovedFiles(raw: RawCatalog): PreparedApproved | BlockedApproved {
+export interface PrepareOptions {
+  /**
+   * 역산 불일치를 한 행씩 넘기는 승인 기록. **통째로 면제하는 수단이 아니다** —
+   * 출처 해시·시트·행·사유가 전부 맞아야 그 행 하나만 넘어간다.
+   */
+  approvedMismatches?: readonly MismatchApproval[];
+}
+
+export function prepareApprovedFiles(
+  raw: RawCatalog,
+  options: PrepareOptions = {},
+): PreparedApproved | BlockedApproved {
   const generatedOn = new Date().toISOString().slice(0, 10);
   const sourceSha256 = raw.source.sha256;
 
+  // 반기 표기는 **원시 덤프가 원본에서 읽어 온 값**을 그대로 쓴다. 기본값에
+  // 기대면 하반기 자료에 상반기 이름이 붙는다(하반기 계획 Task 2).
+  const periodLabel = raw.source.periodLabel;
+  if (periodLabel === undefined || periodLabel.trim() === '') {
+    return {
+      ok: false,
+      reason:
+        '원시 덤프에 반기 표기(source.periodLabel)가 없다 — 기본값으로 때우지 않는다. ' +
+        '추출기를 다시 돌려야 한다.',
+    };
+  }
+
+  // 노무비 역산 — 추출이 올바른 열을 읽었는지 자료 스스로 증명하게 한다.
+  // **불일치는 1건이라도 교체를 막는다.** 임계치를 두지 않는다(계획 Task 2).
+  // `미검증`은 막지 않는다 — 카탈로그 수록과 견적 출력은 다른 문제이고,
+  // 품셈을 못 만든 제품은 어차피 `laborMode: 'unresolved'`로 출력이 막힌다.
+  const verification = verifyLaborRows(raw.sheets, {
+    sourceSha256,
+    ...(options.approvedMismatches === undefined ? {} : { approvedMismatches: options.approvedMismatches }),
+  });
+  if (verification.mismatches.length > 0) {
+    return {
+      ok: false,
+      reason: `노무비 역산 불일치 ${verification.mismatches.length}건 — 아무것도 쓰지 않는다.`,
+      findings: verification.mismatches.map(describeMismatch),
+    };
+  }
+
   const { products, prices, stats } = buildProducts(raw.sheets);
-  const labor = buildLabor(raw.sheets);
+  // 역산이 어긋난 행은 **승인해 넘겼더라도** 품셈 매핑을 만들지 않는다.
+  // 넘긴다는 것은 "교체를 진행한다"는 뜻이지 "그 값이 맞다"는 뜻이 아니다.
+  // 매핑이 없으면 견적에서 `unresolved`로 막히고 사람이 직접 채워야 한다.
+  const labor = buildLabor(raw.sheets, {
+    periodLabel,
+    excludeRows: new Set(verification.approved.map((r) => `${r.sheet} ${r.row}`)),
+  });
 
   if (stats.duplicateSkus.length > 0) {
     return { ok: false, reason: `SKU 중복 ${stats.duplicateSkus.length}건: ${stats.duplicateSkus.join(', ')}` };
@@ -155,7 +215,7 @@ export function prepareApprovedFiles(raw: RawCatalog): PreparedApproved | Blocke
     };
   }
 
-  return { ok: true, files, stats, labor };
+  return { ok: true, files, stats, labor, verification };
 }
 
 // ---------------------------------------------------------------------------
@@ -455,7 +515,7 @@ export function writeApprovedSet(
   }
 }
 
-function main(): void {
+export function main(): void {
   const parsed = parseArgs(process.argv.slice(2));
   assertOutputAuthorized(parsed, { repoRoot: ROOT });
 
@@ -470,8 +530,42 @@ function main(): void {
 
   writeApprovedSet(prepared.files, parsed.out, { repoRoot: ROOT, rawPath: parsed.raw });
 
-  const { stats, labor } = prepared;
+  const { stats, labor, verification } = prepared;
   console.log(`원본 SHA-256: ${raw.source.sha256}`);
+  console.log(`반기 표기: ${labor.wageTable.periodLabel}`);
+
+  // 노무비 역산 분류 — 네 갈래를 **따로** 보고한다. 하나로 합치지 않는다.
+  const { 통과, 불일치, 미검증, 비대상 } = verification.counts;
+  console.log(
+    `\n노무비 역산  통과 ${통과}  불일치 ${불일치}  미검증 ${미검증}  비대상 ${비대상}` +
+      `  (합 ${통과 + 불일치 + 미검증 + 비대상})`,
+  );
+  for (const [reason, count] of Object.entries(verification.unverifiedReasons).sort((a, b) => b[1] - a[1])) {
+    console.log(`    미검증 ${String(count).padStart(4)}  ${reason}`);
+  }
+
+  // 가이드 노임과 대조 — 화면 계산은 가이드 노임을 쓴다. 막지는 않는다.
+  try {
+    const manifest = JSON.parse(
+      readFileSync(resolve(ROOT, 'templates/sanitized/guide-manifest.json'), 'utf8'),
+    ) as Parameters<typeof readGuideTemplate>[2];
+    const guide = readGuideTemplate(
+      'pumsem',
+      new Uint8Array(readFileSync(resolve(ROOT, 'templates/sanitized/guide-pumsem.xlsx'))),
+      manifest,
+    );
+    const comparison = compareGuideWages(labor.wageTable.wages, guide.wages.wages);
+    console.log(
+      `\n가이드 노임 대조(${guide.wages.periodLabel})  같은 직종 ${comparison.same}  다른 항목 ${comparison.differences.length}`,
+    );
+    for (const line of comparison.differences.slice(0, 30)) console.log(`    ! ${line}`);
+    if (comparison.differences.length > 0) {
+      console.log('    ⚠ 품셈 파일과 가이드의 노임이 다르다 — 같은 견적서 안에서 숫자가 갈린다.');
+    }
+  } catch (err) {
+    console.log(`\n가이드 노임 대조를 건너뛴다: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
   console.log(`\n제품 ${stats.totalProducts}  판매단가 ${stats.totalPriced}  품셈코드 ${stats.totalWithLaborCode}`);
   console.log(`품셈 항목 ${labor.laborItems.length}  매핑 ${labor.mappings.length}  매핑 없음 ${labor.unmappedSkus.length}`);
   console.log(`노임 직종 ${Object.keys(labor.wageTable.wages).length}`);
@@ -485,7 +579,4 @@ function main(): void {
   console.log(`\n저장: ${parsed.out}`);
 }
 
-const entryPath = process.argv[1] !== undefined ? resolve(process.argv[1]) : undefined;
-if (entryPath !== undefined && entryPath === fileURLToPath(import.meta.url)) {
-  main();
-}
+// 실행 진입점은 `tools/build-approved-cli.ts` 다 — 아래 주석 참고.

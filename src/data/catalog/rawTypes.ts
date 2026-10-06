@@ -94,6 +94,17 @@ export interface RawCatalog {
     /** 원본 파일의 SHA-256. 파일명·경로는 담지 않는다. */
     sha256: string;
     extractedOn: string;
+    /**
+     * 품셈 파일이 스스로 적어 둔 반기 표기(`26년 하반기`). 표준 단가 열의
+     * 상위 머리글에서 읽는다.
+     *
+     * **기본값으로 때우지 않는다.** 예전에는 `buildLabor`의 기본값
+     * `'26년 상반기'`가 그대로 붙어서, 하반기 자료에 상반기 이름이 찍힐
+     * 수 있었다. 이 값이 없으면 `prepareApprovedFiles`가 막는다.
+     *
+     * 옛 덤프에는 없으므로 선택 항목이다 — 없으면 **중단**이지 기본값이 아니다.
+     */
+    periodLabel?: string;
   };
   sheets: RawSheet[];
 }
