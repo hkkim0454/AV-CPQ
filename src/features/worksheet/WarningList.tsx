@@ -26,14 +26,14 @@
  * 케이블 경고(`optionId`·`installationSystemId`가 없고 `edgeId`만
  * 있는 `cable-item-unresolved`)는 `onResolveCable`로 해소한다
  * (`sourceEdgeIds`로 그 구간 행만 찾는다 — `cables.ts`). 후보
- * (`cableCandidates`)를 **품셈 묶음(제조사별 종류)별로 묶어** 보여준다
- * — 사람이 종류와 길이를 한눈에 보고 고를 수 있어야 한다는 요청에
- * 따른 것이다.
+ * (`cableCandidates`)를 사용자 확정 큰 분류별로 접어 보여준다.
+ * 분류가 안 되거나 카탈로그에 없는 후보도 미분류에 남긴다.
  */
 import { useState } from 'react';
 import type { Catalog, CatalogProduct } from '../../data/catalog/load';
 import type { ImportWarning } from '../../import/diagram/devices';
 import { isDescriptionOnlyCandidate, type ModelSearchCandidate } from '../../import/diagram/matchCatalog';
+import { groupCableCandidates } from './cableCandidateCategories';
 
 interface WarningListProps {
   warnings: readonly ImportWarning[];
@@ -117,21 +117,21 @@ function CandidateList({
   candidates,
   catalog,
   onSelect,
-  groupByFamily = false,
+  groupByCableCategory = false,
   evidence,
 }: {
   candidates: readonly string[];
   catalog: Catalog;
   onSelect(sku: string): void;
-  /** 제조사별 종류(품셈 묶음)별로 묶어 "아래로 펼쳐진" 목록을 보여준다. */
-  groupByFamily?: boolean;
+  /** 케이블 후보만 사용자 확정 큰 분류별로 접어 보여준다. */
+  groupByCableCategory?: boolean;
   /** 4단계 후보일 때만 있다. SKU 별 판단 근거다. */
   evidence?: readonly ModelSearchCandidate[];
 }) {
   const bySku = new Map(catalog.products.map((p) => [p.sku, p]));
   const evidenceBySku = new Map((evidence ?? []).map((c) => [c.sku, c]));
 
-  if (!groupByFamily) {
+  if (!groupByCableCategory) {
     return (
       <ul className="q-resolve-candidates">
         {candidates.map((sku) => {
@@ -155,32 +155,32 @@ function CandidateList({
     );
   }
 
-  const byGroup = new Map<string, CatalogProduct[]>();
-  for (const sku of candidates) {
-    const product = bySku.get(sku);
-    if (product === undefined) continue;
-    const group = product.options['group'] ?? '기타';
-    const existing = byGroup.get(group);
-    if (existing === undefined) byGroup.set(group, [product]);
-    else existing.push(product);
-  }
-
   return (
     <div className="q-resolve-candidates-grouped">
-      {[...byGroup.entries()].map(([group, products]) => (
-        <div key={group} className="q-resolve-candidate-group">
-          <h4>{group}</h4>
+      {groupCableCandidates(candidates, bySku).map(({ category, skus }) => (
+        <details key={category} className="q-resolve-candidate-group">
+          <summary>{category} ({skus.length}건)</summary>
           <ul className="q-resolve-candidates">
-            {products.map((product) => (
-              <li key={product.sku}>
-                <CandidateDetail product={product} catalog={catalog} />
-                <button type="button" className="q-button" onClick={() => onSelect(product.sku)}>
-                  선택
-                </button>
-              </li>
-            ))}
+            {skus.map((sku) => {
+              const product = bySku.get(sku);
+              return (
+                <li key={sku}>
+                  {product !== undefined ? (
+                    <div>
+                      <CandidateDetail product={product} catalog={catalog} />
+                      <div className="q-muted">묶음 {product.options['group'] ?? '미등록'}</div>
+                    </div>
+                  ) : (
+                    <span>SKU {sku} · 제품 정보 미등록</span>
+                  )}
+                  <button type="button" className="q-button" onClick={() => onSelect(sku)}>
+                    선택
+                  </button>
+                </li>
+              );
+            })}
           </ul>
-        </div>
+        </details>
       ))}
     </div>
   );
@@ -287,7 +287,7 @@ export function WarningList({
                   <CandidateList
                     candidates={warning.candidates}
                     catalog={catalog}
-                    groupByFamily
+                    groupByCableCategory
                     onSelect={(sku) => onResolveCable(warning.edgeId!, sku, warning.sourceCableKey)}
                   />
                 ) : warning.requiredCableMeters !== undefined ? (

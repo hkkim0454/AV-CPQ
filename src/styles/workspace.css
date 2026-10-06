@@ -86,11 +86,11 @@
   gap: 10px;
 }
 
-.q-resolve-candidate-group h4 {
-  margin: 0 0 4px;
-  font-size: 12px;
+.q-resolve-candidate-group > summary {
+  padding: 6px 0;
+  font-size: 13px;
   font-weight: 700;
-  color: var(--q-muted);
+  cursor: pointer;
 }
 
 .q-resolve-search {

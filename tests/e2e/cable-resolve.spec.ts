@@ -4,11 +4,8 @@ import { mockResources } from './fixtures';
 const SHA = 'e'.repeat(64);
 
 /**
- * HDMI 케이블을 제조사별 종류(품셈 묶음)·길이로 직접 고르는 화면
- * (사용자 요청 — "제조사별 종류, 길이를 내가 직접 선택할 수 있도록
- * 아래로 목록이 펼쳐지게"). 두 '종류'(일반 구리선/광케이블)를 넣어
- * `cableCandidates`가 선 종류 이름(여기서는 `HDMI`)으로 묶음을 올바로
- * 묶어 보여주는지까지 실제 화면에서 확인한다.
+ * HDMI 케이블 후보를 사용자 확정 큰 분류 아래에서 펼쳐 고르는 화면.
+ * 두 종류(일반선/광케이블)의 후보 계산과 선택 동작을 함께 확인한다.
  */
 function customProducts(): unknown {
   return {
@@ -114,6 +111,7 @@ test('같은 연결선의 다른 BOM 케이블은 미해결 품목 선택으로 
   await expect(optical).toContainText('120000');
   const warning = page.getByRole('alert').filter({ hasText: '확인이 필요합니다' })
     .locator('li', { hasText: 'HDMI 케이블(미지정)' }).first();
+  await warning.getByText('HDMI 일반·변환 (2건)').click();
   await warning.getByRole('listitem').filter({ hasText: '3M' }).getByRole('button', { name: '선택' }).click();
   await expect(optical).toHaveCount(1);
   await expect(optical).toContainText('120000');
@@ -125,7 +123,7 @@ test('같은 연결선의 다른 BOM 케이블은 미해결 품목 선택으로 
   await expect(warning).toBeVisible();
 });
 
-test('HDMI 케이블 — 제조사별 종류(묶음)로 나뉜 목록에서 길이를 직접 골라 해소한다', async ({ page }) => {
+test('HDMI 케이블 — 큰 분류를 펼쳐 모든 후보 중 길이를 직접 골라 해소한다', async ({ page }) => {
   await setupCatalog(page);
   await page.goto('/');
 
@@ -139,14 +137,17 @@ test('HDMI 케이블 — 제조사별 종류(묶음)로 나뉜 목록에서 길�
   const warnings = page.getByRole('alert').filter({ hasText: '확인이 필요합니다' });
   await expect(warnings).toContainText('HDMI 케이블(미지정)');
 
-  // 제조사별 종류(묶음) 두 개가 각각 머리글로 "펼쳐져" 보인다.
+  // 큰 분류 두 개가 접힌 제목으로 보이며 후보 3개는 DOM에 모두 남는다.
   const groups = warnings.locator('.q-resolve-candidate-group');
   await expect(groups).toHaveCount(2);
-  await expect(groups.nth(0).locator('h4')).toHaveText('CS_HDMI 케이블');
-  await expect(groups.nth(1).locator('h4')).toHaveText('CS_HDMI 케이블_AOC');
+  await expect(groups.nth(0).locator('summary')).toHaveText('HDMI AOC·광케이블 (1건)');
+  await expect(groups.nth(1).locator('summary')).toHaveText('HDMI 일반·변환 (2건)');
+  await expect(groups.locator('ul > li')).toHaveCount(3);
+  await expect(groups.nth(1)).not.toHaveAttribute('open');
 
-  // 길이까지 보이고, 원하는 길이를 직접 고를 수 있다.
-  const cuGroup = groups.filter({ hasText: 'CS_HDMI 케이블' }).first();
+  // 분류를 펼치면 길이와 승인 단가가 보여 원하는 제품을 고를 수 있다.
+  const cuGroup = groups.nth(1);
+  await cuGroup.locator('summary').click();
   await expect(cuGroup).toContainText('1M');
   await expect(cuGroup).toContainText('3M');
   await cuGroup.getByRole('listitem').filter({ hasText: '3M' }).getByRole('button', { name: '선택' }).click();
@@ -165,6 +166,38 @@ test('HDMI 케이블 — 제조사별 종류(묶음)로 나뉜 목록에서 길�
   await expect(page.getByRole('alert').filter({ hasText: '확인이 필요합니다' })).toContainText(
     'HDMI 케이블(미지정)',
   );
+});
+
+test('새 묶음의 케이블 후보도 미분류 제목 아래 남는다', async ({ page }) => {
+  const products = customProducts() as { products: Record<string, unknown>[] };
+  products.products.push({
+    ...products.products[0],
+    productId: 'HDMI-NEW-7',
+    sku: 'HDMI-NEW-7',
+    model: 'NEW-7M',
+    quoteSpec: '7M',
+    options: { group: '새로운 HDMI 묶음' },
+  });
+  await mockResources(page, {
+    '/data/approved/products.json': products,
+    '/data/approved/prices.json': customPrices(),
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
+  await page.getByLabel('구성도 파일 선택').setInputFiles({
+    name: 'diagram.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(diagramWithUnresolvedHdmiCable()),
+  });
+
+  const groups = page.getByRole('alert').filter({ hasText: '확인이 필요합니다' })
+    .locator('.q-resolve-candidate-group');
+  await expect(groups.locator('ul > li')).toHaveCount(4);
+  const unknown = groups.filter({ hasText: '미분류' });
+  await expect(unknown.locator('summary')).toHaveText('미분류 (1건)');
+  await unknown.locator('summary').click();
+  await expect(unknown.getByText('HDMI-NEW-7')).toBeVisible();
+  await expect(unknown.getByRole('button', { name: '선택' })).toBeVisible();
 });
 
 /**
@@ -230,6 +263,7 @@ test('병합된 케이블 행 — 한 구간만 해소해도 합쳐진 다른 �
 
   // e1·e2 중 하나(먼저 뜬 경고)만 골라 해소한다.
   const firstWarning = warnings.locator('li', { hasText: 'HDMI 케이블(미지정)' }).first();
+  await firstWarning.getByText('HDMI 일반·변환 (2건)').click();
   await firstWarning.getByRole('listitem').filter({ hasText: '3M' }).getByRole('button', { name: '선택' }).click();
 
   // 합쳐진 행이므로 e1·e2 둘 다의 경고가 같이 사라진다 — 부분 해결이 아니다.
@@ -279,7 +313,9 @@ test('BOM 없는 구간 — 품목만 골라서는 해소되지 않는다. 수�
   await expect(cableWarning).toHaveCount(1);
 
   const groups = cableWarning.locator('.q-resolve-candidate-group');
-  await groups.filter({ hasText: 'CS_HDMI 케이블' }).first().getByRole('listitem').filter({ hasText: '1M' })
+  const copperGroup = groups.filter({ hasText: 'HDMI 일반·변환' }).first();
+  await copperGroup.locator('summary').click();
+  await copperGroup.getByRole('listitem').filter({ hasText: '1M' })
     .getByRole('button', { name: '선택' }).click();
 
   // 품목은 들어왔지만(이름·가격이 보인다) 경고는 그대로 남는다 —
