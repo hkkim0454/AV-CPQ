@@ -18,6 +18,7 @@ import { toRow, CURRENT_RULE_VERSION } from '../domain/quote/buildDocument';
 import { computeDocumentBasisConflicts, describeBasisConflicts } from '../domain/quote/basisConflict';
 import { computeActiveWarnings } from '../domain/quote/activeWarnings';
 import { withResolvedProduct } from '../domain/quote/resolveProduct';
+import { refreshResolvedRows } from '../domain/quote/refreshResolvedRows';
 import {
   synchronizeMiscMaterials,
   computeMiscMaterialWarnings,
@@ -260,55 +261,21 @@ function seedDefaultProfile(document: QuoteDocument, guides: Resources['guides']
 }
 
 /**
- * 명시적 재계산에서만 쓴다 — 이미 품목(sku)을 고른 행을 **지금 카탈로그**
- * 값으로 다시 찾는다(독립 검토 지적: 버전 문자열만 올리고 실제 단가는
- * 그대로 남았었다).
+ * 재계산에서 쓰는 `refreshResolvedRows` 의 배관 판정 부분.
  *
- * 배관 행은 그 시스템의 **지금** 배관 종류(묶음)와 실제로 맞는지까지
- * 확인한 뒤에만 갱신한다 — `resolveConduitProduct`와 같은 검증이다.
- * 맞지 않으면(묶음이 바뀌었거나 sku 자체가 사라졌으면) 건드리지 않고
- * 그대로 둔다 — 뒤이어 도는 `applyInstallationPatch`/
- * `computeInstallationWarnings`가 스스로 다시 검증해 미해결·차단으로
- * 되돌린다(배관은 이미 그 메커니즘이 있다).
- *
- * 배관이 아닌 행의 sku가 카탈로그에서 아예 사라졌으면 **옛 단가를 지금
- * 기준인 것처럼 쓰지 않는다** — 미해결로 되돌리고(품명·단가·품셈연결을
- * 지운다) `catalog-item-removed` 경고를 달아 다시 고르게 한다(독립
- * 검토 지적).
+ * 배관 행은 `sourceNodeIds` 에 시스템별 sentinel 을 달고 다닌다. 그 행이
+ * **그 시스템의 지금 배관 종류**와 맞는 묶음인지 확인할 수 있게, 기대하는
+ * 묶음 이름을 돌려준다. 배관 행이 아니면 `undefined` 다.
  */
-function refreshResolvedRows(
-  document: QuoteDocument,
-  catalog: Resources['catalog'],
-): { document: QuoteDocument; removedWarnings: readonly ImportWarning[] } {
+function conduitGroupLookup(document: QuoteDocument): (row: { sourceNodeIds?: readonly string[] }) => string | undefined {
   const conduitTypeBySentinel = new Map(
     document.systems.map((s) => [conduitRowSentinel(s.systemId), s.conduitType ?? 'flexible']),
   );
-  const removedWarnings: ImportWarning[] = [];
-  const rows = document.rows.map((r) => {
-    if (r.type !== 'item' || r.sku === undefined) return r;
-    const sentinel = r.sourceNodeIds?.find((id) => conduitTypeBySentinel.has(id) && isConduitSentinel(id));
-    if (sentinel !== undefined) {
-      const conduitType = conduitTypeBySentinel.get(sentinel)!;
-      const product = catalog.products.find((p) => p.sku === r.sku);
-      if (product !== undefined && product.options['group'] === CONDUIT_GROUP[conduitType]) {
-        return withResolvedProduct(r, product, catalog.prices.get(r.sku));
-      }
-      return r;
-    }
-    const product = catalog.products.find((p) => p.sku === r.sku);
-    if (product !== undefined) return withResolvedProduct(r, product, catalog.prices.get(r.sku));
-    const removedSku = r.sku;
-    const { sku: _sku, productId: _productId, sellingUnitPrice: _price, laborMappingId: _laborMappingId, ...rest } =
-      r;
-    removedWarnings.push({
-      code: 'catalog-item-removed',
-      blocking: true,
-      message: `행 '${r.name}'(${removedSku})이 지금 카탈로그에 없다 — 다시 골라야 한다.`,
-      rowId: r.rowId,
-    });
-    return { ...rest, laborMode: 'unresolved' as const };
-  });
-  return { document: { ...document, rows }, removedWarnings };
+  return (row) => {
+    const sentinel = row.sourceNodeIds?.find((id) => conduitTypeBySentinel.has(id) && isConduitSentinel(id));
+    if (sentinel === undefined) return undefined;
+    return CONDUIT_GROUP[conduitTypeBySentinel.get(sentinel)!];
+  };
 }
 
 /** 저장된 케이블 경로(`cableRoutes`)를 **지금 코드(=지금 rule)** 로 다시 돌린다. */
@@ -640,7 +607,19 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     //    찾는다(배관은 전용 검증, 사라진 sku는 미해결로 되돌리고
     //    경고를 단다). 케이블 행은 위 재산출이 이미 지금 카탈로그로
     //    새로 지었으므로 여기서는 그대로 재확인만 된다.
-    const { document: refreshed, removedWarnings } = refreshResolvedRows(cableRegenerated, resources.catalog);
+    // 2-1) SKU 로 제품을 다시 찾는다. **번호만 보고 치환하지 않는다** —
+    //      카탈로그 지문이 달라졌으면 대응표를 통과한 행만 바꾸고, 나머지는
+    //      미해결로 되돌려 사람이 다시 고르게 한다(품셈 교체 Task 4).
+    const { document: refreshed, removedWarnings } = refreshResolvedRows(
+      cableRegenerated,
+      resources.catalog,
+      {
+        savedFingerprint: present.versions.catalog,
+        currentFingerprint: resources.catalog.sourceSha256,
+        ...(resources.skuMigration === undefined ? {} : { table: resources.skuMigration }),
+        conduitGroupOf: conduitGroupLookup(cableRegenerated),
+      },
+    );
     const conduitRegenerated = regenerateConduitUnderCurrentRule(refreshed, resources.catalog);
     // 3) 옛 기준의 잡자재 행은 **여기서만** 새 기준으로 옮긴다 — 저장
     //    문서를 여는 것만으로는 옮기지 않는다(조용한 금액 변경 금지).

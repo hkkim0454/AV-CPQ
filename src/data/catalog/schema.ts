@@ -130,3 +130,39 @@ export type PricesFile = z.infer<typeof pricesFileSchema>;
 export type LaborItemsFile = z.infer<typeof laborItemsFileSchema>;
 export type WageTableFile = z.infer<typeof wageTableFileSchema>;
 export type LaborMappingsFile = z.infer<typeof laborMappingsFileSchema>;
+
+/**
+ * SKU 대응표 (품셈 교체 Task 4).
+ *
+ * 열쇠는 **세 값**이다 — 저장 당시 지문, 옛 SKU, 지금 지문. 지금 지문을 빼면
+ * 다음 교체 때 같은 번호가 또 재사용되어 옛 대응이 엉뚱한 곳을 가리킨다.
+ */
+const skuIdentitySchema = z
+  .object({
+    quoteName: z.string(),
+    quoteSpec: z.string(),
+    unit: z.string(),
+    description: z.string(),
+    group: z.string(),
+  })
+  .strict();
+
+export const skuMigrationFileSchema = z
+  .object({
+    sourceCatalogFingerprint: z.string().min(1),
+    targetCatalogFingerprint: z.string().min(1),
+    entries: z.array(
+      z
+        .object({
+          sourceSku: z.string().min(1),
+          status: z.enum(['mapped', 'undecided', 'unmappable']),
+          targetSku: z.string().min(1).optional(),
+          targetIdentity: skuIdentitySchema.optional(),
+          candidates: z.array(z.string()).optional(),
+          decidedBy: z.enum(['auto', 'human']),
+          note: z.string(),
+        })
+        .strict(),
+    ),
+  })
+  .strict();

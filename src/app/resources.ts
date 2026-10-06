@@ -13,6 +13,8 @@
  * 가릴 수 있어야 하므로, 이건 "실패"가 아니라 "미등록"으로 다룬다.
  */
 import { buildLaborReference, loadCatalog, type Catalog } from '../data/catalog/load';
+import { skuMigrationFileSchema } from '../data/catalog/schema';
+import type { SkuMigrationTable } from '../data/catalog/skuMigration';
 import {
   GUIDE_IDS,
   readGuideTemplate,
@@ -40,6 +42,15 @@ export interface Resources {
   catalog: Catalog;
   laborBasisRaw: LaborBasisRaw;
   guides: GuideTemplateSet;
+  /**
+   * SKU 대응표 (품셈 교체 Task 4). **없는 것이 정상 경로다** — 카탈로그를
+   * 교체한 적이 없으면 필요 없다.
+   *
+   * 없으면 재계산은 **저장 지문과 지금 지문이 같을 때만** SKU 로 제품을
+   * 찾는다. 지문이 다른데 대응표가 없으면 치환하지 않고 미해결로 되돌린다
+   * — 조용히 엉뚱한 제품으로 바뀌는 것보다 낫다.
+   */
+  skuMigration?: SkuMigrationTable;
 }
 
 export type ResourcesResult = { kind: 'ready'; resources: Resources } | { kind: 'error'; reasons: string[] };
@@ -142,6 +153,22 @@ export async function loadResources(options: LoadResourcesOptions = {}): Promise
     }
   }
 
+  // SKU 대응표 — 없는 것이 정상이다(가격 파일과 같은 원칙). 404도, 깨진
+  // JSON도 실패로 세지 않는다. 다만 **깨진 파일을 조용히 무시하지는 않는다** —
+  // 사유를 남겨 화면에 보여준다. 대응표가 없으면 재계산이 더 보수적으로
+  // (치환하지 않고) 동작할 뿐이다.
+  let skuMigration: SkuMigrationTable | undefined;
+  try {
+    const res = await get(`${base}data/approved/sku-migration.json`);
+    if (res.ok) {
+      const parsed = skuMigrationFileSchema.safeParse(await res.json());
+      if (parsed.success) skuMigration = parsed.data;
+      else reasons.push('SKU 대응표(sku-migration.json)의 형식이 맞지 않는다 — 대응 없이 진행한다.');
+    }
+  } catch {
+    // 네트워크 오류도 "대응표 없음"으로 본다. 이 파일은 필수가 아니다.
+  }
+
   const guidesReady = GUIDE_IDS.every((id) => guides[id] !== undefined);
 
   if (catalog === undefined || laborBasisRaw === undefined || manifest === undefined || !guidesReady) {
@@ -150,6 +177,11 @@ export async function loadResources(options: LoadResourcesOptions = {}): Promise
 
   return {
     kind: 'ready',
-    resources: { catalog, laborBasisRaw, guides: guides as GuideTemplateSet },
+    resources: {
+      catalog,
+      laborBasisRaw,
+      guides: guides as GuideTemplateSet,
+      ...(skuMigration === undefined ? {} : { skuMigration }),
+    },
   };
 }
