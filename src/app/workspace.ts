@@ -18,7 +18,13 @@ import { toRow, CURRENT_RULE_VERSION } from '../domain/quote/buildDocument';
 import { computeDocumentBasisConflicts, describeBasisConflicts } from '../domain/quote/basisConflict';
 import { computeActiveWarnings } from '../domain/quote/activeWarnings';
 import { withResolvedProduct } from '../domain/quote/resolveProduct';
-import { synchronizeMiscMaterials, computeMiscMaterialWarnings } from '../domain/quote/miscMaterials';
+import {
+  synchronizeMiscMaterials,
+  computeMiscMaterialWarnings,
+  planMiscMaterialMigration,
+  migrateMiscMaterials,
+  type MiscMaterialMigrationPlan,
+} from '../domain/quote/miscMaterials';
 import { regenerateCables } from '../import/diagram/regenerateCables';
 import { lengthOf } from '../import/diagram/cables';
 import { rebuildCableRows } from '../domain/quote/cableRebuild';
@@ -423,6 +429,12 @@ export interface RecalculationPreview {
    */
   cableConflict: boolean;
   cableConflictDetails: readonly { rowIds: readonly string[]; message: string }[];
+  /**
+   * 옛 기준의 잡자재 행을 새 기준(LED 캐비넷 제외)으로 옮기면 무엇이
+   * 어떻게 달라지는지. 비어 있으면 옮길 것이 없다. 이 후보를 적용해야만
+   * 실제로 옮겨진다 — 취소하면 저장 문서는 옛 기준 그대로 막혀 있다.
+   */
+  miscMigrations: readonly MiscMaterialMigrationPlan[];
 }
 
 /**
@@ -630,7 +642,13 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     //    새로 지었으므로 여기서는 그대로 재확인만 된다.
     const { document: refreshed, removedWarnings } = refreshResolvedRows(cableRegenerated, resources.catalog);
     const conduitRegenerated = regenerateConduitUnderCurrentRule(refreshed, resources.catalog);
-    const seeded = synchronizeMiscMaterials(seedDefaultProfile(conduitRegenerated, resources.guides), resources.catalog);
+    // 3) 옛 기준의 잡자재 행은 **여기서만** 새 기준으로 옮긴다 — 저장
+    //    문서를 여는 것만으로는 옮기지 않는다(조용한 금액 변경 금지).
+    //    사용자가 이 미리보기를 보고 `applyRecalculatedBasis`를 눌러야
+    //    비로소 반영되고, 취소하면 옛 기준 그대로 막혀 있다.
+    const profiled = seedDefaultProfile(conduitRegenerated, resources.guides);
+    const miscMigrations = planMiscMaterialMigration(profiled, resources.catalog);
+    const seeded = synchronizeMiscMaterials(migrateMiscMaterials(profiled, resources.catalog), resources.catalog);
     // 사용자가 명시적으로 고른 시점에만 저장 당시의 낡은 카탈로그
     // 기준표를 지금 값으로 올려 적는다. `template`은 `prepareQuote`
     // 자신이 `explicit-recalculate`일 때 올린다(중복 금지). `rule`은
@@ -709,6 +727,7 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
       afterTotal,
       cableConflict,
       cableConflictDetails,
+      miscMigrations,
     });
   }, [basis, resources, history.present, allImportWarnings]);
 

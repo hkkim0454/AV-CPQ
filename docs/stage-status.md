@@ -93,6 +93,81 @@ Task 5~7  원가 파일 올리기 · 출력 3종 내려받기 · 전체 흐름 �
 
 **구현 담당이 한도에 걸려 Codex 가 이어받았다.** 미커밋 작업이 남아 있다.
 
+### 잔여 2건 처리 결과 — 구현 세션이 직접 실행 (2026-10-06)
+
+**①은 재현되지 않아 코드를 고치지 않았다. ②는 구현했다.** 근거를 나눠 적는다.
+
+#### ① 완제품 케이블 집계 키 — **고칠 것이 없었다**
+
+지시서는 `cables.ts:338` 의 집계 키(`sourceCableKey`)를 행의 신원으로 보았다. 그러나
+행을 이어 붙이는 쪽은 그 키를 신원에서 **명시적으로 제외**한다.
+
+```
+cableRebuild.ts:22   metadata = { rowId, sourceCableMembers, sourceCableKey, sourceEdgeIds }
+                     ↑ 이 집합은 "변경 비교에서 빼는 칸" 이다
+cableRebuild.ts:33   members(row) = row.sourceCableMembers      ← 실제 신원
+cables.ts:298        sourceCableMembers = [edge.id, bomIndex]   ← 길이가 없다
+regenerateCables.ts:17  재산출 행 id 도 같은 값에서 나온다
+```
+
+즉 지시서가 요구한 "길이와 무관한 식별자(구간 + 제품)"는 **이미 있다.** 집계 키를
+고치면 지시서 자신이 경고한 "합쳐지던 행이 갈라진다" 위험만 새로 생긴다.
+
+구현 세션이 직접 실행해 확인한 것:
+
+```
+tests/unit/cableLengthIdentity.test.ts      5/5 통과 (새로 작성)
+  실제 흐름 diagramToQuote → regenerateCables → rebuildCableRows 를 그대로 돌린다
+  · 수량을 손으로 고친 뒤 거리를 3m→4m 로 바꿔도 같은 행·같은 수량으로 남는다
+  · 길이가 같은 두 구간은 여전히 한 행으로 합쳐진다
+  · 길이가 다른 두 구간은 서로 다른 행으로 남는다
+  · 합쳐진 행이 갈라질 때는 말없이 버리지 않고 충돌로 막는다
+  · 경로 입력 미완성 → 완성 전환에서도 같은 행으로 이어진다
+
+역방향 확인  sourceCableMembers 에 거리를 끼워 넣자 위 5건 중 2건이 실제로 깨졌고,
+             되돌리자 다시 5/5 가 됐다 — 시험이 빈 껍데기가 아님을 확인했다.
+```
+
+`src/import/diagram/cables.ts` 는 **한 줄도 바꾸지 않았다.** 대신 위 계약을 못 박는
+회귀 시험만 남겼다. 저장 파일 호환도 깨지 않는다(키를 안 바꿨다).
+
+남는 가정: 구현 세션이 재현하지 못한 다른 경로가 있다면 그 경로는 그대로다.
+
+#### ② 잡자재 마이그레이션 — 구현했다
+
+자동으로 옮기지 않는다. **기존 basis-conflict 미리보기 경로만 재사용**했고 새 충돌
+검사는 만들지 않았다.
+
+```
+miscMaterials.ts   planMiscMaterialMigration   옛 금액 → 새 금액 · 빠지는 캐비넷 행
+                   migrateMiscMaterials        옛 행을 제자리에서 새 기준으로 교체
+workspace.ts       previewRecalculateWithCurrentBasis 안에서만 부른다
+                   → 적용해야 반영되고, 취소하면 옛 기준 그대로 막혀 있다
+App.tsx            미리보기에 '잡자재비 기준 이전' 구역을 그린다
+```
+
+구현 세션이 직접 실행해 확인한 것:
+
+```
+tests/unit/miscMaterials.test.ts       7/7   (4건 새로 작성, RED 확인 후 GREEN)
+tests/e2e/misc-migration.spec.ts       3/3   (브라우저에서 RED 확인 후 GREEN)
+  · 연 것만으로는 안 바뀌고, 미리보기에 20200 → 200 과 '합성 캐비넷'이 보인다
+  · 취소하면 옮기지 않고 막힌 상태가 그대로다
+  · 적용하면 LED 캐비넷을 뺀 200 으로 바뀌고 차단 경고가 사라진다
+```
+
+#### 검증 (구현 세션이 직접 실행 — 2026-10-06)
+
+```
+npx tsc -b --force       무출력(통과)
+npm run verify           시험 1155/1155 통과   (작업 전 출발점 1146)
+                         원가 격리 감사 94파일 (화면 경로 15)
+npx playwright test      97/97 통과            (작업 전 출발점 94)
+```
+
+실제 Excel 독립 대사는 **아직 돌리지 않았다** — 이번 변경은 Excel 생성 경로를 건드리지
+않았으나, 지시서 3절이 요구하는 항목이므로 남은 일로 적어 둔다.
+
 ---
 
 ## 결정-코드 대조 검증 (2026-10-05, 커밋 `cb3d29c` 기준)

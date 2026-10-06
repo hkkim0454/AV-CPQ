@@ -390,6 +390,34 @@ export function App() {
                         합계: {workspace.recalcPreview.beforeTotal ?? '이전 기준을 재현할 수 없습니다'} →{' '}
                         {workspace.recalcPreview.afterTotal}
                       </p>
+                      {workspace.recalcPreview.miscMigrations.length > 0 && (
+                        <section aria-label="잡자재비 기준 이전">
+                          <h4>잡자재비 기준 이전</h4>
+                          <p className="q-muted">
+                            적용하면 잡자재비가 LED 캐비넷을 뺀 재료비 기준으로 바뀝니다. 적용하지
+                            않으면 지금처럼 출력이 막힌 채로 남습니다.
+                          </p>
+                          <ul>
+                            {workspace.recalcPreview.miscMigrations.map((migration) => (
+                              <li key={migration.previousRowId}>
+                                <p>
+                                  잡자재비 {migration.previousAmount ?? '구할 수 없음'} →{' '}
+                                  {migration.nextAmount ?? '구할 수 없음'}
+                                </p>
+                                {migration.excludedRows.length === 0 ? (
+                                  <p>빠지는 LED 캐비넷 행이 없습니다.</p>
+                                ) : (
+                                  <ul>
+                                    {migration.excludedRows.map((row) => (
+                                      <li key={row.rowId}>{row.name}: 합산에서 빠집니다</li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </section>
+                      )}
                       {workspace.recalcPreview.cableConflict && (
                         <div role="alert">
                           <p>
