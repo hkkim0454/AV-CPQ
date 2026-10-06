@@ -256,3 +256,28 @@ describe('matchByModel — `/`로 묶인 모델명 (실측 22건 구제)', () =>
     expect(r.product?.sku).toBe('TVD-0029');
   });
 });
+
+/**
+ * 계획 2026-10-06 모델명 기준 대조 3판 Task 1.
+ *
+ * 1~3 단계가 모두 못 찾았을 때만 도는 **네 번째 단계**다. 이 단계는
+ * **후보만 올리고 자동으로 연결하지 않는다**(계획 §6) — `24인치 모니터`
+ * 처럼 모델명이 아니라 일반 명칭인 경우가 있어서, 1건만 맞았다는 것이
+ * 그 제품이라는 근거가 되지 않는다.
+ */
+describe('matchByModel — 4단계 모델명 검색 (후보 제시만 한다)', () => {
+  it('BRC-H800 이 `12배줌, BRC-H800` 을 후보로 올린다 — 자동 연결하지는 않는다', () => {
+    // 실물 카탈로그 VID-0006 의 값 그대로다.
+    const c = catalog([product('VID-0006', '1" Exmor R PTZ Camera', '12배줌, BRC-H800')], {
+      'VID-0006': '7000000',
+    });
+
+    const r = matchByModel('BRC-H800', c);
+
+    // 후보로만 오른다 — 제품도 단가도 붙지 않는다.
+    expect(r.product).toBeUndefined();
+    expect(r.sellingUnitPrice).toBeUndefined();
+    expect(r.matchedBy).toBe('model-search');
+    expect(r.modelSearchCandidates?.map((x) => x.sku)).toEqual(['VID-0006']);
+  });
+});

@@ -26,7 +26,30 @@ export type MatchKind =
   | 'model-normalized'
   /** `98인치 / LH98QMCEBGCXKR`처럼 `/`로 묶인 값에서 한 조각이 정확히 맞은 경우. */
   | 'model-fragment'
+  /**
+   * 1~3 단계가 모두 못 찾았을 때만 도는 **네 번째 단계**가 후보를 찾은 경우.
+   * **연결이 아니라 제시다** — `product`도 `sellingUnitPrice`도 비어 있다.
+   */
+  | 'model-search'
   | 'none';
+
+/** 4단계가 카탈로그의 어느 칸에서 모델명을 찾았는지. */
+export type MatchedField = 'model' | 'quoteSpec' | 'quoteName' | 'description';
+
+export interface ModelSearchMatch {
+  readonly field: MatchedField;
+  /** 그 칸에서 **실제로 맞은 글자**. 사람이 판단할 근거다 (계획 §6). */
+  readonly text: string;
+}
+
+export interface ModelSearchCandidate {
+  readonly sku: string;
+  /**
+   * 맞은 칸을 **전부** 보존한다 (계획 §4-4). 같은 제품이 규격에서도 설명에서도
+   * 맞았다는 사실은 사람이 판단할 때 서로 다른 무게를 가지므로 하나로 줄이지 않는다.
+   */
+  readonly matches: readonly ModelSearchMatch[];
+}
 
 export interface MatchResult {
   readonly product?: CatalogProduct;
@@ -37,6 +60,22 @@ export interface MatchResult {
   readonly ambiguousSkus?: readonly string[];
   /** `model-fragment`로 맞은 경우 어느 조각이 맞았는지. 사람이 검토할 근거다. */
   readonly matchedFragment?: string;
+  /**
+   * 4단계가 찾은 후보. **건수와 무관하게 전부 후보 제시다** (계획 §6) — 1건만
+   * 맞아도 자동으로 연결하지 않는다. `24인치 모니터`처럼 모델명이 아니라 일반
+   * 명칭인 값이 있어서, 1건 맞았다는 것이 그 제품이라는 근거가 되지 않는다.
+   */
+  readonly modelSearchCandidates?: readonly ModelSearchCandidate[];
+}
+
+/**
+ * **설명 칸에서만** 맞은 후보인지. 설명 칸에는 *그 제품에 쓰는 다른 제품의
+ * 모델명*이 적혀 있다 (`VID-0139` 설명 `XDM-12, 20, 36 동일 적용`). 부속품이
+ * 본체로 연결되면 단가도 품셈도 전혀 다르므로, 호출부와 화면은 이 후보를
+ * **경고와 함께** 보여준다 (계획 §5).
+ */
+export function isDescriptionOnlyCandidate(candidate: ModelSearchCandidate): boolean {
+  return candidate.matches.every((m) => m.field === 'description');
 }
 
 /**
@@ -145,7 +184,12 @@ export function matchByModel(model: string | undefined, catalog: Catalog): Match
   }
 
   // 3) `/`로 묶인 값에서 조각 하나가 정확히 맞는 경우
-  return matchFragment(trimmed, catalog, index);
+  const fragment = matchFragment(trimmed, catalog, index);
+  // 4) 1~3 이 **모두 후보를 못 찾았을 때만** 돈다 (계획 §3). 후보가 여럿 나온
+  //    상태(`ambiguousSkus`)를 새 검색으로 하나로 좁히지 않는다 — 그 상태는
+  //    지금처럼 사람에게 묻는다.
+  if (fragment.matchedBy !== 'none' || fragment.ambiguousSkus !== undefined) return fragment;
+  return searchCatalogByModel(trimmed, catalog);
 }
 
 /**
@@ -199,4 +243,97 @@ function matchFragment(
 
   const hit = hits[0]!;
   return { ...resolve(hit.product, catalog, 'model-fragment'), matchedFragment: hit.fragment };
+}
+
+/**
+ * 모델명을 **덩어리 + 구분자** 패턴으로 바꾼다 (계획 §4-1).
+ *
+ * `BRC-H800` → `BRC` 와 `H800` 두 덩어리. 덩어리 **사이에만** 구분자를 허용하므로
+ * `BRC-H800`·`BRC H800`·`BRCH800` 이 모두 맞는다. 구분자 목록은 `normalizeModel`이
+ * 지우는 글자와 **같은 집합**이다 — 두 곳이 다르면 1~3 단계와 4 단계가 서로 다른
+ * 글자를 같다고 보게 된다.
+ */
+/**
+ * ⚠ 세 상수는 **문자열이 아니라 정규식 리터럴**의 `.source`다. 문자열로 적으면
+ * `'\s'`가 JS 문자열 escape 단계에서 `'s'`로 줄어 `[s-_...]`라는 **다른 문자
+ * 범위**가 되고, 정규식이 통째로 깨진다. 리터럴은 그 단계를 거치지 않는다.
+ */
+const SEPARATOR_CLASS = /[\s\-_\/().,"”“*#]/.source;
+
+/** 덩어리는 영숫자와 한글이다. 쪼개는 기준은 그 외 **모든** 글자다. */
+const CHUNK_PATTERN = /[0-9A-Za-z가-힣]+/g;
+
+/**
+ * 앞뒤 경계 (계획 §4-2).
+ *
+ * **하이픈과 언더스코어를 경계로 인정하지 않는다.** 인정하면 `MR-4S`가
+ * `MR-4S-4K`에, `A40`이 `SRG-A40`에 걸린다 — 접두·접미가 붙은 **다른 제품**이다.
+ *
+ * 한글은 이 집합에 **들어가지 않는다.** 즉 `모니터`가 `대형모니터`에 걸린다.
+ * 4단계는 후보만 제시하므로 과잉 후보의 비용은 사람의 검토 한 번이고, 반대로
+ * 경계를 한글까지 넓히면 카탈로그가 구분자 없이 붙여 적은 참 후보를 놓친다.
+ */
+const BOUNDARY_BEFORE = /(?<![0-9A-Za-z\-_])/.source;
+const BOUNDARY_AFTER = /(?![0-9A-Za-z\-_])/.source;
+
+/**
+ * 곱셈 기호 `×`(U+00D7)를 `X`로 바꾼다. **지우지 않는다** — 지우면 `9×3`이 `93`이
+ * 되어 다른 수가 된다 (`normalizeModel`과 같은 이유다). 한 글자를 한 글자로
+ * 바꾸므로 글자 위치가 그대로여서, 맞은 글자를 원본에서 그대로 떠낼 수 있다.
+ */
+function foldMultiplicationSign(value: string): string {
+  return value.replace(/×/g, 'X');
+}
+
+function buildModelSearchPattern(model: string): RegExp | undefined {
+  const chunks = foldMultiplicationSign(model).match(CHUNK_PATTERN);
+  if (chunks === null || chunks.length === 0) return undefined;
+  // `i` 플래그로 대소문자를 구분하지 않는다 — `normalizeModel`의 대문자화와 같다.
+  return new RegExp(BOUNDARY_BEFORE + chunks.join(`${SEPARATOR_CLASS}*`) + BOUNDARY_AFTER, 'i');
+}
+
+const SEARCH_FIELDS: ReadonlyArray<{
+  readonly field: MatchedField;
+  readonly read: (product: CatalogProduct) => string | undefined;
+}> = [
+  { field: 'model', read: (p) => p.model },
+  { field: 'quoteSpec', read: (p) => p.quoteSpec },
+  { field: 'quoteName', read: (p) => p.quoteName },
+  { field: 'description', read: (p) => p.options['description'] },
+];
+
+/**
+ * **네 번째 단계** — av-builder 모델명을 열쇠로 카탈로그 네 칸 안을 찾는다.
+ *
+ * 품명에서 모델명을 **뽑아내지 않는다** (계획 §2). `BLU-101, AEC/Bluelink지원`은
+ * 쉼표 앞이, `12배줌, BRC-H800`은 쉼표 뒤가 모델명이라 위치로도 구분자로도 규칙을
+ * 세울 수 없다. 대신 확정 목록인 av-builder 모델명을 열쇠로 삼는다.
+ *
+ * ⛔ **찾아도 연결하지 않는다.** `product`를 비운 채 후보만 돌려준다 (계획 §6).
+ */
+function searchCatalogByModel(model: string, catalog: Catalog): MatchResult {
+  const pattern = buildModelSearchPattern(model);
+  if (pattern === undefined) return NO_MATCH;
+
+  const candidates: ModelSearchCandidate[] = [];
+
+  for (const product of catalog.products) {
+    const matches: ModelSearchMatch[] = [];
+
+    for (const { field, read } of SEARCH_FIELDS) {
+      const original = read(product);
+      if (original === undefined || original === '') continue;
+
+      const found = pattern.exec(foldMultiplicationSign(original));
+      if (found === null) continue;
+      // 원본에서 떠낸다 — `×`를 `X`로 바꾼 사본이 아니라 사람이 실제로 보는 글자다.
+      matches.push({ field, text: original.slice(found.index, found.index + found[0].length) });
+    }
+
+    // 같은 SKU 는 후보 목록에 **한 번만** 올리되, 맞은 칸은 전부 보존한다 (계획 §4-4).
+    if (matches.length > 0) candidates.push({ sku: product.sku, matches });
+  }
+
+  if (candidates.length === 0) return NO_MATCH;
+  return { matchedBy: 'model-search', modelSearchCandidates: candidates };
 }
