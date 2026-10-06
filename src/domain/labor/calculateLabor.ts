@@ -128,7 +128,11 @@ export function calculateLaborUnitPrice(
       quantity,
       wage,
       wageUnit: entry.unit,
-      amount: quantity.times(wage),
+      // 그 행의 금액 칸이 `=INT(공수*노임)` 모양이면 직종마다 먼저 버린다.
+      // 기본은 버리지 않고 합산 뒤 한 번만 버린다(표준 3,239칸).
+      amount: item.perTradeRounding === 'int'
+        ? excelInt(quantity.times(wage))
+        : quantity.times(wage),
     };
   });
 

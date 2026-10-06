@@ -105,7 +105,7 @@ def write_sheet(ws, layout, body=()):
 def write_product(ws, row, layout, *, name, spec="SPEC", unit="EA", selling=None,
                   labor=None, code=None, rate=None, surcharge=None, trade1=None,
                   maker=None, sales_note=None, description=None, remark=None,
-                  trade1_amount=None):
+                  trade1_amount=None, trade2=None, trade2_amount=None):
     """제품 한 행. `maker`/`sales_note` 는 **금지 열을 일부러 채우는** 시험용이다."""
     c = layout["cols"]
     ws.cell(row=row, column=1).value = row
@@ -121,14 +121,21 @@ def write_product(ws, row, layout, *, name, spec="SPEC", unit="EA", selling=None
     ws.cell(row=row, column=c["code"]).value = code
     ws.cell(row=row, column=c["rate"]).value = rate
     ws.cell(row=row, column=c["surcharge"]).value = surcharge
-    if trade1 is not None:
-        ws.cell(row=row, column=c["trade1"]).value = trade1
-        # 직종별 '금액' 칸 — 원본은 `=공수*노임` 이다. 상수로 덮인 경우를
-        # 흉내내려면 `trade1_amount` 로 숫자를 직접 준다.
-        amount_col = c["trade1"] + 1
-        ws.cell(row=row, column=amount_col).value = (
-            trade1_amount if trade1_amount is not None
-            else f"={gl(c['trade1'])}{row}*{gl(amount_col)}$3"
+    for offset, (quantity, amount) in enumerate(((trade1, trade1_amount), (trade2, trade2_amount))):
+        if quantity is None:
+            continue
+        q_col = c["trade1"] + offset * 2
+        a_col = q_col + 1
+        ws.cell(row=row, column=q_col).value = quantity
+        # 직종별 '금액' 칸. 원본의 표준은 `=공수*노임` 이고, 일부 행은
+        # `=INT(공수*노임)` 이며, 상수로 덮인 행도 있다.
+        plain = f"={gl(q_col)}{row}*{gl(a_col)}$3"
+        ws.cell(row=row, column=a_col).value = (
+            plain if amount is None
+            else f"=INT({gl(q_col)}{row}*{gl(a_col)}$3)" if amount == "int"
+            else plain if amount == "plain"
+            else f"={gl(q_col)}{row}*오디오!{gl(a_col)}$3" if amount == "cross-sheet"
+            else amount
         )
 
 
@@ -442,27 +449,48 @@ def test_multiplier_is_not_guessed_from_spec():
         assert "laborMultiplier" not in rec, "규격에서 0.3 을 유추하면 안 된다"
 
 
-def test_constant_trade_amount_is_flagged():
-    """직종 금액 칸이 **수식이 아니라 상수**면 표시한다 (실측: CMS 9행).
+# --- 시험: 직종 금액 칸의 모양 ------------------------------------------------
+#
+# 실측(하반기 전수): `=공수*노임` 3,239칸 · `=공수*다른시트!노임` 21칸 ·
+# `=INT(공수*노임)` 3칸(오디오 371행 한 행) · 상수 2칸(CMS 9행 한 행).
+#
+# ⛔ **일반 규칙으로 만들지 않는다.** 그 행의 칸이 실제로 그 모양일 때만
+# 그 행에 적용한다. 섞여 있으면 아는 모양이 아니므로 해석하지 않는다.
+def shape_of(tmp, **product):
+    data, _ = extract_to_dict(tmp, body=[dict(SAMPLE, **product)])
+    return data["sheets"][0]["rows"][0].get("tradeAmountShape")
 
-    누군가 옛 노임으로 계산한 값을 타이핑해 넣은 것이라 지금 노임으로
-    재현되지 않는다. 설계서 §8.3 — 조용히 신뢰하지 않는다.
-    """
+
+def test_plain_amounts_have_no_shape():
+    """표준(`=공수*노임`)은 아무 표시도 하지 않는다."""
     with tempfile.TemporaryDirectory() as tmp:
-        source = build(tmp, body=[dict(SAMPLE, trade1_amount=31618.3)])
-        destination = Path(tmp) / "out.json"
-        ec.extract(source, destination)
-        rec = json.loads(destination.read_text(encoding="utf-8"))["sheets"][0]["rows"][0]
-        assert rec.get("tradeAmountOverridden") is True, rec
+        assert shape_of(tmp, trade1=0.5, trade2=0.2) is None
 
 
-def test_formula_trade_amount_is_not_flagged():
-    """정상(`=공수*노임`)은 표시하지 않는다."""
+def test_cross_sheet_amounts_are_still_plain():
+    """`=공수*다른시트!노임` 도 표준이다 — 노임 값은 전 시트가 같다."""
     with tempfile.TemporaryDirectory() as tmp:
-        destination = Path(tmp) / "out.json"
-        ec.extract(build(tmp), destination)
-        rec = json.loads(destination.read_text(encoding="utf-8"))["sheets"][0]["rows"][0]
-        assert "tradeAmountOverridden" not in rec, rec
+        assert shape_of(tmp, trade1=0.5, trade1_amount="cross-sheet") is None
+
+
+def test_all_int_amounts_are_marked_int():
+    """그 행의 금액 칸이 **전부** `=INT(공수*노임)` 이면 `int` 로 표시한다."""
+    with tempfile.TemporaryDirectory() as tmp:
+        assert shape_of(tmp, trade1=0.5, trade1_amount="int",
+                        trade2=0.2, trade2_amount="int") == "int"
+
+
+def test_mixed_amounts_are_not_int():
+    """⛔ 일부만 `INT` 인 행은 **아는 모양이 아니다.** 섞인 채로 해석하지 않는다."""
+    with tempfile.TemporaryDirectory() as tmp:
+        assert shape_of(tmp, trade1=0.5, trade1_amount="int",
+                        trade2=0.2, trade2_amount="plain") == "mixed"
+
+
+def test_constant_amount_is_marked_constant():
+    """상수로 덮인 칸이 있으면 `constant` 다 (실측: CMS 9행)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        assert shape_of(tmp, trade1=0.5, trade1_amount=31618.3) == "constant"
 
 
 def main():
@@ -487,8 +515,11 @@ def main():
     check("배율 없는 표준 수식에는 배율을 붙이지 않는다", test_no_multiplier_on_plain_formula)
     check("모르는 수식은 해석하지 않고 표시만 한다", test_unknown_formula_is_flagged_not_guessed)
     check("규격 문자열에서 배율을 유추하지 않는다", test_multiplier_is_not_guessed_from_spec)
-    check("직종 금액 칸이 상수면 표시한다", test_constant_trade_amount_is_flagged)
-    check("정상 금액 수식은 표시하지 않는다", test_formula_trade_amount_is_not_flagged)
+    check("표준 금액 수식은 표시하지 않는다", test_plain_amounts_have_no_shape)
+    check("시트 간 참조도 표준으로 본다", test_cross_sheet_amounts_are_still_plain)
+    check("금액 칸이 전부 INT 면 int 로 표시한다", test_all_int_amounts_are_marked_int)
+    check("일부만 INT 인 행은 mixed 다", test_mixed_amounts_are_not_int)
+    check("상수로 덮인 칸은 constant 다", test_constant_amount_is_marked_constant)
     print()
     if _FAILURES:
         print(f"실패 {len(_FAILURES)} / 통과 {_PASSED}")

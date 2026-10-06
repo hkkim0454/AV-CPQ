@@ -75,6 +75,11 @@ export const laborItemSchema = z
     source: z.string(),
     revision: z.string(),
     wageUnit,
+    /**
+     * 직종별 금액을 각각 `INT` 한 뒤 더하는가. **원본의 예외 행에만** 있다
+     * (실측: 오디오 371행 한 행). 없으면 합산 뒤 한 번만 `INT` 한다.
+     */
+    perTradeRounding: z.literal('int').optional(),
     trades: z
       .array(z.object({ trade: z.string().min(1), quantity: decimalText }))
       .min(1, '품 값이 없는 품셈 항목을 만들지 않는다'),

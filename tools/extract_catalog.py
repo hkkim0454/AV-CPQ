@@ -100,6 +100,10 @@ FIRST_TRADE_OFFSET = 3
 # 어긋나면 해석하지 않고 `laborFormulaUnrecognized` 로 표시만 한다. 그래야
 # 다음 판에서 수식이 바뀌어도 조용히 틀리지 않는다 — 판단은 TS 쪽 검증이 한다.
 _CELL_REF = r"\$?[A-Z]{1,3}\$?\d+"
+#: 금액 칸의 노임 참조는 다른 시트를 가리킬 수 있다(`=W371*오디오!X$3`).
+_WAGE_REF = r"(?:'[^']+'|[^'!*()]+)?!?" + _CELL_REF
+TRADE_AMOUNT_PLAIN = re.compile(rf"^={_CELL_REF}\*{_WAGE_REF}$")
+TRADE_AMOUNT_INT = re.compile(rf"^=INT\({_CELL_REF}\*{_WAGE_REF}\)$")
 LABOR_FORMULA = re.compile(
     rf"^=INT\(SUM\(\({_CELL_REF}\*{_CELL_REF}\),{_CELL_REF}\)\*{_CELL_REF}\)"
     rf"(?:\*(\d+(?:\.\d+)?))?$"
@@ -449,22 +453,49 @@ def read_labor_formula(formula_ws, row, column):
     return found.group(1), False
 
 
-def trade_amount_overridden(formula_ws, row, trade_columns):
-    """직종 금액 칸(`공수`의 오른쪽)이 **수식이 아니라 상수**인가.
+def trade_amount_shape(formula_ws, row, trade_columns):
+    """그 행의 직종 금액 칸들이 **어떤 모양**인가.
 
-    원본은 `=공수*노임` 이어야 한다. 상수가 들어 있으면 누군가 옛 노임으로
-    계산한 값을 타이핑해 넣은 것이라 지금 노임으로 재현되지 않는다
-    (실측: CMS 9행의 두 칸). 설계서 §8.3 — 조용히 신뢰하지 않는다.
+    실측(하반기 전수)으로 모양을 셌다.
+
+    ```
+    3,239칸  =공수*노임              ← 표준
+       21칸  =공수*다른시트!노임       ← 표준(노임 값은 전 시트가 같다)
+        3칸  =INT(공수*노임)          ← 오디오 371행 **한 행뿐**
+        2칸  상수                    ← CMS 9행 **한 행뿐**
+    ```
+
+    돌려주는 값:
+      `None`        전부 표준이다 — 아무 표시도 하지 않는다
+      `"int"`       전부 `=INT(공수*노임)` 이다 → 그 행만 직종별로 INT 한다
+      `"constant"`  상수로 덮인 칸이 있다 → 지금 노임으로 재현되지 않는다
+      `"mixed"`     모양이 섞여 있거나 모르는 모양이다 → 해석하지 않는다
+
+    ⛔ **일반 규칙으로 만들지 않는다.** 전부 `INT` 일 때만 그 행에 적용한다.
+    일부만 `INT` 인 행은 **아는 모양이 아니다** — 섞인 채로 해석하면 조용히
+    틀린다. 직종별 INT 를 전 행에 적용하면 통과가 1,354 → 753 으로 급감한다(실측).
     """
+    kinds = set()
     for column in trade_columns:
         if formula_ws.cell(row=row, column=column).value in (None, "", 0):
             continue
         amount = formula_ws.cell(row=row, column=column + 1).value
         if amount is None or amount == "":
             continue
-        if not (isinstance(amount, str) and amount.startswith("=")):
-            return True
-    return False
+        if not isinstance(amount, str) or not amount.startswith("="):
+            return "constant"
+        body = amount.replace(" ", "")
+        if TRADE_AMOUNT_INT.match(body):
+            kinds.add("int")
+        elif TRADE_AMOUNT_PLAIN.match(body):
+            kinds.add("plain")
+        else:
+            return "mixed"
+    if not kinds or kinds == {"plain"}:
+        return None
+    if kinds == {"int"}:
+        return "int"
+    return "mixed"
 
 
 def extract_trades(formula_ws, cached_ws, row, trade_columns, trade_names):
@@ -596,8 +627,10 @@ def extract(source: Path, destination: Path) -> None:
             trades, unresolved = extract_trades(
                 formula_ws, cached_ws, row, trade_columns, trade_names
             )
-            if trades and trade_amount_overridden(formula_ws, row, trade_columns):
-                record["tradeAmountOverridden"] = True
+            if trades:
+                shape = trade_amount_shape(formula_ws, row, trade_columns)
+                if shape is not None:
+                    record["tradeAmountShape"] = shape
             if trades:
                 record["trades"] = trades
                 empty = False

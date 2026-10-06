@@ -151,11 +151,18 @@ function verifyRow(sheet: RawSheet, row: RawRow): LaborRowVerification {
   if (row.laborFormulaUnrecognized === true) {
     return { ...at, verdict: '미검증', reason: '노무비 단가 수식이 아는 모양이 아니다' };
   }
-  if (row.tradeAmountOverridden === true) {
+  if (row.tradeAmountShape === 'constant') {
     return {
       ...at,
       verdict: '미검증',
       reason: '직종 금액 칸이 수식이 아니라 상수로 덮여 있다 — 지금 노임으로 재현되지 않는다',
+    };
+  }
+  if (row.tradeAmountShape === 'mixed') {
+    return {
+      ...at,
+      verdict: '미검증',
+      reason: '직종 금액 칸의 수식 모양이 행 안에서 섞여 있다 — 아는 모양이 아니라 해석하지 않는다',
     };
   }
 
@@ -181,7 +188,9 @@ function verifyRow(sheet: RawSheet, row: RawRow): LaborRowVerification {
     if (quantity === undefined || amount === undefined) {
       return { ...at, verdict: '미검증', reason: '공수 또는 노임이 숫자가 아니다' };
     }
-    standard = standard.plus(quantity.times(amount));
+    // 그 행의 금액 칸이 `=INT(공수*노임)` 이면 직종마다 먼저 버린다(실측 1행).
+    const product = quantity.times(amount);
+    standard = standard.plus(row.tradeAmountShape === 'int' ? excelInt(product) : product);
   }
   // D1 — M/D와 M/M을 한 행에서 더하면 약 20배 틀린다. 환산하지 않고 멈춘다.
   if (units.size > 1) {

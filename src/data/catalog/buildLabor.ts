@@ -158,6 +158,8 @@ export function buildLabor(
         source: `표준품셈 통합문서 ${sheet.name} ${product.row}행`,
         revision: periodLabel,
         wageUnit,
+        // 그 행의 금액 칸이 전부 `=INT(공수*노임)` 일 때만. 일반 규칙이 아니다.
+        ...(product.tradeAmountShape === 'int' ? { perTradeRounding: 'int' as const } : {}),
         trades: trades.map((t) => ({ trade: t.trade, quantity: t.quantity })),
       });
 
