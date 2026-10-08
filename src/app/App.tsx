@@ -113,6 +113,10 @@ export function App() {
     // 직접 막은 것이 실제로는 구분되지 않았다(2026-10-05 독립 검토 지적).
     if (resources === undefined || !exportGate(status, pendingCableEdit).allowed) return;
     if (status.kind !== 'editing' || workspace.basisVersions === undefined) return; // 위 gate와 같은 결론이지만, 아래 타입 좁히기에 필요하다.
+    // Task6: 원가 포함 파일은 매번 저장 직전에 확인한다. 취소하면 생성도 하지 않는다.
+    if (outputGrade === '0' && !window.confirm(
+      '영업팀용 파일에는 등록된 원가와 내부 메모가 포함됩니다. 고객에게 전달하지 않도록 주의해 주세요. 다운로드하시겠습니까?',
+    )) return;
     try {
       const notes = notesOf(status.document);
       const basisVersions = workspace.basisVersions;

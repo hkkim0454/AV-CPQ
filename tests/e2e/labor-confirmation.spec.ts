@@ -109,6 +109,7 @@ test('화면에서 근거를 펼쳐 확인하면 풀리고, 0/1/2 세 등급을 
 
   for (const grade of ['2 고객용', '1 공유용', '0 영업팀용']) {
     await page.getByRole('radio', { name: grade }).check();
+    if (grade === '0 영업팀용') page.once('dialog', (dialog) => dialog.accept());
     const downloadEvent = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Excel 다운로드' }).click();
     const download = await downloadEvent;

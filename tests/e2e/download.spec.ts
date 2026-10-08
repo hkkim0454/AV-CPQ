@@ -106,6 +106,7 @@ test('공유용(1단계) — 원가 열 없이 설명/품셈을 더해 낸다', 
 test('영업팀용(0단계) — 원가 세션이 없어도 출력은 된다(원가 칸은 빈 채)', async ({ page }) => {
   await makeDownloadableQuote(page);
   await page.getByRole('radio', { name: '0 영업팀용' }).check();
+  page.once('dialog', (dialog) => dialog.accept());
   const downloadEvent = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Excel 다운로드' }).click();
   const download = await downloadEvent;
@@ -162,6 +163,7 @@ test('AI 메모(conversionNote) — 0단계에만 실리고 1단계에는 없다
   await expect(page.getByRole('button', { name: 'Excel 다운로드' })).toBeEnabled();
 
   await page.getByRole('radio', { name: '0 영업팀용' }).check();
+  page.once('dialog', (dialog) => dialog.accept());
   const salesDownload = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Excel 다운로드' }).click();
   const salesDetail = strFromU8(unzipSync(await downloadedBytes(await salesDownload))['xl/worksheets/sheet2.xml']!);
