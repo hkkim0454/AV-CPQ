@@ -30,6 +30,7 @@ import { buildSalesDownload } from '../export/internal/salesExportAction';
 import type { SharedNotes } from '../export/shared/projection';
 import type { InternalLine } from '../services/private-cost/calculate';
 import type { QuoteDocument } from '../domain/quote/types';
+import { QuoteDrafts, useHasPendingQuoteDrafts } from './QuoteDrafts';
 
 /** 거래처/영업비고 — 사람이 QuoteSheet에서 입력한 값만 담는다. 지어내지 않는다. */
 function notesOf(document: QuoteDocument): SharedNotes {
@@ -70,6 +71,10 @@ const OUTPUT_GRADES: ReadonlyArray<{ value: OutputGrade; label: string }> = [
 type EntryView = 'diagram' | 'picker' | null;
 
 export function App() {
+  return <QuoteDrafts><QuoteWorkspace /></QuoteDrafts>;
+}
+
+function QuoteWorkspace() {
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
   const [entry, setEntry] = useState<EntryView>(null);
   const [outputGrade, setOutputGrade] = useState<OutputGrade>('2');
@@ -80,20 +85,51 @@ export function App() {
   const [costLines, setCostLines] = useState<readonly InternalLine[]>([]);
   const [cableResetRowIds, setCableResetRowIds] = useState<string[]>([]);
   const workFileInputRef = useRef<HTMLInputElement>(null);
-  // 파일을 고를 때마다 늘어난다 — 먼저 고른 파일의 비동기 읽기가 나중에
-  // 고른 파일보다 늦게 끝나도 그 늦은 결과로 최신 선택을 덮지 않는다
-  // (`DiagramInput`과 같은 패턴. 독립 검토 지적: 전엔 이 토큰이 없었다).
+  // 작업 파일과 구성도가 선택 순서를 공유한다. 어느 입구든 늦게 끝난
+  // 이전 선택으로 나중에 선택한 문서를 덮지 않는다.
   const workFileRequestRef = useRef(0);
+
+  function beginDocumentLoad(): () => boolean {
+    const requestId = ++workFileRequestRef.current;
+    return () => requestId === workFileRequestRef.current;
+  }
 
   const resources = state.kind === 'ready' ? state.resources : undefined;
   const workspace = useWorkspace(resources);
   const status = workspace.status;
+  const pendingQuoteDrafts = useHasPendingQuoteDrafts();
+  const hasUnsavedChanges = workspace.hasUnsavedChanges || pendingCableEdit || pendingQuoteDrafts;
+  // 파일 읽기가 끝날 때의 문서를 보호한다. 읽기 시작 시점의 상태를 쓰면
+  // 기다리는 동안 편집한 내용이나 새로 연 문서를 놓칠 수 있다.
+  const currentWork = useRef({ workspace, hasUnsavedChanges });
+  currentWork.current = { workspace, hasUnsavedChanges };
+
+  function mayReplaceDocument(): boolean {
+    return !currentWork.current.hasUnsavedChanges || window.confirm(
+      '저장하지 않은 변경 내용이 있습니다. 현재 작업을 버리고 다른 견적을 여시겠습니까?',
+    );
+  }
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    function beforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+    window.addEventListener('beforeunload', beforeUnload);
+    return () => window.removeEventListener('beforeunload', beforeUnload);
+  }, [hasUnsavedChanges]);
 
   function handleSaveWorkFile(): void {
     if (status.kind !== 'editing') return;
+    if (pendingCableEdit || pendingQuoteDrafts) {
+      setWorkFileSaveError('입력 중인 값을 확인해 주세요. 잘못된 숫자를 고치거나 조건 추가·케이블 적용을 마친 뒤 저장할 수 있습니다.');
+      return;
+    }
     try {
       const text = encodeWorkFile(status.document);
       downloadTextFile(`견적-${status.document.header.quoteNumber || status.document.documentId}.avcpq.json`, text);
+      workspace.markWorkFileSaved(status.document);
       setWorkFileSaveError(undefined);
     } catch (err) {
       // 저장 직전 스키마 검증이 막은 경우(원가 비슷한 칸, 구조 불일치
@@ -158,8 +194,10 @@ export function App() {
       setWorkFileOpenError(`${file.name} — ${result.reason}`);
       return;
     }
+    if (!mayReplaceDocument()) return;
     setWorkFileOpenError(undefined);
-    workspace.openWorkFile(result.document);
+    currentWork.current.workspace.openWorkFile(result.document);
+    setPendingCableEdit(false);
     setEntry(null);
   }
 
@@ -183,7 +221,10 @@ export function App() {
   }, []);
 
   function handleLoaded(input: LoadedDocument): void {
-    workspace.loadDocument(input);
+    if (!mayReplaceDocument()) return;
+    ++workFileRequestRef.current;
+    currentWork.current.workspace.loadDocument(input);
+    setPendingCableEdit(false);
     setEntry(null);
   }
 
@@ -212,6 +253,12 @@ export function App() {
         <ReferenceDocs />
 
         <div className="q-workspace">
+          {status.kind !== 'empty' && (
+            <p role="status" aria-label="작업 저장 상태" className="q-save-status">
+              <strong>{hasUnsavedChanges ? '저장하지 않은 변경 내용이 있습니다' : '저장한 내용과 같습니다'}</strong>
+              <span className="q-muted">저장 상태는 다운로드 요청 기준입니다. 내려받은 작업 파일을 확인해 보관해 주세요.</span>
+            </p>
+          )}
           <div className="q-tools">
             <button
               type="button"
@@ -335,15 +382,16 @@ export function App() {
                 </p>
               )}
 
-              {entry === 'diagram' && <DiagramInput catalog={resources.catalog} onLoaded={handleLoaded} />}
+              {entry === 'diagram' && <DiagramInput catalog={resources.catalog} onLoaded={handleLoaded} onBeginLoad={beginDocumentLoad} />}
               {entry === 'picker' &&
                 (status.kind === 'editing' ? (
                   <ProductPicker
+                    key={workspace.documentGeneration}
                     catalog={resources.catalog}
-                    onAddToExisting={(sku) => {
-                      const systemId = status.document.systems[0]?.systemId;
-                      if (systemId !== undefined) workspace.addItem(systemId, sku, '1');
-                      setEntry(null);
+                    systems={status.document.systems}
+                    onClose={() => setEntry(null)}
+                    onAddToExisting={(systemId, sku) => {
+                      workspace.addItem(systemId, sku, '1');
                     }}
                   />
                 ) : (
@@ -486,7 +534,7 @@ export function App() {
 
               {status.kind === 'editing' && (
                 <>
-                  <CoverSheet header={status.document.header} onChange={workspace.setHeader} />
+                  <CoverSheet key={`cover-${workspace.documentGeneration}`} header={status.document.header} onChange={workspace.setHeader} />
                   <WarningList
                     warnings={status.prepared.importWarnings}
                     catalog={resources.catalog}
@@ -497,6 +545,7 @@ export function App() {
                     onResolveRow={workspace.resolveRow}
                   />
                   <QuoteSheet
+                    key={`sheet-${workspace.documentGeneration}`}
                     document={status.document}
                     calculation={status.prepared.priced.calculation}
                     laborBreakdowns={status.prepared.priced.laborBreakdowns}
@@ -512,12 +561,12 @@ export function App() {
                     onOverrideReasonChange={workspace.setOverrideReason}
                     onConfirmLaborRow={workspace.confirmLaborRow}
                   />
-                  <CableRoutePanel document={status.document} catalog={resources.catalog}
+                  <CableRoutePanel key={`cables-${workspace.documentGeneration}`} document={status.document} catalog={resources.catalog}
                     onApply={workspace.applyCableRoutes} onPending={setPendingCableEdit} />
                   {pendingCableEdit && <p role="status" className="q-notice">케이블 거리 수정이 아직 견적에 반영되지 않았습니다. 미리보기 후 적용하거나 취소하세요.</p>}
                   {status.document.systems.map((system) => (
                     <InstallationPanel
-                      key={system.systemId}
+                      key={`${workspace.documentGeneration}-${system.systemId}`}
                       system={system}
                       document={status.document}
                       onChange={(patch) => workspace.setInstallationInput(system.systemId, patch)}
@@ -530,7 +579,7 @@ export function App() {
                     if (calc === undefined) return null;
                     return (
                       <IndirectPanel
-                        key={system.systemId}
+                        key={`${workspace.documentGeneration}-${system.systemId}`}
                         system={system}
                         calculation={calc}
                         onProfileChange={(profile) => workspace.setProfile(system.systemId, profile)}

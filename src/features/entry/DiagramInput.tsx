@@ -4,7 +4,7 @@
  * 실제 변환 경로(parseDiagram → diagramToQuote)를 그대로 부른다 —
  * React에서 구성도 규칙을 다시 짜지 않는다.
  */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Catalog } from '../../data/catalog/load';
 import { defaultHeader } from '../../app/defaultHeader';
 import type { LoadedDocument } from '../../app/workspace';
@@ -19,9 +19,12 @@ type FileStatus =
 export function DiagramInput({
   catalog,
   onLoaded,
+  onBeginLoad,
 }: {
   catalog: Catalog;
   onLoaded(input: LoadedDocument): void;
+  /** 다른 파일 입구와 선택 순서를 공유한다. false면 이 결과는 폐기한다. */
+  onBeginLoad?(): () => boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<FileStatus>({ kind: 'idle' });
@@ -30,20 +33,22 @@ export function DiagramInput({
   // "이게 아직 최신 선택인가"를 끝에서 확인해 늦게 끝난 이전 결과가
   // 최신 선택을 덮지 않게 한다.
   const requestRef = useRef(0);
+  useEffect(() => () => { ++requestRef.current; }, []);
 
   async function handleFile(file: File): Promise<void> {
     const requestId = ++requestRef.current;
+    const isLatestDocumentLoad = onBeginLoad?.() ?? (() => true);
 
     let text: string;
     try {
       text = await file.text();
     } catch {
-      if (requestId === requestRef.current) {
+      if (requestId === requestRef.current && isLatestDocumentLoad()) {
         setStatus({ kind: 'error', name: file.name, message: '파일을 읽지 못했습니다.' });
       }
       return;
     }
-    if (requestId !== requestRef.current) return; // 그 사이 다른 파일을 골랐다 — 이 결과는 버린다.
+    if (requestId !== requestRef.current || !isLatestDocumentLoad()) return;
 
     let raw: unknown;
     try {

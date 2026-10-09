@@ -13,6 +13,7 @@
  * 정밀한 원본 요율이 조용히 깎인다.
  */
 import { useEffect, useState } from 'react';
+import { usePendingQuoteDraft } from '../../app/QuoteDrafts';
 import type { SystemCalculation } from '../../domain/calculation/calculate';
 import type { IndirectCostRule, QuoteSystem } from '../../domain/quote/types';
 import type { IndirectProfileId } from '../../export/ooxml/guideTemplate';
@@ -54,6 +55,7 @@ function RateInput({
   // 원본 rate가 조용히 깎인다(독립 검토 지적). 포커스/blur만으로는
   // 절대 dirty가 되지 않는다 — 오직 onChange만 dirty를 켠다.
   const [dirty, setDirty] = useState(false);
+  usePendingQuoteDraft(dirty);
 
   // 바깥에서 rate가 바뀌면(프로파일 전환, 실행취소/다시실행) 표시도
   // 다시 맞추고 dirty를 지운다 — 외부 변경은 사용자 입력이 아니다.

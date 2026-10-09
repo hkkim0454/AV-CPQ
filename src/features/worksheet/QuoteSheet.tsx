@@ -7,6 +7,7 @@
  * 덮어쓰지 않는다").
  */
 import { Fragment, useEffect, useState } from 'react';
+import { usePendingQuoteDraft } from '../../app/QuoteDrafts';
 import type { CalculationSnapshot } from '../../domain/calculation/calculate';
 import type { RowLaborBreakdown } from '../../domain/labor/calculateLabor';
 import type { LaborWarning } from '../../domain/labor/types';
@@ -54,6 +55,7 @@ function ValidatedDecimalCell({
   onCommit(rowId: string, value: string): void;
 }) {
   const [draft, setDraft] = useState(value);
+  usePendingQuoteDraft(draft !== value);
   const [error, setError] = useState<string | undefined>(undefined);
 
   useEffect(() => {
@@ -68,6 +70,7 @@ function ValidatedDecimalCell({
       return;
     }
     setError(undefined);
+    setDraft(result.value);
     if (result.value !== value) onCommit(rowId, result.value);
   }
 
@@ -104,6 +107,7 @@ function TextCell({
   onCommit(rowId: string, value: string): void;
 }) {
   const [draft, setDraft] = useState(value);
+  usePendingQuoteDraft(draft !== value);
 
   useEffect(() => {
     setDraft(value);

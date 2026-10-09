@@ -97,6 +97,9 @@ export function exportGate(status: WorkspaceStatus, pendingCableEdit: boolean): 
 
 export interface Workspace {
   status: WorkspaceStatus;
+  hasUnsavedChanges: boolean;
+  /** 다운로드 요청이 성공한 문서만 저장 기준으로 삼는다. 원가 세션은 포함하지 않는다. */
+  markWorkFileSaved(document: QuoteDocument): void;
   canUndo: boolean;
   canRedo: boolean;
   /**
@@ -426,6 +429,12 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
   );
 
   const [history, setHistory] = useState<History>(EMPTY_HISTORY);
+  const [savedContent, setSavedContent] = useState<string | undefined>(undefined);
+  const currentContent = useMemo(() => JSON.stringify(history.present), [history.present]);
+  const hasUnsavedChanges = history.present !== undefined && currentContent !== savedContent;
+  const markWorkFileSaved = useCallback((document: QuoteDocument) => {
+    setSavedContent(JSON.stringify(document));
+  }, []);
   // 변환 시점에 나온 **원본** 경고 전부 — 실행취소로 문서가 바뀌어도
   // 이 목록 자체는 바뀌지 않는다. 실제로 화면에 보여줄 "지금 유효한"
   // 부분집합은 매번 `computeActiveWarnings(document, allImportWarnings)`로
@@ -560,6 +569,7 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
       });
       setAllImportWarnings(input.importWarnings);
       setDocumentOrigin('new');
+      setSavedContent(undefined);
       setDocumentGeneration((g) => g + 1);
       setHistory({ past: [], present: first.document, future: [] });
     },
@@ -579,6 +589,7 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
     // `document.cableWarnings`에서 직접 가져온다.
     setAllImportWarnings(document.importWarnings ?? []);
     setDocumentOrigin('reopened');
+    setSavedContent(JSON.stringify(document));
     setDocumentGeneration((g) => g + 1);
     setHistory({ past: [], present: document, future: [] });
   }, []);
@@ -1094,6 +1105,8 @@ export function useWorkspace(resources: Resources | undefined): Workspace {
 
   return {
     status,
+    hasUnsavedChanges,
+    markWorkFileSaved,
     canUndo: history.past.length > 0,
     canRedo: history.future.length > 0,
     documentGeneration,

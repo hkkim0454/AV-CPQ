@@ -30,7 +30,8 @@
  * 분류가 안 되거나 카탈로그에 없는 후보도 미분류에 남긴다.
  */
 import { useState } from 'react';
-import type { Catalog, CatalogProduct } from '../../data/catalog/load';
+import { CandidateDetail } from '../catalog/CandidateDetail';
+import type { Catalog } from '../../data/catalog/load';
 import type { ImportWarning } from '../../import/diagram/devices';
 import { isDescriptionOnlyCandidate, type ModelSearchCandidate } from '../../import/diagram/matchCatalog';
 import { groupCableCandidates } from './cableCandidateCategories';
@@ -42,50 +43,11 @@ interface WarningListProps {
   onResolveOption(optionId: string, sku: string): void;
   onResolveConduit(systemId: string, sku: string): void;
   onResolveCable(edgeId: string, sku: string, sourceCableKey?: string): void;
-  /** `catalog-item-removed` 전용 — 입구와 무관하게 그 행만 다시 찾는다. */
+  /** `catalog-item-removed` 전용. */
   onResolveRow(rowId: string, sku: string): void;
 }
 
-/**
- * 승인 판매단가 표시 — 미등록(카탈로그에 키가 없음)과 명시적 0원을
- * 구분한다(설계서 §5.6과 같은 규율). 여기서 읽는 `catalog.prices`는
- * 공개 승인 판매단가다 — 원가 세션(`services/private-cost`)과는
- * 무관하고, 이 파일은 그 모듈을 들여오지 않는다.
- */
-function approvedPriceLabel(catalog: Catalog, sku: string): string {
-  const price = catalog.prices.get(sku);
-  return price === undefined ? '미등록' : `${price}원`;
-}
-
-/**
- * 후보 한 줄에 보일 전부 — SKU·모델/규격·품명·설명(`options.description`)·
- * 승인 판매단가·단위(O11 독립 검토 지적: 이전엔 품명이나 규격 한 쪽만
- * 보여서, 모델은 같고 설명·가격만 다른 후보를 구분할 수 없었다).
- * 기본/묶음 목록과 검색 목록이 전부 이 컴포넌트 하나를 같이 쓴다 —
- * 한쪽만 고치고 다른 쪽을 빠뜨리는 일이 없게 한다.
- */
-function CandidateDetail({ product, catalog }: { product: CatalogProduct; catalog: Catalog }) {
-  const description = product.options['description'];
-  return (
-    <div className="q-candidate-detail">
-      <div className="q-candidate-name">
-        {product.quoteName}
-        {product.model !== '' && ` · 모델 ${product.model}`}
-        {product.quoteSpec !== '' && ` · 규격 ${product.quoteSpec}`}
-      </div>
-      {description !== undefined && description !== '' && (
-        <div className="q-candidate-desc">{description}</div>
-      )}
-      <div className="q-candidate-meta">
-        <span>SKU {product.sku}</span>
-        <span>단위 {product.unit}</span>
-        <span>판매단가 {approvedPriceLabel(catalog, product.sku)}</span>
-      </div>
-    </div>
-  );
-}
-
-/**
+  /**
  * 4단계 모델명 검색이 올린 후보의 **근거** — 어느 칸에서 어떤 글자가 맞았는지다
  * (계획 2026-10-06 §5·§6). 설명 칸에서만 맞은 것은 *다른 제품의 부속품*일 수 있어
  * 경고를 함께 적는다. 금액만 보여주고 고르게 하지 않는다.

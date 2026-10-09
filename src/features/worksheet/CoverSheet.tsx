@@ -6,6 +6,7 @@
  * 때만 workspace에 커밋한다(실행취소 이력에 쌓인다).
  */
 import { useEffect, useState } from 'react';
+import { usePendingQuoteDraft } from '../../app/QuoteDrafts';
 import type { QuoteHeader } from '../../domain/quote/types';
 
 interface CoverSheetProps {
@@ -23,6 +24,7 @@ function TextField({
   onCommit(value: string): void;
 }) {
   const [draft, setDraft] = useState(value);
+  usePendingQuoteDraft(draft !== value);
 
   useEffect(() => {
     setDraft(value);
@@ -48,6 +50,7 @@ function TextField({
 
 export function CoverSheet({ header, onChange }: CoverSheetProps) {
   const [newCondition, setNewCondition] = useState('');
+  usePendingQuoteDraft(newCondition !== '');
 
   function addCondition(): void {
     const trimmed = newCondition.trim();

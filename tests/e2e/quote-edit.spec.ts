@@ -226,6 +226,8 @@ test('두 입구(구성도/품목 선택) — 같은 품목·수량이면 직접
   // 이전 상태를 읽고도 통과할 수 있다.
   await expect(remarkInput).toHaveValue('직접 선택');
   const pickerTotal = await totalRow.textContent();
+  // 같은 테스트 안에서 견적을 교체한다. 미저장 폐기를 명시로 승인한다.
+  page.once('dialog', (dialog) => dialog.accept());
 
   // --- 구성도 열기: 같은 모델 노드 2개 ---
   await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
@@ -400,6 +402,8 @@ test('새 견적은 기본 DS 프로파일로 시작하고, 일반으로 바꿀 
   // 일반으로 바꿀 수 있다 — 기본값이 DS라고 선택지가 줄지 않는다.
   await page.getByLabel('시스템1 간접비 프로파일').selectOption('general');
   await expect(page.getByLabel('시스템1 간접비 프로파일')).toHaveValue('general');
+
+  page.once('dialog', (dialog) => dialog.accept());
 
   // --- 구성도 열기 입구도 기본 DS다 ---
   await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
@@ -697,12 +701,12 @@ test('후보 표시 — 같은 모델이라도 설명·가격·단위로 구분�
   await expect(candidateA).toContainText(AMB_A_DESCRIPTION);
   await expect(candidateA).toContainText(`SKU ${SKU_AMBIGUOUS_A}`);
   await expect(candidateA).toContainText('단위 EA');
-  await expect(candidateA).toContainText('판매단가 70000원');
+  await expect(candidateA).toContainText('판매단가 70,000원');
 
   const candidateB = candidates.filter({ hasText: 'E2E 후보 B' });
   await expect(candidateB).toContainText(AMB_B_DESCRIPTION);
   await expect(candidateB).toContainText(`SKU ${SKU_AMBIGUOUS_B}`);
-  await expect(candidateB).toContainText('판매단가 80000원');
+  await expect(candidateB).toContainText('판매단가 80,000원');
 
   // B를 명시로 고른다 — 실제로 B의 가격(80000)이 반영되는지,
   // A의 가격(70000)이 섞여 들어가지 않는지 확인한다.
@@ -713,10 +717,10 @@ test('후보 표시 — 같은 모델이라도 설명·가격·단위로 구분�
   // --- 2) 같은 모델(UNIT-MODEL), 단위만 다른 두 후보 ---
   const candidateEa = candidates.filter({ hasText: `SKU ${SKU_UNIT_EA}` });
   await expect(candidateEa).toContainText('단위 EA');
-  await expect(candidateEa).toContainText('판매단가 10000원');
+  await expect(candidateEa).toContainText('판매단가 10,000원');
   const candidateSet = candidates.filter({ hasText: `SKU ${SKU_UNIT_SET}` });
   await expect(candidateSet).toContainText('단위 SET');
-  await expect(candidateSet).toContainText('판매단가 30000원');
+  await expect(candidateSet).toContainText('판매단가 30,000원');
 
   await candidateSet.getByRole('button', { name: '선택' }).click();
   const resolvedUnitRow = page.locator('.q-quote-table tbody tr', { hasText: 'E2E 단위후보' });

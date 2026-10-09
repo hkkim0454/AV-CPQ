@@ -8,6 +8,7 @@
  * `domain/quote/installation.ts`의 기본값 규칙을 그대로 따른다.
  */
 import { useEffect, useState } from 'react';
+import { usePendingQuoteDraft } from '../../app/QuoteDrafts';
 import type { InstallationPatch } from '../../domain/quote/installation';
 import {
   DEFAULT_CONDUIT_MATERIAL_RATE,
@@ -38,6 +39,7 @@ function DraftField({
   onCommit(value: string): void;
 }) {
   const [draft, setDraft] = useState(value);
+  usePendingQuoteDraft(draft !== value);
   const [error, setError] = useState<string | undefined>(undefined);
 
   // 바깥에서 값이 바뀌면(실행취소/다시실행, 다른 입력이 간접적으로

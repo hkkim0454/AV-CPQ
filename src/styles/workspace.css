@@ -301,6 +301,20 @@
   border-radius: var(--q-r-chip);
 }
 
+.q-picker-matches .q-button { flex-shrink: 0; }
+.q-picker-matches .q-candidate-name { overflow-wrap: anywhere; }
+.q-picker-target { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0; }
+.q-picker-target select { max-width: 100%; padding: 6px 8px; }
+.q-product-picker > input,
+.q-picker-target select {
+  border: 1px solid var(--q-line);
+  background: var(--q-field-fill);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.q-product-picker > input { width: min(100%, 420px); }
+.q-save-status { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin: 0 0 12px; font-size: 13px; }
+
 .q-picker-picked input {
   width: 72px;
   border: 1px solid var(--q-line);
