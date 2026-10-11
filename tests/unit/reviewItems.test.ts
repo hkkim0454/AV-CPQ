@@ -11,7 +11,7 @@
  * 두 행은 **서로 다른 확인 항목**이다.
  */
 import { describe, it, expect } from 'vitest';
-import { buildReviewItems, identifyImportWarnings } from '@/features/worksheet/reviewItems';
+import { buildReviewItems, decideNavigation, identifyImportWarnings } from '@/features/worksheet/reviewItems';
 import type { PreparedQuote } from '@/export/variants/prepare';
 import type { ImportWarning } from '@/import/diagram/devices';
 import type { LaborWarning } from '@/domain/labor/types';
@@ -215,5 +215,46 @@ describe('identifyImportWarnings — 값이 아니라 구조로 식별한다', (
   it('같은 입력이면 id 가 항상 같다 — 재렌더로 remount 되지 않는다', () => {
     expect(identifyImportWarnings([cableA, cableB]).map((x) => x.id))
       .toEqual(identifyImportWarnings([cableA, cableB]).map((x) => x.id));
+  });
+});
+
+// ---------------------------------------------------------------------------
+/**
+ * 이동 요청을 받아들일지 가르는 판단.
+ *
+ * ⚠ 이 분기는 **화면 조작만으로는 닿을 수 없다.** `QuoteSheet` 안에서
+ * nonce 가 요청을 같은 렌더에서 소비해 버리기 때문이다. 그래도 분기가
+ * 살아 있어야 하므로 여기서 직접 시험한다(E2E 역방향 시험으로는 증명되지
+ * 않는다는 사실을 함께 기록한다).
+ */
+describe('decideNavigation — 오래되거나 사라진 요청을 거부한다', () => {
+  const P1 = { tag: 'prepared-1' };
+  const P2 = { tag: 'prepared-2' };
+  const always = () => true;
+
+  it('같은 계산 결과이고 행도 있으면 간다', () => {
+    expect(decideNavigation({ sourcePrepared: P1, currentPrepared: P1, rowId: 'r1', rowExists: always }))
+      .toEqual({ kind: 'go' });
+  });
+
+  it('그 사이 계산 결과가 바뀌었으면 거부한다', () => {
+    const d = decideNavigation({ sourcePrepared: P1, currentPrepared: P2, rowId: 'r1', rowExists: always });
+    expect(d.kind).toBe('stale');
+    expect(d.kind !== 'go' && d.message).toContain('다시 선택');
+  });
+
+  it('지금 계산 결과가 없으면 거부한다', () => {
+    expect(decideNavigation({ sourcePrepared: P1, currentPrepared: undefined, rowId: 'r1', rowExists: always }).kind)
+      .toBe('stale');
+  });
+
+  it('행이 지워졌으면 거부한다 — 다른 행을 대신 고르지 않는다', () => {
+    const d = decideNavigation({ sourcePrepared: P1, currentPrepared: P1, rowId: 'r1', rowExists: () => false });
+    expect(d.kind).toBe('missing');
+  });
+
+  it('내용이 같아도 참조가 다르면 거부한다 — undo 로 새 객체가 온 경우', () => {
+    expect(decideNavigation({ sourcePrepared: { a: 1 }, currentPrepared: { a: 1 }, rowId: 'r1', rowExists: always }).kind)
+      .toBe('stale');
   });
 });

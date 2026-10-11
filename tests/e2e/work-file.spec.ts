@@ -223,7 +223,7 @@ test('재계산 중 카탈로그에서 사라진 품목은 옛 단가로 조용�
   await expect(removedWarning).toBeVisible();
 
   await page.getByLabel(`${rowId} 다시 연결할 품목 검색`).fill('대체 품목');
-  await page.getByRole('button', { name: '연결' }).click();
+  await page.locator('.q-warning-list').getByRole('button', { name: '연결' }).click();
 
   await expect(removedWarning).toHaveCount(0);
   const row = page.locator('.q-quote-table tbody tr', { hasText: '대체 품목' });
@@ -525,7 +525,7 @@ test('저장 당시 미해결이던 장비 경고도 재열기 후 해소 UI가 
   await expect(reopenedWarningPanel).toContainText('NOPE-MODEL-XYZ');
 
   await page.getByLabel('unknown-1 연결할 품목 검색').fill('합성 테스트 품목');
-  await page.getByRole('button', { name: '연결' }).click();
+  await page.locator('.q-warning-list').getByRole('button', { name: '연결' }).click();
 
   await expect(reopenedWarningPanel).toHaveCount(0);
   await expect(page.locator('.q-quote-table tbody tr', { hasText: '합성 테스트 품목' })).toBeVisible();

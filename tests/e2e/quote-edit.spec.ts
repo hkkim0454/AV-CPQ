@@ -605,7 +605,7 @@ test('미해결 모델/옵션 — 후보 선택·검색 연결로 실제 원인�
 
   // --- 2) 카탈로그에 전혀 없는 모델 — 검색으로 직접 연결한다 ---
   await page.getByLabel('unknown-1 연결할 품목 검색').fill('E2E 테스트 품목');
-  await page.getByRole('button', { name: '연결' }).click();
+  await page.locator('.q-warning-list').getByRole('button', { name: '연결' }).click();
 
   // 둘 다 해소됐고, 이 구성도에는 다른 미해결 경고가 없다 — 배관은
   // 더는 가져오기 시점에 자동으로 생기지 않는다(결정 D8 보강. 구성도에는

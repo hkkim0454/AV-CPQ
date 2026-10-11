@@ -6,13 +6,32 @@
  * `onCommit`으로 workspace reducer를 부른다(계획 §4.2 "원래 문서를
  * 덮어쓰지 않는다").
  */
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { usePendingQuoteDraft } from '../../app/QuoteDrafts';
 import type { CalculationSnapshot } from '../../domain/calculation/calculate';
 import type { RowLaborBreakdown } from '../../domain/labor/calculateLabor';
 import type { LaborWarning } from '../../domain/labor/types';
 import type { LaborMode, QuoteDocument, SheetRow } from '../../domain/quote/types';
 import { validateDecimalInput, validateQuantityInput, type DecimalValidation } from '../../domain/quote/validateInput';
+import type { PreparedQuote } from '../../export/variants/prepare';
+import { decideNavigation } from './reviewItems';
+
+/**
+ * 확인 목록에서 들어온 **이동 요청** (사용성 2차 Task B).
+ *
+ * `sourcePrepared` 는 사람이 누른 그 순간의 계산 결과다. 소비 직전과
+ * 펼친 뒤 포커스 직전에 **지금 결과와 같은 참조인지** 확인한다. 그 사이
+ * 문서가 바뀌었으면 요청을 버린다 — 배열 순서가 밀려서 **엉뚱한 행이
+ * 열리는** 것을 막는다.
+ *
+ * `nonce` 는 같은 자리를 다시 눌렀을 때도 이동하게 한다.
+ */
+export interface RowNavigation {
+  rowId: string;
+  kind: 'labor' | 'quantity';
+  sourcePrepared: PreparedQuote;
+  nonce: number;
+}
 
 type ItemRow = Extract<SheetRow, { type: 'item' }>;
 
@@ -32,6 +51,12 @@ interface QuoteSheetProps {
   onManualLaborUnitPriceChange(rowId: string, value: string): void;
   onOverrideReasonChange(rowId: string, value: string): void;
   onConfirmLaborRow(rowId: string, displayedFingerprint: string): void;
+  /** 확인 목록에서 온 이동 요청. 없으면 아무것도 하지 않는다. */
+  navigation?: RowNavigation | undefined;
+  /** 지금 계산 결과 — 요청이 낡았는지 **참조 동일성**으로 가른다. */
+  prepared?: PreparedQuote | undefined;
+  /** 요청 대상이 사라졌을 때 알린다. 다른 행을 대신 열지 않는다. */
+  onNavigationMissed?: ((message: string) => void) | undefined;
 }
 
 /**
@@ -47,12 +72,15 @@ function ValidatedDecimalCell({
   label,
   validate,
   onCommit,
+  inputRef,
 }: {
   rowId: string;
   value: string;
   label: string;
   validate(raw: string): DecimalValidation;
   onCommit(rowId: string, value: string): void;
+  /** 확인 목록에서 이 입력으로 포커스를 옮길 때 쓴다. */
+  inputRef?: ((el: HTMLInputElement | null) => void) | undefined;
 }) {
   const [draft, setDraft] = useState(value);
   usePendingQuoteDraft(draft !== value);
@@ -77,6 +105,7 @@ function ValidatedDecimalCell({
   return (
     <div>
       <input
+        ref={inputRef}
         aria-label={label}
         value={draft}
         onChange={(event) => setDraft(event.target.value)}
@@ -139,6 +168,7 @@ function TextCell({
  * 일괄 확인·전체 선택 UI는 여기 없다 — 행마다 따로 확인한다.
  */
 function LaborBasisPanel({
+  panelRef,
   row,
   breakdown,
   hasUnconfirmedWarning,
@@ -154,6 +184,8 @@ function LaborBasisPanel({
   onManualLaborUnitPriceChange(rowId: string, value: string): void;
   onOverrideReasonChange(rowId: string, value: string): void;
   onConfirmLaborRow(rowId: string, displayedFingerprint: string): void;
+  /** 이동 요청이 이 영역으로 포커스를 옮길 때 쓴다. */
+  panelRef?: ((el: HTMLElement | null) => void) | undefined;
 }) {
   const canBeMapped = row.laborMappingId !== undefined;
   const isConfirmed = row.laborConfirmation !== undefined && !hasUnconfirmedWarning;
@@ -162,7 +194,8 @@ function LaborBasisPanel({
   return (
     <tr data-labor-basis-for={row.rowId}>
       <td colSpan={12}>
-        <div className="q-labor-basis">
+        {/* 포커스를 받기 위해 tabIndex 를 둔다 — 키보드 사용자가 이동한 자리를 안다. */}
+        <div className="q-labor-basis" ref={panelRef} tabIndex={-1}>
           <fieldset>
             <legend>노무 처리 방식 — {row.name}</legend>
             <label>
@@ -315,11 +348,74 @@ export function QuoteSheet({
   onManualLaborUnitPriceChange,
   onOverrideReasonChange,
   onConfirmLaborRow,
+  navigation,
+  prepared,
+  onNavigationMissed,
 }: QuoteSheetProps) {
   const [expandedRowIds, setExpandedRowIds] = useState<ReadonlySet<string>>(new Set());
   const unconfirmedRowIds = new Set(
     laborWarnings.filter((w) => w.code === 'mapping-unconfirmed' && w.rowId !== undefined).map((w) => w.rowId!),
   );
+
+  // --- 확인 목록에서 온 이동 요청 ---------------------------------------
+  //
+  // 두 단계다. (1) 노무 영역을 **열고** (2) 다음 렌더에서 포커스·스크롤한다.
+  // 한 번에 하려고 하면 아직 DOM 에 없는 요소를 찾게 된다.
+  const laborPanelRefs = useRef(new Map<string, HTMLElement>());
+  const quantityRefs = useRef(new Map<string, HTMLInputElement>());
+  const handledNonce = useRef<number | undefined>(undefined);
+  const [pendingFocus, setPendingFocus] = useState<RowNavigation | undefined>(undefined);
+
+  const rowExists = (rowId: string): boolean =>
+    document.rows.some((r) => r.type === 'item' && r.rowId === rowId);
+
+  /** 받아들일지 말지는 순수 함수가 정한다 — 그래야 직접 시험할 수 있다. */
+  const decide = (request: RowNavigation) =>
+    decideNavigation({
+      sourcePrepared: request.sourcePrepared,
+      currentPrepared: prepared,
+      rowId: request.rowId,
+      rowExists,
+    });
+
+  useEffect(() => {
+    if (navigation === undefined || navigation.nonce === handledNonce.current) return;
+    handledNonce.current = navigation.nonce;
+
+    const decision = decide(navigation);
+    if (decision.kind !== 'go') {
+      onNavigationMissed?.(decision.message);
+      return;
+    }
+    if (navigation.kind === 'labor') {
+      setExpandedRowIds((prev) => (prev.has(navigation.rowId) ? prev : new Set(prev).add(navigation.rowId)));
+    }
+    setPendingFocus(navigation);
+    // `navigation` 외의 값은 그 시점 참조로 읽는다 — 요청마다 한 번만 돈다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigation]);
+
+  useEffect(() => {
+    if (pendingFocus === undefined) return;
+    setPendingFocus(undefined);
+    // 열고 그리는 사이에 문서가 또 바뀌었을 수 있다 — 포커스 직전에 다시 본다.
+    const stillOk = decide(pendingFocus);
+    if (stillOk.kind !== 'go') {
+      onNavigationMissed?.(stillOk.message);
+      return;
+    }
+    const target =
+      pendingFocus.kind === 'labor'
+        ? laborPanelRefs.current.get(pendingFocus.rowId)
+        : quantityRefs.current.get(pendingFocus.rowId);
+    if (target === undefined) {
+      onNavigationMissed?.('이동할 입력을 찾지 못했습니다. 확인 목록에서 다시 선택해 주세요.');
+      return;
+    }
+    target.scrollIntoView({ block: 'center', behavior: 'auto' });
+    target.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingFocus]);
 
   function toggleExpanded(rowId: string): void {
     setExpandedRowIds((prev) => {
@@ -394,6 +490,10 @@ export function QuoteSheet({
                             label={`${row.name} 수량`}
                             validate={validateQuantityInput}
                             onCommit={onQuantityChange}
+                            inputRef={(el) => {
+                              if (el === null) quantityRefs.current.delete(row.rowId);
+                              else quantityRefs.current.set(row.rowId, el);
+                            }}
                           />
                         </td>
                         <td>
@@ -457,6 +557,10 @@ export function QuoteSheet({
                       </tr>
                       {isExpanded && (
                         <LaborBasisPanel
+                          panelRef={(el) => {
+                            if (el === null) laborPanelRefs.current.delete(row.rowId);
+                            else laborPanelRefs.current.set(row.rowId, el);
+                          }}
                           row={row}
                           breakdown={laborBreakdowns.get(row.rowId)}
                           hasUnconfirmedWarning={unconfirmedRowIds.has(row.rowId)}

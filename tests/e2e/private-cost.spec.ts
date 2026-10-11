@@ -533,7 +533,7 @@ test('시트/헤더행/열매핑을 바꾸려고 파일을 다시 고르면 이�
   await page.getByRole('alert').filter({ hasText: '열 매핑을 확인하세요' }).getByRole('button', { name: '확인', exact: true }).click();
   await page.getByLabel('원가 파일 통화 확인').fill('KRW');
   await page.getByLabel('원가 파일 단위 확인').fill('EA');
-  await page.getByRole('button', { name: '확인' }).click();
+  await page.locator('.q-private-cost').getByRole('button', { name: '확인' }).click();
   await expect(page.getByRole('status').filter({ hasText: '1줄 인식됨' })).toBeVisible();
 
   const row = page.locator('.q-private-cost tbody tr', { hasText: '합성 테스트 품목' });
@@ -579,7 +579,7 @@ test('실제 가이드류 구조(헤더2·부헤더3·노임4·빈5·품목6~8·
   await page.getByRole('alert').filter({ hasText: '열 매핑을 확인하세요' }).getByRole('button', { name: '확인', exact: true }).click();
   await page.getByLabel('원가 파일 통화 확인').fill('KRW');
   await page.getByLabel('원가 파일 단위 확인').fill('EA');
-  await page.getByRole('button', { name: '확인' }).click();
+  await page.locator('.q-private-cost').getByRole('button', { name: '확인' }).click();
 
   // 품목 3줄만 인식된다 — 부헤더(REF-1)·노임(REF-2)·합계는 데이터가 아니었다.
   await expect(page.getByRole('status').filter({ hasText: '3줄 인식됨' })).toBeVisible();
@@ -608,7 +608,7 @@ test('데이터 시작을 기본값(머리글 다음 행)으로 두면 부헤더
   await page.getByRole('alert').filter({ hasText: '열 매핑을 확인하세요' }).getByRole('button', { name: '확인', exact: true }).click();
   await page.getByLabel('원가 파일 통화 확인').fill('KRW');
   await page.getByLabel('원가 파일 단위 확인').fill('EA');
-  await page.getByRole('button', { name: '확인' }).click();
+  await page.locator('.q-private-cost').getByRole('button', { name: '확인' }).click();
 
   // 부헤더(REF-1)·노임(REF-2) 2줄이 실제 품목 3줄에 섞여 "5줄 인식됨"이 된다.
   await expect(page.getByRole('status').filter({ hasText: '5줄 인식됨' })).toBeVisible();

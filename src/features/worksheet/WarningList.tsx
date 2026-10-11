@@ -35,6 +35,7 @@ import type { Catalog } from '../../data/catalog/load';
 import type { ImportWarning } from '../../import/diagram/devices';
 import { isDescriptionOnlyCandidate, type ModelSearchCandidate } from '../../import/diagram/matchCatalog';
 import { groupCableCandidates } from './cableCandidateCategories';
+import { identifyImportWarnings } from './reviewItems';
 
 interface WarningListProps {
   warnings: readonly ImportWarning[];
@@ -45,6 +46,11 @@ interface WarningListProps {
   onResolveCable(edgeId: string, sku: string, sourceCableKey?: string): void;
   /** `catalog-item-removed` 전용. */
   onResolveRow(rowId: string, sku: string): void;
+  /**
+   * 확인 목록에서 이 항목으로 이동해 달라는 요청(공유 id). 해당 항목을
+   * 스크롤·강조한다. 후보 선택 범위는 그 항목 안으로 유지한다.
+   */
+  navigateToWarningId?: string | undefined;
 }
 
   /**
@@ -199,14 +205,20 @@ export function WarningList({
   onResolveConduit,
   onResolveCable,
   onResolveRow,
+  navigateToWarningId,
 }: WarningListProps) {
   if (warnings.length === 0) return null;
+
+  // 요약 목록과 **같은 함수**로 식별한다. 배열 index 를 key 로 쓰면 앞선
+  // 경고가 사라질 때 뒤 항목이 remount 되어 입력하던 검색어가 날아가고,
+  // `nodeId ?? edgeId` 로 뭉개면 노드 경고와 연결선 경고가 같은 key 를 갖는다.
+  const identified = identifyImportWarnings(warnings);
 
   return (
     <div className="q-card q-warning-list" role="alert">
       <h3>확인이 필요합니다 ({warnings.length}건)</h3>
       <ul>
-        {warnings.map((warning, index) => {
+        {identified.map(({ id: warningId, warning }) => {
           // installationSystemId가 있으면 배관 경고다 — 일반 검색을
           // 보여주지 않는다(위 docstring 참고). optionId가 있으면
           // 코드와 무관하게 옵션 경고다 — 본체와 완전히 분리된 해소
@@ -232,7 +244,15 @@ export function WarningList({
             warning.nodeId !== undefined;
 
           return (
-            <li key={`${warning.code}-${warning.nodeId ?? warning.edgeId ?? warning.rowId ?? index}-${warning.optionId ?? ''}`}>
+            <li
+              key={warningId}
+              ref={(el) => {
+                if (el !== null && warningId === navigateToWarningId) {
+                  el.scrollIntoView({ block: 'center', behavior: 'auto' });
+                }
+              }}
+              className={warningId === navigateToWarningId ? 'q-warning-targeted' : undefined}
+            >
               <strong>{warning.blocking ? '확정 차단' : '확인'}</strong> {warning.message}
               {(warning.nodeId !== undefined || warning.edgeId !== undefined) && (
                 <span className="q-muted"> ({warning.nodeId ?? warning.edgeId})</span>

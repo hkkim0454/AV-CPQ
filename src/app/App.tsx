@@ -20,6 +20,9 @@ import { CoverSheet } from '../features/worksheet/CoverSheet';
 import { QuoteSheet } from '../features/worksheet/QuoteSheet';
 import { IndirectPanel } from '../features/worksheet/IndirectPanel';
 import { WarningList } from '../features/worksheet/WarningList';
+import { ReviewSummary } from '../features/worksheet/ReviewSummary';
+import { buildReviewItems, type ReviewTarget } from '../features/worksheet/reviewItems';
+import type { RowNavigation } from '../features/worksheet/QuoteSheet';
 import { InstallationPanel } from '../features/installation/InstallationPanel';
 import { CableRoutePanel } from '../features/installation/CableRoutePanel';
 import { PrivateCostPanel } from '../features/private-cost/PrivateCostPanel';
@@ -84,6 +87,11 @@ function QuoteWorkspace() {
   const [exportError, setExportError] = useState<string | undefined>(undefined);
   const [costLines, setCostLines] = useState<readonly InternalLine[]>([]);
   const [cableResetRowIds, setCableResetRowIds] = useState<string[]>([]);
+  // 확인 목록 → 입력 자리 이동. 화면 state 일 뿐 문서에 들어가지 않는다.
+  const [rowNavigation, setRowNavigation] = useState<RowNavigation | undefined>(undefined);
+  const [importNavigationId, setImportNavigationId] = useState<string | undefined>(undefined);
+  const [navigationError, setNavigationError] = useState<string | undefined>(undefined);
+  const navigationNonce = useRef(0);
   const workFileInputRef = useRef<HTMLInputElement>(null);
   // 작업 파일과 구성도가 선택 순서를 공유한다. 어느 입구든 늦게 끝난
   // 이전 선택으로 나중에 선택한 문서를 덮지 않는다.
@@ -103,6 +111,42 @@ function QuoteWorkspace() {
   // 기다리는 동안 편집한 내용이나 새로 연 문서를 놓칠 수 있다.
   const currentWork = useRef({ workspace, hasUnsavedChanges });
   currentWork.current = { workspace, hasUnsavedChanges };
+
+  /**
+   * 확인 목록에서 누른 항목으로 이동한다.
+   *
+   * 누른 **그 순간의 prepared 참조**를 함께 보관한다. 소비 직전과 포커스
+   * 직전에 지금 결과와 같은지 보고, 다르면 요청을 버린다 — 그 사이 문서가
+   * 바뀌어 **엉뚱한 행이 열리는** 것을 막는다.
+   */
+  function handleNavigate(target: ReviewTarget): void {
+    setNavigationError(undefined);
+    if (status.kind !== 'editing') {
+      setNavigationError('계산 기준이 바뀌어 지금은 이동할 수 없습니다. 현재 기준으로 다시 계산해 주세요.');
+      return;
+    }
+    navigationNonce.current += 1;
+    if (target.kind === 'labor' || target.kind === 'quantity') {
+      setImportNavigationId(undefined);
+      setRowNavigation({
+        rowId: target.rowId,
+        kind: target.kind,
+        sourcePrepared: status.prepared,
+        nonce: navigationNonce.current,
+      });
+      return;
+    }
+    if (target.kind === 'import') {
+      setRowNavigation(undefined);
+      setImportNavigationId(target.warningId);
+      return;
+    }
+    if (target.kind === 'cables') {
+      setRowNavigation(undefined);
+      setImportNavigationId(undefined);
+      document.querySelector('[data-section="cables"]')?.scrollIntoView({ block: 'start' });
+    }
+  }
 
   function mayReplaceDocument(): boolean {
     return !currentWork.current.hasUnsavedChanges || window.confirm(
@@ -535,6 +579,11 @@ function QuoteWorkspace() {
               {status.kind === 'editing' && (
                 <>
                   <CoverSheet key={`cover-${workspace.documentGeneration}`} header={status.document.header} onChange={workspace.setHeader} />
+                  <ReviewSummary
+                    items={buildReviewItems(status.prepared, pendingCableEdit)}
+                    onNavigate={handleNavigate}
+                    navigationError={navigationError}
+                  />
                   <WarningList
                     warnings={status.prepared.importWarnings}
                     catalog={resources.catalog}
@@ -543,6 +592,7 @@ function QuoteWorkspace() {
                     onResolveConduit={workspace.resolveConduit}
                     onResolveCable={workspace.resolveCable}
                     onResolveRow={workspace.resolveRow}
+                    navigateToWarningId={importNavigationId}
                   />
                   <QuoteSheet
                     key={`sheet-${workspace.documentGeneration}`}
@@ -560,10 +610,15 @@ function QuoteWorkspace() {
                     onManualLaborUnitPriceChange={workspace.setManualLaborUnitPrice}
                     onOverrideReasonChange={workspace.setOverrideReason}
                     onConfirmLaborRow={workspace.confirmLaborRow}
+                    navigation={rowNavigation}
+                    prepared={status.prepared}
+                    onNavigationMissed={setNavigationError}
                   />
+                  <div data-section="cables">
                   <CableRoutePanel key={`cables-${workspace.documentGeneration}`} document={status.document} catalog={resources.catalog}
                     onApply={workspace.applyCableRoutes} onPending={setPendingCableEdit} />
                   {pendingCableEdit && <p role="status" className="q-notice">케이블 거리 수정이 아직 견적에 반영되지 않았습니다. 미리보기 후 적용하거나 취소하세요.</p>}
+                  </div>
                   {status.document.systems.map((system) => (
                     <InstallationPanel
                       key={`${workspace.documentGeneration}-${system.systemId}`}

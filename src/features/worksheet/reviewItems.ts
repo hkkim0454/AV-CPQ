@@ -269,3 +269,39 @@ export const CATEGORY_LABEL: Record<ReviewCategory, string> = {
   installation: '시공 입력',
   calculation: '계산 확인',
 };
+
+/**
+ * 이동 요청을 지금 받아들여도 되는가 (사용성 2차 Task B).
+ *
+ * 두 가지를 본다.
+ *
+ * 1. 요청을 만든 그 순간의 계산 결과가 **지금 결과와 같은 참조인가.**
+ *    다르면 그 사이 문서가 바뀌었다 — 배열 순서가 밀려 엉뚱한 행이 열린다.
+ * 2. 그 행이 **지금도 있는가.** 지워졌으면 다른 행을 대신 열지 않는다.
+ *
+ * ⛔ 둘 중 하나라도 어긋나면 **다른 대상을 고르지 않는다.** 사람에게 알리고
+ * 목록에서 다시 누르게 한다.
+ *
+ * 이 판단을 순수 함수로 떼어 둔 이유: `QuoteSheet` 안에서는 nonce 가 요청을
+ * 같은 렌더에서 소비해 버려서, 화면 조작만으로는 이 분기에 닿을 수 없다.
+ * 그래도 분기 자체는 살아 있어야 하므로 여기서 직접 시험한다.
+ */
+export type NavigationDecision =
+  | { kind: 'go' }
+  | { kind: 'stale'; message: string }
+  | { kind: 'missing'; message: string };
+
+export function decideNavigation(input: {
+  sourcePrepared: unknown;
+  currentPrepared: unknown;
+  rowId: string;
+  rowExists(rowId: string): boolean;
+}): NavigationDecision {
+  if (input.currentPrepared === undefined || input.sourcePrepared !== input.currentPrepared) {
+    return { kind: 'stale', message: '견적 내용이 바뀌었습니다. 확인 목록에서 다시 선택해 주세요.' };
+  }
+  if (!input.rowExists(input.rowId)) {
+    return { kind: 'missing', message: '이동할 행을 찾지 못했습니다. 확인 목록에서 다시 선택해 주세요.' };
+  }
+  return { kind: 'go' };
+}
