@@ -93,6 +93,15 @@ for (const [label, width, height] of [['1440', 1440, 1000], ['390', 390, 844]] a
   });
 }
 
+test('1440px — 합계까지 가로 스크롤 없이 보인다', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await openTwoSystemQuote(page);
+  // 품명이 길다고 표가 옆으로 늘어나면, 합계를 볼 때마다 가로로 밀어야 한다.
+  // 표의 내부 스크롤은 좁은 화면에서만 쓰는 수단이지 기본 상태가 아니다.
+  const wrap = page.locator('.q-table-wrap').first();
+  expect(await wrap.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+});
+
 test('390px — 품명이 한 글자씩 줄바꿈되지 않는다', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openTwoSystemQuote(page);
@@ -102,21 +111,36 @@ test('390px — 품명이 한 글자씩 줄바꿈되지 않는다', async ({ pag
   expect(box?.width ?? 0).toBeGreaterThan(40);
 });
 
-test('확인 항목에서 Tab·Enter 로 입력까지 간다', async ({ page }) => {
+test('확인 항목에서 Enter 를 누르면 목적지 자체에 포커스가 간다', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await openTwoSystemQuote(page);
 
-  const firstIssue = page.getByRole('region', { name: '확인 항목' }).getByRole('button').nth(1);
+  const firstIssue = page.locator('.q-review-item').first();
   await firstIssue.focus();
   await expect(firstIssue).toBeFocused();
   await page.keyboard.press('Enter');
 
-  // 눌러서 간 자리에 포커스가 있다 — 키보드만으로 따라갈 수 있다.
-  const focused = await page.evaluate(() => {
-    const el = document.activeElement as HTMLElement | null;
-    return { tag: el?.tagName ?? '', label: el?.getAttribute('aria-label') ?? '', cls: el?.className ?? '' };
-  });
-  expect(`${focused.cls} ${focused.label} ${focused.tag}`).not.toBe('  BODY');
+  /*
+   * ⛔ "BODY 가 아니다"로는 아무것도 증명하지 못한다 — 누른 단추에 그대로
+   *    머물러 있어도 통과해 버린다. **목적지 요소 자체**인지 확인한다.
+   *
+   * 포커스는 다음 렌더에서 옮기므로 옮겨질 때까지 다시 본다. 어느 분류가
+   * 먼저 오는지는 합성 자료에 달렸으니, 네 목적지 중 하나이기만 하면 된다.
+   */
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const el = globalThis.document.activeElement as HTMLElement | null;
+        if (el === null || el.tagName === 'BODY') return '아무 데도 못 감';
+        if (el.classList.contains('q-review-item')) return '누른 단추에 그대로 있음';
+        if (el.hasAttribute('data-warning-id')) return '목적지';
+        if (el.classList.contains('q-labor-basis')) return '목적지';
+        if ((el.getAttribute('aria-label') ?? '').includes('수량')) return '목적지';
+        if (el.closest('[data-section="cables"]') !== null) return '목적지';
+        return `엉뚱한 곳: ${el.tagName}.${el.className}`;
+      }),
+    )
+    .toBe('목적지');
 });
 
 test('접기 단추가 aria-expanded 로 상태를 알린다', async ({ page }) => {

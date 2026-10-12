@@ -63,6 +63,38 @@ async function selectCostFile(page: import('@playwright/test').Page, name: strin
   await page.getByLabel('원가 파일 선택').setInputFiles({ name, mimeType: 'text/csv', buffer: bytes });
 }
 
+/**
+ * 사용성 2차 Task C — 영역을 접거나 탐색으로 자리를 옮겨도 **원가 연결이
+ * 살아 있어야** 한다.
+ *
+ * 접기를 조건부 렌더로 만들면 PrivateCostPanel 이 unmount 되어 원가 세션과
+ * 연결이 끊긴다. 문서를 교체할 때 폐기하는 것은 정책이지만, **접었다는
+ * 이유로** 잃는 것은 결함이다(2026-10-12 독립 검토 지적).
+ */
+test('원가 연결은 영역을 접거나 탐색으로 옮겨 다녀도 그대로 남는다', async ({ page }) => {
+  await mockResources(page);
+  await createDocument(page);
+  await selectCostFile(page, 'cost.csv', Buffer.from('품명,규격,매입단가,통화,단위\n장비,FIX-SPEC,1234567,KRW,EA\n'));
+  const panel = page.locator('.q-private-cost');
+  await panel.getByRole('button', { name: '연결', exact: true }).click();
+  await expect(panel.getByText(/원가 1234567/)).toBeVisible();
+
+  // 원가 영역을 직접 접는다.
+  const costToggle = page.locator('[data-section="private-cost"]').getByRole('button', { name: /내 PC 원가 확인/ });
+  await costToggle.click();
+  await expect(costToggle).toHaveAttribute('aria-expanded', 'false');
+
+  // 탐색 메뉴로 다른 영역에 갔다가 원가 영역으로 돌아온다.
+  const nav = page.getByRole('navigation', { name: '견적 내 이동' });
+  await nav.getByRole('button', { name: '견적 정보 (고객·현장)' }).click();
+  await nav.getByRole('button', { name: '내 PC 원가 확인' }).click();
+
+  await expect(costToggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(panel.getByText(/원가 1234567/)).toBeVisible();
+  // 파일 인식 결과도 그대로다 — 마법사를 처음부터 다시 하지 않는다.
+  await expect(page.getByRole('status').filter({ hasText: '1줄 인식됨' })).toBeVisible();
+});
+
 test('원가 파일을 고르면 인식된 줄 수가 보인다', async ({ page }) => {
   await mockResources(page);
   await createDocument(page);

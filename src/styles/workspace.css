@@ -575,6 +575,21 @@
   overflow-wrap: anywhere;
 }
 
+/*
+ * 넓은 화면에서는 한 줄로 잘라 보여준다 — 품명이 길면 위치 표시가 경고
+ * 문구보다 길어져 정작 무엇이 문제인지가 묻힌다. 잘려도 앞쪽의
+ * "회의실 A · 2번째 줄"이 남아 두 항목을 가르는 데는 지장이 없고,
+ * 전체 문구는 마우스를 올리면 보인다.
+ */
+@media (min-width: 1100px) {
+  .q-review-location {
+    max-width: 38%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
 .q-review-item-detail {
   border: 1px solid var(--q-line);
   border-radius: var(--q-r-chip);

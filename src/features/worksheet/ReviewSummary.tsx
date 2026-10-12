@@ -89,7 +89,8 @@ export function ReviewSummary({ items, onNavigate, navigationError }: ReviewSumm
                     id 만 다르면 화면에서는 똑같아 보여 어느 쪽인지 알 수 없다.
                   */}
                   {item.location !== undefined && (
-                    <span className="q-review-location">{item.location}</span>
+                    // 넓은 화면에서는 잘려 보이므로 전체 문구를 title 로도 남긴다.
+                    <span className="q-review-location" title={item.location}>{item.location}</span>
                   )}
                 </button>
               ) : (
