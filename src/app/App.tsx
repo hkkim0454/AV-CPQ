@@ -22,7 +22,7 @@ import { IndirectPanel } from '../features/worksheet/IndirectPanel';
 import { WarningList } from '../features/worksheet/WarningList';
 import { ReviewSummary } from '../features/worksheet/ReviewSummary';
 import { WorkspaceSection } from '../features/worksheet/WorkspaceSection';
-import { buildReviewItems, type ReviewTarget } from '../features/worksheet/reviewItems';
+import { buildReviewItems, decideNavigation, type ReviewTarget } from '../features/worksheet/reviewItems';
 import type { RowNavigation } from '../features/worksheet/QuoteSheet';
 import type { ImportNavigation } from '../features/worksheet/WarningList';
 import { InstallationPanel } from '../features/installation/InstallationPanel';
@@ -93,8 +93,10 @@ function QuoteWorkspace() {
   const [rowNavigation, setRowNavigation] = useState<RowNavigation | undefined>(undefined);
   const [importNavigation, setImportNavigation] = useState<ImportNavigation | undefined>(undefined);
   const [navigationError, setNavigationError] = useState<string | undefined>(undefined);
-  // 확인 목록에서 '케이블 거리'로 이동하면 그 영역을 펼친다.
-  const [cableSectionOpen, setCableSectionOpen] = useState(false);
+  // 펼치라는 **일회성 요청 번호**다. 참/거짓이 아니라 번호인 이유는,
+  // 한 번 펼친 뒤에도 사람이 다시 접을 수 있어야 하기 때문이다.
+  const [cableOpenRequest, setCableOpenRequest] = useState<number | undefined>(undefined);
+  const [warningOpenRequest, setWarningOpenRequest] = useState<number | undefined>(undefined);
   const navigationNonce = useRef(0);
   const workFileInputRef = useRef<HTMLInputElement>(null);
   // 작업 파일과 구성도가 선택 순서를 공유한다. 어느 입구든 늦게 끝난
@@ -115,6 +117,10 @@ function QuoteWorkspace() {
   // 기다리는 동안 편집한 내용이나 새로 연 문서를 놓칠 수 있다.
   const currentWork = useRef({ workspace, hasUnsavedChanges });
   currentWork.current = { workspace, hasUnsavedChanges };
+  // 다음 프레임에 포커스할 때 **그때의** 계산 결과와 대조하려고 보관한다.
+  // 그 사이 문서가 바뀌었으면 오래된 요청을 소비하지 않는다.
+  const currentPrepared = useRef<unknown>(undefined);
+  currentPrepared.current = status.kind === 'editing' ? status.prepared : undefined;
 
   /**
    * 확인 목록에서 누른 항목으로 이동한다.
@@ -145,6 +151,8 @@ function QuoteWorkspace() {
       // 보낸다. 문자열 id 만 보내면 같은 항목을 다시 눌러도 state 가 그대로라
       // 아무 일도 일어나지 않고, 다른 이유로 재렌더될 때 옛 요청이 또 스크롤한다.
       setRowNavigation(undefined);
+      // 구성도 경고 목록은 표 아래 접기 영역에 있다 — 먼저 펼쳐야 포커스가 먹는다.
+      setWarningOpenRequest(navigationNonce.current);
       setImportNavigation({
         warningId: target.warningId,
         sourcePrepared: status.prepared,
@@ -155,19 +163,40 @@ function QuoteWorkspace() {
     if (target.kind === 'cables') {
       setRowNavigation(undefined);
       setImportNavigation(undefined);
-      // 접혀 있으면 먼저 펼치고, 그려진 **뒤에** 스크롤·포커스한다.
-      setCableSectionOpen(true);
+      // 접혀 있으면 **한 번 펼치라고 요청**하고, 그려진 뒤에 스크롤·포커스한다.
+      // 요청은 번호라서 한 번 쓰고 끝난다 — 그 뒤에는 사람이 다시 접을 수 있다.
+      setCableOpenRequest(navigationNonce.current);
+      const requested = status.prepared;
       requestAnimationFrame(() => {
         const section = document.querySelector<HTMLElement>('[data-section="cables"]');
-        if (section === null) {
-          setNavigationError('케이블 거리 영역을 찾지 못했습니다.');
+        const focusTarget = section?.querySelector<HTMLElement>('button, input, select') ?? undefined;
+        // 행·구성도 이동과 **같은 계약**이다. 펼치고 그리는 사이에 문서가
+        // 바뀌었을 수 있으므로, 포커스 직전에 계산 결과를 다시 대조한다.
+        const decision = decideNavigation({
+          sourcePrepared: requested,
+          currentPrepared: currentPrepared.current,
+          targetExists: focusTarget !== undefined,
+        });
+        if (decision.kind !== 'go') {
+          setNavigationError(decision.message);
           return;
         }
-        section.scrollIntoView({ block: 'start' });
-        section.querySelector<HTMLElement>('button, input, select')?.focus();
+        section!.scrollIntoView({ block: 'start' });
+        focusTarget!.focus();
       });
     }
   }
+
+  // 케이블 거리를 고치기 시작하면 그 영역을 **한 번** 펼쳐 보여준다.
+  // 계속 펼쳐 두지는 않는다 — 입력하는 내내 접을 수 없으면 안 된다.
+  const wasPendingCableEdit = useRef(false);
+  useEffect(() => {
+    if (pendingCableEdit && !wasPendingCableEdit.current) {
+      navigationNonce.current += 1;
+      setCableOpenRequest(navigationNonce.current);
+    }
+    wasPendingCableEdit.current = pendingCableEdit;
+  }, [pendingCableEdit]);
 
   function mayReplaceDocument(): boolean {
     return !currentWork.current.hasUnsavedChanges || window.confirm(
@@ -609,18 +638,6 @@ function QuoteWorkspace() {
                     onNavigate={handleNavigate}
                     navigationError={navigationError}
                   />
-                  <WarningList
-                    warnings={status.prepared.importWarnings}
-                    catalog={resources.catalog}
-                    onResolveDevice={workspace.resolveDevice}
-                    onResolveOption={workspace.resolveOption}
-                    onResolveConduit={workspace.resolveConduit}
-                    onResolveCable={workspace.resolveCable}
-                    onResolveRow={workspace.resolveRow}
-                    navigation={importNavigation}
-                    prepared={status.prepared}
-                    onNavigationMissed={setNavigationError}
-                  />
                   <QuoteSheet
                     key={`sheet-${workspace.documentGeneration}`}
                     document={status.document}
@@ -641,6 +658,37 @@ function QuoteWorkspace() {
                     prepared={status.prepared}
                     onNavigationMissed={setNavigationError}
                   />
+                  {/*
+                    구성도 경고는 후보 목록까지 달려 있어 길다. 표 **앞에** 두면
+                    미해결이 많은 실제 구성도에서 견적표가 화면 밖으로 밀려난다
+                    (2026-10-12 독립 검토 지적). 표 아래 접기 영역으로 내리고,
+                    확인 항목에서 누를 때 펼쳐서 그 항목으로 데려간다.
+                  */}
+                  {status.prepared.importWarnings.length > 0 && (
+                    <WorkspaceSection
+                      title={`구성도 경고 (${status.prepared.importWarnings.length}건)`}
+                      sectionId="warnings"
+                      // 경고는 **지금 막아야 할 일**이라 기본은 펼쳐 둔다. 접을
+                      // 수 있게만 하고 감추지는 않는다 — 표 아래로 내린 것만으로
+                      // "표가 한참 아래" 문제는 이미 해결된다.
+                      defaultOpen
+                      {...(warningOpenRequest === undefined ? {} : { openRequest: warningOpenRequest })}
+                    >
+                      <WarningList
+                        warnings={status.prepared.importWarnings}
+                        catalog={resources.catalog}
+                        onResolveDevice={workspace.resolveDevice}
+                        onResolveOption={workspace.resolveOption}
+                        onResolveConduit={workspace.resolveConduit}
+                        onResolveCable={workspace.resolveCable}
+                        onResolveRow={workspace.resolveRow}
+                        navigation={importNavigation}
+                        prepared={status.prepared}
+                        onNavigationMissed={setNavigationError}
+                      />
+                    </WorkspaceSection>
+                  )}
+
                   <WorkspaceSection title="견적 정보 (고객·현장)" sectionId="cover">
                     <CoverSheet key={`cover-${workspace.documentGeneration}`} header={status.document.header} onChange={workspace.setHeader} />
                   </WorkspaceSection>
@@ -648,8 +696,9 @@ function QuoteWorkspace() {
                   <WorkspaceSection
                     title="케이블 거리"
                     sectionId="cables"
-                    // 반영되지 않은 수정이 있으면 접혀 있어도 펼쳐서 보여준다.
-                    forceOpen={pendingCableEdit || cableSectionOpen}
+                    // 펼치라는 요청은 **번호 한 번**이다. 반영되지 않은 수정이
+                    // 생긴 순간과 확인 목록에서 눌렀을 때만 올라간다.
+                    {...(cableOpenRequest === undefined ? {} : { openRequest: cableOpenRequest })}
                   >
                     <CableRoutePanel key={`cables-${workspace.documentGeneration}`} document={status.document} catalog={resources.catalog}
                       onApply={workspace.applyCableRoutes} onPending={setPendingCableEdit} />

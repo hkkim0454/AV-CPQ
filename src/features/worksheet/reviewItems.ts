@@ -60,6 +60,14 @@ export interface ReviewItem {
   target: ReviewTarget;
   rowId?: string;
   systemId?: string;
+  /**
+   * 사람이 읽는 **위치 표시** — "회의실 A · 2번째 줄 · 합성 장비 (FIX-SPEC)".
+   *
+   * 문구가 같은 두 항목을 눈으로 가르는 유일한 수단이다. id 가 다른 것만으로는
+   * 화면에서 구분되지 않는다 — 사람에게는 문구만 보이기 때문이다.
+   * 위치를 알 수 없으면 **지어내지 않고** 비워 둔다.
+   */
+  location?: string;
 }
 
 /**
@@ -178,11 +186,52 @@ function calculationCategory(code: CalculationWarning['code']): ReviewCategory {
   return 'calculation';
 }
 
+/**
+ * 행마다 "어디의 몇 번째 줄인지"를 미리 만들어 둔다.
+ *
+ * 줄 번호는 **그 시스템 안에서** 센다. 사람이 화면에서 표를 시스템별로
+ * 보기 때문이다. 품명·규격까지 똑같은 두 행이 실제로 있으므로(같은 제품을
+ * 두 자리에 쓰는 견적), 줄 번호가 없으면 둘을 가를 방법이 없다.
+ */
+function locationsOf(document: PreparedQuote['document']): {
+  byRow: ReadonlyMap<string, string>;
+  bySystem: ReadonlyMap<string, string>;
+} {
+  const bySystem = new Map((document.systems ?? []).map((s) => [s.systemId, s.name]));
+  const byRow = new Map<string, string>();
+  const lineNumbers = new Map<string, number>();
+
+  for (const row of document.rows ?? []) {
+    if (row.type !== 'item') continue;
+    const line = (lineNumbers.get(row.systemId) ?? 0) + 1;
+    lineNumbers.set(row.systemId, line);
+    const name = row.specification === '' ? row.name : `${row.name} (${row.specification})`;
+    byRow.set(row.rowId, `${bySystem.get(row.systemId) ?? row.systemId} · ${line}번째 줄 · ${name}`);
+  }
+  // 파생 행(잡자재비 등)은 사람이 직접 만든 줄이 아니다 — 줄 번호 대신 그렇게 적는다.
+  for (const row of document.derivedRows ?? []) {
+    byRow.set(
+      row.rowId,
+      `${bySystem.get(row.systemId) ?? row.systemId} · ${row.name} (자동 생성 행)`,
+    );
+  }
+  return { byRow, bySystem };
+}
+
 export function buildReviewItems(
   prepared: PreparedQuote,
   pendingCableEdit: boolean,
 ): ReviewItem[] {
   const items: ReviewItem[] = [];
+  const { byRow, bySystem } = locationsOf(prepared.document);
+
+  /** 행을 알면 행 위치를, 시스템만 알면 시스템 이름을 쓴다. 없으면 비운다. */
+  function locate(rowId?: string, systemId?: string): { location?: string } {
+    const text =
+      (rowId === undefined ? undefined : byRow.get(rowId)) ??
+      (systemId === undefined ? undefined : bySystem.get(systemId));
+    return text === undefined ? {} : { location: text };
+  }
 
   for (const { id, warning } of identifyImportWarnings(prepared.importWarnings)) {
     items.push({
@@ -197,6 +246,7 @@ export function buildReviewItems(
       target: { kind: 'import', warningId: id },
       ...(warning.rowId === undefined ? {} : { rowId: warning.rowId }),
       ...(warning.installationSystemId === undefined ? {} : { systemId: warning.installationSystemId }),
+      ...locate(warning.rowId, warning.installationSystemId),
     });
   }
 
@@ -214,6 +264,7 @@ export function buildReviewItems(
           ? { kind: 'detail', source: 'labor', warningId: id }
           : { kind: 'labor', rowId: warning.rowId },
       ...(warning.rowId === undefined ? {} : { rowId: warning.rowId }),
+      ...locate(warning.rowId),
     });
   }
 
@@ -235,6 +286,7 @@ export function buildReviewItems(
       target,
       ...(warning.rowId === undefined ? {} : { rowId: warning.rowId }),
       ...(warning.systemId === undefined ? {} : { systemId: warning.systemId }),
+      ...locate(warning.rowId, warning.systemId),
     });
   }
 

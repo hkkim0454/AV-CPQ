@@ -432,18 +432,32 @@
   color: var(--q-v-no-ink);
 }
 
+/*
+ * 확인 항목이 많아도 **견적표를 화면 밖으로 밀어내지 않는다.**
+ *
+ * 미해결이 많은 실제 구성도에서는 항목이 수십 건까지 간다. 목록을 다
+ * 펼쳐 쌓으면 표가 한참 아래로 내려가, 2차 개선의 약속("견적표를 먼저
+ * 본다")이 그대로 깨진다(2026-10-12 독립 검토 지적).
+ *
+ * 목록을 접어 버리는 대신 **높이만 제한하고 안에서 스크롤**한다. 접으면
+ * "확인 항목에서 바로 이동한다"는 동선에 클릭이 한 번 더 붙기 때문이다.
+ */
 .q-review-items {
   list-style: none;
   margin: 10px 0 0;
   padding: 0;
   display: grid;
   gap: 6px;
+  max-height: 11.5rem;
+  overflow-y: auto;
 }
 
 .q-review-item {
   display: flex;
   align-items: baseline;
+  flex-wrap: wrap;
   gap: 8px;
+  min-width: 0;
   width: 100%;
   text-align: left;
   border: 1px solid var(--q-line);
@@ -465,6 +479,19 @@
 }
 
 .q-review-message {
+  overflow-wrap: anywhere;
+}
+
+/*
+ * 문구가 같은 두 항목을 눈으로 가르는 단서 — 어느 시스템의 몇 번째 줄인지다.
+ *
+ * ⛔ `white-space: nowrap` 을 주지 않는다. 390px 에서 이 한 줄이 줄어들지
+ * 못해 페이지 전체가 옆으로 넘쳤다(실측).
+ */
+.q-review-location {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--q-muted);
   overflow-wrap: anywhere;
 }
 

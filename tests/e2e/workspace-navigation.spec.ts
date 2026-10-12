@@ -124,12 +124,13 @@ test('수량 확인을 누르면 그 행의 수량 입력에 포커스한다', a
   await expect(quantityIssue).toBeVisible();
   await quantityIssue.click();
 
-  // 포커스가 수량 입력에 가 있다.
-  const focusedLabel = await page.evaluate(() => {
-    const el = document.activeElement as HTMLInputElement | null;
-    return el?.getAttribute('aria-label') ?? '';
-  });
-  expect(focusedLabel).toContain('수량');
+  // 포커스가 수량 입력에 가 있다. 포커스는 **다음 렌더**에서 옮기므로
+  // 한 번만 읽으면 아직 옮기기 전일 수 있다 — 옮겨질 때까지 다시 본다.
+  await expect
+    .poll(async () =>
+      page.evaluate(() => globalThis.document.activeElement?.getAttribute('aria-label') ?? ''),
+    )
+    .toContain('수량');
 });
 
 test('견적이 바뀐 뒤의 오래된 이동 요청은 조용히 다른 행을 열지 않는다', async ({ page }) => {
@@ -211,11 +212,162 @@ test('설정 영역을 접었다 펴도 문서·합계·미저장 여부가 바�
   await expect(page.getByRole('button', { name: '실행 취소', exact: true })).toBeDisabled();
 });
 
-test('케이블 거리 미적용 항목을 누르면 그 영역을 펼치고 포커스한다', async ({ page }) => {
-  await buildSimpleQuote(page);
-  const cableSection = page.locator('[data-section="cables"]');
-  // 접힌 상태에서 시작한다.
-  await expect(cableSection.getByRole('button', { name: /케이블 거리/ })).toHaveAttribute('aria-expanded', 'false');
+/**
+ * 케이블 경로가 있는 구성도. 거리 칸을 고치면 그 순간
+ * `onPending(true)` 가 불려 "아직 반영되지 않은 수정"이 된다.
+ */
+async function openCableDiagram(page: Page): Promise<void> {
+  const common = { schemaVersion: 1, generatedOn: '2026-01-01', sourceSha256: 'a'.repeat(64) };
+  await mockResources(page, {
+    '/data/approved/products.json': {
+      ...common,
+      products: [3, 5].map((m) => ({
+        productId: `C${m}`, sku: `C${m}`, brand: '', model: `CABLE-${m}M`,
+        quoteName: '합성 HDMI', quoteSpec: `${m}M`, unit: 'EA',
+        options: { group: 'HDMI' }, currency: 'KRW', evidence: 'verified',
+      })),
+    },
+    '/data/approved/prices.json': {
+      ...common, currency: 'KRW',
+      prices: { C3: { sellingUnitPrice: '100', currency: 'KRW' }, C5: { sellingUnitPrice: '200', currency: 'KRW' } },
+    },
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
+  await page.getByLabel('구성도 파일 선택').setInputFiles({
+    name: 'routes.json', mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify({
+      version: '1',
+      nodes: [{ id: 'n1', data: { name: '시작', model: '' } }, { id: 'n2', data: { name: '끝', model: '' } }],
+      edges: [{
+        id: 'e1', source: 'n1', target: 'n2',
+        data: { lineTypeId: 'hdmi', bomRows: [{ cableType: 'ready-made', productName: 'CABLE-3M', length: '3', quantity: '1' }] },
+      }],
+      lineTypes: [{ id: 'hdmi', name: 'HDMI' }],
+    })),
+  });
+  await expect(page.locator('.q-quote-sheet')).toBeVisible();
+}
+
+const cableToggle = (page: Page) =>
+  page.locator('[data-section="cables"]').getByRole('button', { name: /케이블 거리/ });
+
+/** 확인 목록에서 '케이블 거리 미적용' 항목만 집는다. */
+const cableIssue = (page: Page) =>
+  reviewList(page).getByRole('button', { name: /적용하거나 취소/ }).first();
+
+test('케이블 거리 미적용 항목을 누르면 펼쳐 포커스하고, 그 뒤에도 접기와 재이동이 모두 된다', async ({ page }) => {
+  await openCableDiagram(page);
+  const toggle = cableToggle(page);
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+  // 사람이 직접 펼쳐 거리를 고친다 — 아직 견적에 반영되지 않은 상태가 된다.
+  await toggle.click();
+  const distance = page.getByLabel('e1 수평거리(m)', { exact: true });
+  await distance.fill('20');
+
+  // ⛔ 고치던 중에도 **사람이 접을 수 있어야 한다.** 강제로 펼쳐 두면
+  //    이 영역의 접기 보존 자체를 확인할 길이 없다.
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+  const issue = cableIssue(page);
+  await expect(issue).toBeVisible();
+  await issue.click();
+
+  // 펼쳐지고, 포커스가 그 영역 **안**에 있다.
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  expect(
+    await page.evaluate(() => document.activeElement?.closest('[data-section="cables"]') !== null),
+  ).toBe(true);
+  // 접었다 편 뒤에도 고치던 값이 그대로다 — 입력이 떨어져 나가지 않았다.
+  await expect(distance).toHaveValue('20');
+
+  // ⛔ 여기가 핵심이다 — **이동한 뒤에도** 접기가 동작해야 한다.
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+  // 같은 항목을 다시 눌러도 또 펼쳐진다(한 번 쓰고 마는 요청이 아니다).
+  await issue.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+});
+
+/**
+ * 미해결 품목이 **많은** 구성도. 실제 현장에서 흔한 모양이고, 2차 개선의
+ * 핵심 약속("견적표를 먼저 본다")이 깨지는지 여기서 드러난다.
+ */
+async function openManyUnresolved(page: Page): Promise<void> {
+  await mockResources(page); // 카탈로그에는 '합성 테스트 품목' 하나뿐이다.
+  await page.goto('/');
+  await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
+  await page.getByLabel('구성도 파일 선택').setInputFiles({
+    name: 'many-unresolved.json', mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify({
+      version: '1.1',
+      nodes: Array.from({ length: 12 }, (_, i) => ({
+        id: `n${i}`, type: 'equipment',
+        data: { name: `미등록 장비 ${i}`, model: `NOPE-${i}`, category: 'video' },
+      })),
+      edges: [], lineTypes: [],
+    })),
+  });
+  await expect(page.locator('.q-quote-sheet')).toBeVisible();
+}
+
+const warningToggle = (page: Page) =>
+  page.locator('[data-section="warnings"]').getByRole('button', { name: /구성도 경고/ });
+
+test('미해결 품목이 많아도 견적표가 첫 화면 안에 남는다', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await openManyUnresolved(page);
+  // 경고 목록이 표 앞을 길게 차지하면 표가 화면 밖으로 밀려난다.
+  const top = await page.locator('.q-quote-sheet').evaluate((el) => el.getBoundingClientRect().top);
+  expect(top).toBeLessThan(1000);
+});
+
+test('구성도 경고 목록은 견적표 아래 접기 영역에 있고, 확인 항목에서 누르면 펼쳐 포커스한다', async ({ page }) => {
+  await openManyUnresolved(page);
+
+  const order = await page.evaluate(() => {
+    const sheet = document.querySelector('.q-quote-sheet');
+    const warnings = document.querySelector('.q-warning-list');
+    if (sheet === null || warnings === null) return 'missing';
+    return sheet.compareDocumentPosition(warnings) & Node.DOCUMENT_POSITION_FOLLOWING
+      ? 'sheet-first' : 'warnings-first';
+  });
+  expect(order).toBe('sheet-first');
+
+  // 경고는 기본으로 펼쳐 보여준다 — 지금 막아야 할 일이기 때문이다.
+  const toggle = warningToggle(page);
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+
+  // 사람이 접어 둔 상태에서 눌러도 **다시 펼쳐** 데려가야 한다.
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+  const productIssue = reviewList(page).getByRole('button', { name: /품목 연결/ }).first();
+  await productIssue.click();
+
+  // 펼쳐지고, **그 경고 항목 자체**에 포커스가 간다.
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  const focusedWarningId = await page.evaluate(
+    () => (globalThis.document.activeElement as HTMLElement | null)?.getAttribute('data-warning-id') ?? '',
+  );
+  expect(focusedWarningId).not.toBe('');
+
+  // 이동한 뒤에도 접기가 동작한다 — 한 번 쓰고 마는 요청이다.
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+});
+
+test('문구가 같은 두 행의 확인 항목을 위치로 구분할 수 있다', async ({ page }) => {
+  await buildTwoSameNameRows(page);
+  const issues = laborIssues(page);
+  await expect(issues).toHaveCount(2);
+
+  // 문구만 보면 둘이 똑같다 — 어느 줄인지가 함께 보여야 고를 수 있다.
+  await expect(issues.nth(0)).toContainText('1번째 줄');
+  await expect(issues.nth(1)).toContainText('2번째 줄');
 });
 
 test('잘못된 수량 초안이 접기·펼치기를 거쳐도 남고, 미저장 보호도 유지된다', async ({ page }) => {

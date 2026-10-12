@@ -84,6 +84,13 @@ export function ReviewSummary({ items, onNavigate, navigationError }: ReviewSumm
                 >
                   <span className="q-review-category">{CATEGORY_LABEL[item.category]}</span>
                   <span className="q-review-message">{item.message}</span>
+                  {/*
+                    문구가 같은 두 항목을 **눈으로** 가르는 유일한 단서다.
+                    id 만 다르면 화면에서는 똑같아 보여 어느 쪽인지 알 수 없다.
+                  */}
+                  {item.location !== undefined && (
+                    <span className="q-review-location">{item.location}</span>
+                  )}
                 </button>
               ) : (
                 // 고칠 자리가 없다 — 원문만 펼쳐 보여준다.
@@ -91,6 +98,9 @@ export function ReviewSummary({ items, onNavigate, navigationError }: ReviewSumm
                   <summary>
                     <span className="q-review-category">{CATEGORY_LABEL[item.category]}</span>
                     <span className="q-review-message">{item.message}</span>
+                    {item.location !== undefined && (
+                      <span className="q-review-location">{item.location}</span>
+                    )}
                   </summary>
                   <p className="q-muted">
                     이 항목은 화면에서 바로 고칠 수 있는 자리가 없습니다. 원본 자료나 계산 기준을 확인해야 합니다.

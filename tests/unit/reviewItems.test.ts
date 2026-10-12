@@ -158,6 +158,59 @@ describe('buildReviewItems — 세 출처와 pending 케이블을 한 목록으�
 });
 
 // ---------------------------------------------------------------------------
+/**
+ * 같은 문구의 두 항목을 **사람이 눈으로 구분**할 수 있어야 한다.
+ *
+ * id 가 다른 것만으로는 부족하다 — 화면에는 문구만 보이기 때문에, 어느
+ * 시스템의 몇 번째 줄인지를 함께 적어야 어느 쪽을 고치는지 알 수 있다
+ * (2026-10-12 독립 검토 지적).
+ */
+describe('항목의 위치 표시', () => {
+  /** 품명·규격까지 완전히 같은 두 행 — 가장 구분하기 어려운 경우다. */
+  function preparedWithTwinRows(): PreparedQuote {
+    return {
+      ...fullPrepared(),
+      document: {
+        systems: [{ systemId: 'S1', name: '회의실 A' }, { systemId: 'S2', name: '교육장 B' }],
+        rows: [
+          { type: 'item', rowId: 'row-a', systemId: 'S1', name: '합성 장비', specification: 'FIX-SPEC' },
+          { type: 'item', rowId: 'row-b', systemId: 'S1', name: '합성 장비', specification: 'FIX-SPEC' },
+          { type: 'item', rowId: 'row-c', systemId: 'S2', name: '다른 장비', specification: '' },
+        ],
+        derivedRows: [],
+      },
+    } as unknown as PreparedQuote;
+  }
+
+  it('품명·규격이 똑같아도 시스템과 줄 번호로 갈린다', () => {
+    const items = buildReviewItems(preparedWithTwinRows(), false);
+    const labor = items.filter((x) => x.code === 'mapping-unconfirmed');
+    expect(labor.map((x) => x.location)).toEqual([
+      '회의실 A · 1번째 줄 · 합성 장비 (FIX-SPEC)',
+      '회의실 A · 2번째 줄 · 합성 장비 (FIX-SPEC)',
+    ]);
+    expect(new Set(labor.map((x) => x.location)).size).toBe(2);
+  });
+
+  it('규격이 비면 괄호를 붙이지 않는다', () => {
+    const items = buildReviewItems(preparedWithTwinRows(), false);
+    expect(items.find((x) => x.code === 'quantity-unresolved')?.location).toBe(
+      '교육장 B · 1번째 줄 · 다른 장비',
+    );
+  });
+
+  it('행이 없고 시스템만 있는 경고는 시스템 이름만 적는다', () => {
+    const items = buildReviewItems(preparedWithTwinRows(), false);
+    expect(items.find((x) => x.code === 'derived-source-missing')?.location).toBe('회의실 A');
+  });
+
+  it('행도 시스템도 없는 경고에는 위치를 지어내지 않는다', () => {
+    const items = buildReviewItems(preparedWithTwinRows(), false);
+    expect(items.find((x) => x.code === 'wage-unit-mismatch')?.location).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 describe('한 행을 확인하면 그 행 항목만 사라진다', () => {
   it('같은 매핑을 쓰는 다른 행의 항목은 남는다', () => {
     const after = buildReviewItems(

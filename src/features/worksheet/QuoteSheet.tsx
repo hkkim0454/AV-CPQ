@@ -172,6 +172,7 @@ function LaborBasisPanel({
   row,
   breakdown,
   hasUnconfirmedWarning,
+  columnCount,
   onLaborModeChange,
   onManualLaborUnitPriceChange,
   onOverrideReasonChange,
@@ -180,6 +181,8 @@ function LaborBasisPanel({
   row: ItemRow;
   breakdown: RowLaborBreakdown | undefined;
   hasUnconfirmedWarning: boolean;
+  /** 지금 **보이는** 열 수. 숨긴 열까지 세면 칸이 어긋난다. */
+  columnCount: number;
   onLaborModeChange(rowId: string, mode: LaborMode): void;
   onManualLaborUnitPriceChange(rowId: string, value: string): void;
   onOverrideReasonChange(rowId: string, value: string): void;
@@ -193,7 +196,7 @@ function LaborBasisPanel({
 
   return (
     <tr data-labor-basis-for={row.rowId}>
-      <td colSpan={12}>
+      <td colSpan={columnCount}>
         {/* 포커스를 받기 위해 tabIndex 를 둔다 — 키보드 사용자가 이동한 자리를 안다. */}
         <div className="q-labor-basis" ref={panelRef} tabIndex={-1}>
           <fieldset>
@@ -356,6 +359,11 @@ export function QuoteSheet({
   // 감춘다** — 조건부 렌더로 없애면 사람이 치던 draft 와 미저장 표식이 사라진다.
   const [showDetailColumns, setShowDetailColumns] = useState(false);
   const detailClass = showDetailColumns ? undefined : 'q-detail-hidden';
+  // 상세 4열을 감추면 **보이는 열이 8개**가 된다. `colSpan` 을 12로 고정해
+  // 두면 숨긴 열까지 세어 합계 줄과 노무 근거 칸이 표와 어긋난다
+  // (2026-10-12 독립 검토 지적).
+  const hiddenDetailCount = showDetailColumns ? 4 : 0;
+  const columnCount = 8 + hiddenDetailCount;
   const [expandedRowIds, setExpandedRowIds] = useState<ReadonlySet<string>>(new Set());
   const unconfirmedRowIds = new Set(
     laborWarnings.filter((w) => w.code === 'mapping-unconfirmed' && w.rowId !== undefined).map((w) => w.rowId!),
@@ -472,7 +480,7 @@ export function QuoteSheet({
                     if (row.type === 'display') {
                       return (
                         <tr key={row.rowId}>
-                          <td colSpan={12}>{row.name}</td>
+                          <td colSpan={columnCount}>{row.name}</td>
                         </tr>
                       );
                     }
@@ -577,6 +585,7 @@ export function QuoteSheet({
                           row={row}
                           breakdown={laborBreakdowns.get(row.rowId)}
                           hasUnconfirmedWarning={unconfirmedRowIds.has(row.rowId)}
+                          columnCount={columnCount}
                           onLaborModeChange={onLaborModeChange}
                           onManualLaborUnitPriceChange={onManualLaborUnitPriceChange}
                           onOverrideReasonChange={onOverrideReasonChange}
@@ -604,19 +613,19 @@ export function QuoteSheet({
                 {calc !== undefined && (
                   <tfoot>
                     <tr>
-                      <td colSpan={8}>직접비계</td>
+                      <td colSpan={4 + hiddenDetailCount}>직접비계</td>
                       <td>{calc.directMaterial.toFixed()}</td>
                       <td>{calc.directLabor.toFixed()}</td>
                       <td>{calc.directTotal.toFixed()}</td>
                       <td></td>
                     </tr>
                     <tr>
-                      <td colSpan={10}>간접비계</td>
+                      <td colSpan={6 + hiddenDetailCount}>간접비계</td>
                       <td>{calc.indirectTotal.toFixed()}</td>
                       <td></td>
                     </tr>
                     <tr>
-                      <td colSpan={10}>합계</td>
+                      <td colSpan={6 + hiddenDetailCount}>합계</td>
                       <td>{calc.systemTotal.toFixed()}</td>
                       <td></td>
                     </tr>
