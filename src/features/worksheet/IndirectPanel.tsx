@@ -120,6 +120,7 @@ export function IndirectPanel({
           <option value="ds">DS</option>
         </select>
       </label>
+      <div className="q-table-wrap">
       <table className="q-indirect-table">
         <thead>
           <tr>
@@ -169,6 +170,7 @@ export function IndirectPanel({
           })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

@@ -76,6 +76,9 @@ test('다운로드는 원본과 바이트가 동일한 표준품셈 PDF를 내�
 test('표준품셈 PDF는 발행 기관명과 보기·다운로드 전용 범위를 명시한다', async ({ page }) => {
   await mockResources(page);
   await page.goto('/');
+  // 긴 출처 설명은 접혀 있다(2차 개선) — 지운 것이 아니라 펼치면 그대로 있다.
+  await page.locator('.q-reference-docs li').filter({ hasText: '표준품셈' })
+    .getByText('출처·범위 보기').click();
   await expect(page.getByText('한국정보통신산업연구원', { exact: false })).toBeVisible();
   await expect(page.getByText('원문 보기·다운로드만 제공합니다', { exact: false })).toBeVisible();
 });
@@ -83,6 +86,8 @@ test('표준품셈 PDF는 발행 기관명과 보기·다운로드 전용 범위
 test('노임 공표 PDF는 템플릿 미포함 5개 직종을 명시한다', async ({ page }) => {
   await mockResources(page);
   await page.goto('/');
+  await page.locator('.q-reference-docs li').filter({ hasText: '노임 공표' })
+    .getByText('출처·범위 보기').click();
   await expect(
     page.getByText('저압케이블공·내선전공·플랜트기계설치공·내장공·건축목공', { exact: false }),
   ).toBeVisible();

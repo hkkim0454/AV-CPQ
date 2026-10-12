@@ -100,11 +100,19 @@ export function ReferenceDocs() {
                   다운로드
                 </a>
               </span>
-              {doc.notes.map((note) => (
-                <p key={note} className="q-muted">
-                  {note}
-                </p>
-              ))}
+              {/*
+                긴 출처 설명은 **지우지 않고 접는다**(사용성 2차 Task C).
+                견적 작업보다 앞자리를 차지하지 않게 하되, 어느 기관이
+                언제 공표한 자료인지 확인할 길은 남겨 둔다.
+              */}
+              <details className="q-reference-doc-notes">
+                <summary className="q-muted">출처·범위 보기</summary>
+                {doc.notes.map((note) => (
+                  <p key={note} className="q-muted">
+                    {note}
+                  </p>
+                ))}
+              </details>
             </li>
           );
         })}

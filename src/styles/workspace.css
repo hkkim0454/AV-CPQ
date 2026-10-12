@@ -323,12 +323,27 @@
   border-radius: 8px;
 }
 
+/*
+ * ⛔ 좁은 화면이라고 표 칸을 `white-space: normal` 로 풀지 않는다.
+ *
+ * 전에는 720px 아래에서 풀었는데, 칸이 31px 까지 좁아져 품명이 **한 글자씩**
+ * 줄바꿈됐다(실측 390px). 지금은 표가 `.q-table-wrap` 안에서 스스로 가로
+ * 스크롤하므로 `nowrap` 을 유지하는 편이 읽기 쉽다. 대신 칸이 지나치게
+ * 좁아지지 않도록 최소 폭을 준다.
+ */
 @media (max-width: 720px) {
   .q-quote-table th,
   .q-quote-table td,
   .q-indirect-table th,
   .q-indirect-table td {
-    white-space: normal;
+    min-width: 72px;
+  }
+  /* 품명·규격은 더 넉넉해야 알아볼 수 있다. */
+  .q-quote-table th:first-child,
+  .q-quote-table td:first-child,
+  .q-quote-table th:nth-child(2),
+  .q-quote-table td:nth-child(2) {
+    min-width: 140px;
   }
 }
 
@@ -457,4 +472,37 @@
   border: 1px solid var(--q-line);
   border-radius: var(--q-r-chip);
   padding: 8px 10px;
+}
+
+/* --- 좁은 화면에서 페이지가 옆으로 넘치지 않게 (사용성 2차 Task D) --------
+ *
+ * 표는 `.q-table-wrap` 안에서 **스스로 가로 스크롤**한다. 그런데 flex·grid
+ * 자식은 기본이 `min-width: auto` 라 내용보다 작아지지 않는다 — 그래서 넓은
+ * 표가 래퍼를 밀어내고 페이지 전체가 넘쳤다(실측 390px 에서 545px).
+ *
+ * 줄여도 되는 자리에 `min-width: 0` 을 주어 래퍼가 화면 폭에 맞게 줄고,
+ * 넘치는 부분은 표 내부 스크롤이 받도록 한다. **표의 내부 스크롤은 허용**이고
+ * 페이지 전체 가로 스크롤만 막는다.
+ */
+.q-main,
+.q-workspace,
+.q-card,
+.q-quote-sheet,
+.q-quote-system,
+.q-workspace-section {
+  min-width: 0;
+}
+
+.q-table-wrap {
+  max-width: 100%;
+}
+
+/* 자료 안내 — 제목·보기·다운로드가 먼저 보이고 설명은 접어 둔다. */
+.q-reference-doc-notes summary {
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.q-reference-doc-notes p {
+  margin: 6px 0 0;
 }
