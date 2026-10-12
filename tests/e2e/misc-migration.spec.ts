@@ -5,7 +5,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { test, expect, type Page } from '@playwright/test';
-import { mockResources } from './fixtures';
+import { mockResources, expandWorkspaceSections } from './fixtures';
 
 const common = { schemaVersion: 1, generatedOn: '2026-01-01', sourceSha256: 'a'.repeat(64) };
 
@@ -58,6 +58,7 @@ async function reopen(page: Page, document: unknown) {
   await page.getByLabel('작업 파일 선택').setInputFiles({
     name: 'legacy-misc.avcpq.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(document)),
   });
+  await expandWorkspaceSections(page);
 }
 
 const miscAmount = (page: Page) =>

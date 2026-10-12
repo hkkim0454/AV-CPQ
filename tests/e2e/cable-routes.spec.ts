@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { mockResources } from './fixtures';
+import { mockResources, expandWorkspaceSections } from './fixtures';
 
 async function openDiagram(page: Parameters<typeof mockResources>[0]) {
   const common = { schemaVersion: 1, generatedOn: '2026-01-01', sourceSha256: 'a'.repeat(64) };
@@ -20,6 +20,7 @@ async function openDiagram(page: Parameters<typeof mockResources>[0]) {
     ], edges: ['e1', 'e2'].map(id => ({ id, source: 'n1', target: 'n2', data: { lineTypeId: 'hdmi',
       bomRows: [{ cableType: 'ready-made', productName: 'CABLE-3M', length: '3', quantity: '1' }],
     } })), lineTypes: [{ id: 'hdmi', name: 'HDMI' }] })) });
+  await expandWorkspaceSections(page);
 }
 
 async function previewFive(page: Parameters<typeof mockResources>[0], id: string) {

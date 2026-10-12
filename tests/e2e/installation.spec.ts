@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
-import { mockResources } from './fixtures';
+import { mockResources, expandWorkspaceSections } from './fixtures';
 
 const SKU_DEVICE = 'E2E-100';
 const SKU_CONDUIT_A = 'E2E-101';
@@ -102,6 +102,7 @@ async function startDocument(page: import('@playwright/test').Page): Promise<voi
   await page.getByLabel('품목 검색').fill('E2E 설치 시험 장비');
   await page.getByRole('button', { name: '추가' }).click();
   await page.getByRole('button', { name: '견적 만들기' }).click();
+  await expandWorkspaceSections(page);
 }
 
 test('배관 — 거리 × 줄 수를 입력하면 수량과 근거 문구가 나오고, 후보에서 골라 해소한다', async ({ page }) => {
@@ -287,6 +288,7 @@ test('케이블 트레이 — 기본값 30%는 품셈이 아니라 사용자 구
     mimeType: 'application/json',
     buffer: Buffer.from(savedText),
   });
+  await expandWorkspaceSections(page);
 
   await expect(page.getByRole('alert').filter({ hasText: '계산 기준이 바뀌었습니다' })).toHaveCount(0);
   await expect(page.getByRole('radio', { name: '케이블 트레이' })).toBeChecked();

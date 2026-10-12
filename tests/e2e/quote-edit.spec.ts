@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { mockResources } from './fixtures';
+import { mockResources, expandWorkspaceSections, showDetailColumns } from './fixtures';
 
 const SKU_PRICED = 'E2E-001';
 const SKU_NO_PRICE = 'E2E-002';
@@ -216,6 +216,7 @@ test('두 입구(구성도/품목 선택) — 같은 품목·수량이면 직접
   await page.getByRole('button', { name: '추가' }).click();
   await page.getByLabel(`E2E 테스트 품목 담은 수량`).fill('2');
   await page.getByRole('button', { name: '견적 만들기' }).click();
+  await expandWorkspaceSections(page);
 
   const row = page.locator('.q-quote-table tbody tr', { hasText: 'E2E 테스트 품목' });
   const remarkInput = row.locator('td').nth(5).locator('input');
@@ -260,6 +261,7 @@ test('미등록과 명시적 0을 구분한다', async ({ page }) => {
   await page.getByLabel('품목 검색').fill('E2E 무상 품목');
   await page.getByRole('button', { name: '추가' }).click();
   await page.getByRole('button', { name: '견적 만들기' }).click();
+  await expandWorkspaceSections(page);
 
   const unregisteredRow = page.locator('.q-quote-table tbody tr', { hasText: 'E2E 미등록 품목' });
   await expect(unregisteredRow).toContainText('미등록');
@@ -284,7 +286,10 @@ test('카탈로그 설명이 실제로 표시되고 사용자 편집을 보존�
   await page.getByLabel('품목 검색').fill('E2E 테스트 품목');
   await page.getByRole('button', { name: '추가' }).click();
   await page.getByRole('button', { name: '견적 만들기' }).click();
+  await expandWorkspaceSections(page);
 
+  // 상세 열은 접힌 채 시작한다 — 사람이 하듯 먼저 펼친다.
+  await showDetailColumns(page);
   const descriptionInput = page.getByLabel('E2E 테스트 품목 설명');
   await expect(descriptionInput).toHaveValue(DESCRIPTION);
 
@@ -302,6 +307,7 @@ test('수량 편집 후 실행취소로 되돌아간다', async ({ page }) => {
   await page.getByRole('button', { name: '추가' }).click();
   await page.getByLabel(`E2E 테스트 품목 담은 수량`).fill('1');
   await page.getByRole('button', { name: '견적 만들기' }).click();
+  await expandWorkspaceSections(page);
 
   const quantityInput = page.getByLabel('E2E 테스트 품목 수량');
   const totalRow = page.locator('.q-quote-table tfoot tr', { hasText: '합계' }).last();
@@ -328,6 +334,7 @@ test('잘못된 수량은 문서를 바꾸지 않고 이유를 보여준다', as
   await page.getByLabel('품목 검색').fill('E2E 테스트 품목');
   await page.getByRole('button', { name: '추가' }).click();
   await page.getByRole('button', { name: '견적 만들기' }).click();
+  await expandWorkspaceSections(page);
 
   const quantityInput = page.getByLabel('E2E 테스트 품목 수량');
   await quantityInput.fill('-3');
@@ -353,6 +360,7 @@ test('간접비율 수정 → 프로파일 변경 → undo/redo가 선택값·�
   await page.getByLabel('품목 검색').fill('E2E 테스트 품목');
   await page.getByRole('button', { name: '추가' }).click();
   await page.getByRole('button', { name: '견적 만들기' }).click();
+  await expandWorkspaceSections(page);
 
   const profileSelect = page.getByLabel('시스템1 간접비 프로파일');
   const totalRow = page.locator('.q-quote-table tfoot tr', { hasText: '합계' }).last();
@@ -397,6 +405,7 @@ test('새 견적은 기본 DS 프로파일로 시작하고, 일반으로 바꿀 
   await page.getByLabel('품목 검색').fill('E2E 테스트 품목');
   await page.getByRole('button', { name: '추가' }).click();
   await page.getByRole('button', { name: '견적 만들기' }).click();
+  await expandWorkspaceSections(page);
   await expect(page.getByLabel('시스템1 간접비 프로파일')).toHaveValue('ds');
 
   // 일반으로 바꿀 수 있다 — 기본값이 DS라고 선택지가 줄지 않는다.
@@ -425,6 +434,7 @@ test('요율 입력칸 — 명시로 고친 값은 undo로 되돌아가고, 반�
   await page.getByLabel('품목 검색').fill('E2E 테스트 품목');
   await page.getByRole('button', { name: '추가' }).click();
   await page.getByRole('button', { name: '견적 만들기' }).click();
+  await expandWorkspaceSections(page);
   await page.getByLabel('시스템1 간접비 프로파일').selectOption('general');
 
   const rateInput = page.getByLabel('g1 요율(%)');
@@ -460,6 +470,7 @@ test('견적 정보(머리글) 편집과 취소', async ({ page }) => {
   await page.getByLabel('품목 검색').fill('E2E 테스트 품목');
   await page.getByRole('button', { name: '추가' }).click();
   await page.getByRole('button', { name: '견적 만들기' }).click();
+  await expandWorkspaceSections(page);
 
   const customerInput = page.getByLabel('고객', { exact: true });
   const projectInput = page.getByLabel('현장/공사명');
@@ -495,6 +506,7 @@ test('건강보험 미적용 상태에서 장기요양을 켜면 0원 사유를 
   await page.getByLabel('품목 검색').fill('E2E 테스트 품목');
   await page.getByRole('button', { name: '추가' }).click();
   await page.getByRole('button', { name: '견적 만들기' }).click();
+  await expandWorkspaceSections(page);
 
   // 결정 D12로 새 견적 기본 프로파일이 DS로 바뀌었다 — 이 시험은
   // 일반 프로파일의 항목(국민건강보험료)을 보므로 명시로 고른다.
@@ -523,6 +535,7 @@ test('기존 견적에 품목 추가/삭제 — 실행취소가 기존 수동 �
   await page.getByLabel('품목 검색').fill('E2E 테스트 품목');
   await page.getByRole('button', { name: '추가' }).click();
   await page.getByRole('button', { name: '견적 만들기' }).click();
+  await expandWorkspaceSections(page);
 
   // 기존 행을 사람이 먼저 고친다 — 품목 추가/삭제 뒤에도 이 수정이
   // 그대로인지가 이 시험의 핵심이다(rowId 안정성).

@@ -363,3 +363,98 @@
 .q-reference-doc-actions a:hover {
   text-decoration: underline;
 }
+
+/* --- 상세 열 숨김 (사용성 2차 Task C) ------------------------------------
+ * ⛔ 열을 **떼지 않고** 감추기만 한다. 조건부 렌더로 없애면 사람이 치던
+ * 값(TextCell 의 지역 draft)과 미저장 표식이 함께 사라진다.
+ */
+.q-quote-table .q-detail-hidden {
+  display: none;
+}
+
+.q-sheet-tools {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+
+/* --- 접을 수 있는 설정 영역 --------------------------------------------- */
+.q-workspace-section {
+  margin-top: 16px;
+}
+
+.q-section-head {
+  margin: 0;
+}
+
+.q-section-toggle {
+  width: 100%;
+  text-align: left;
+  font-weight: var(--q-fw-medium);
+}
+
+/* 이동해 온 항목을 눈에 띄게 한다. 포커스 테두리는 브라우저 기본을 쓴다. */
+.q-warning-list li:focus-visible,
+.q-labor-basis:focus-visible {
+  outline: 2px solid var(--q-accent);
+  outline-offset: 2px;
+}
+
+/* --- 확인 항목 요약 ------------------------------------------------------ */
+.q-review-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.q-review-head h3 {
+  margin: 0;
+}
+
+.q-review-blocking {
+  color: var(--q-v-no-ink);
+}
+
+.q-review-items {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.q-review-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--q-line);
+  background: var(--q-bg);
+  border-radius: var(--q-r-chip);
+  padding: 8px 10px;
+  color: inherit;
+  cursor: pointer;
+}
+
+.q-review-item:hover {
+  background: var(--q-soft);
+}
+
+.q-review-category {
+  flex: none;
+  font-size: 11px;
+  color: var(--q-muted);
+}
+
+.q-review-message {
+  overflow-wrap: anywhere;
+}
+
+.q-review-item-detail {
+  border: 1px solid var(--q-line);
+  border-radius: var(--q-r-chip);
+  padding: 8px 10px;
+}

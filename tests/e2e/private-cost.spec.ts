@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
 import { zipSync, strToU8 } from 'fflate';
-import { mockResources } from './fixtures';
+import { mockResources, expandWorkspaceSections } from './fixtures';
 
 /**
  * Task5 "내 PC의 원가 파일과 모델 확인" — 집중 항목만 검증한다(독립
@@ -55,6 +55,7 @@ async function createDocument(page: import('@playwright/test').Page): Promise<vo
   await page.getByLabel('품목 검색').fill('합성 테스트 품목');
   await page.getByRole('button', { name: '추가', exact: true }).click();
   await page.getByRole('button', { name: '견적 만들기' }).click();
+  await expandWorkspaceSections(page);
   await expect(page.locator('.q-quote-table tbody tr', { hasText: '합성 테스트 품목' })).toBeVisible();
 }
 

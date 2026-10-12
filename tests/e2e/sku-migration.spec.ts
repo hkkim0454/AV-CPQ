@@ -11,7 +11,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { test, expect, type Page } from '@playwright/test';
-import { mockResources } from './fixtures';
+import { mockResources, expandWorkspaceSections } from './fixtures';
 
 const SKU = 'FIX-0001';
 const SHA_OLD = 'a'.repeat(64);
@@ -69,6 +69,7 @@ async function reopenWithSwappedCatalog(page: Page, document: unknown) {
     mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify(document)),
   });
+  await expandWorkspaceSections(page);
 }
 
 test('카탈로그 지문이 다르면 같은 SKU 라도 조용히 치환하지 않는다', async ({ page }) => {
@@ -155,6 +156,7 @@ test('카탈로그 지문이 같으면 지금처럼 SKU 로 찾아 단가를 갱
     mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify({ ...saved, versions: { ...saved.versions, rule: 'old-rule' } })),
   });
+  await expandWorkspaceSections(page);
   await page.getByRole('button', { name: '현재 기준으로 다시 계산 — 미리보기' }).click();
   await page.getByRole('button', { name: '적용', exact: true }).click();
 

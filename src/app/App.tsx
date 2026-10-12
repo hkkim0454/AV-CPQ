@@ -21,6 +21,7 @@ import { QuoteSheet } from '../features/worksheet/QuoteSheet';
 import { IndirectPanel } from '../features/worksheet/IndirectPanel';
 import { WarningList } from '../features/worksheet/WarningList';
 import { ReviewSummary } from '../features/worksheet/ReviewSummary';
+import { WorkspaceSection } from '../features/worksheet/WorkspaceSection';
 import { buildReviewItems, type ReviewTarget } from '../features/worksheet/reviewItems';
 import type { RowNavigation } from '../features/worksheet/QuoteSheet';
 import type { ImportNavigation } from '../features/worksheet/WarningList';
@@ -92,6 +93,8 @@ function QuoteWorkspace() {
   const [rowNavigation, setRowNavigation] = useState<RowNavigation | undefined>(undefined);
   const [importNavigation, setImportNavigation] = useState<ImportNavigation | undefined>(undefined);
   const [navigationError, setNavigationError] = useState<string | undefined>(undefined);
+  // 확인 목록에서 '케이블 거리'로 이동하면 그 영역을 펼친다.
+  const [cableSectionOpen, setCableSectionOpen] = useState(false);
   const navigationNonce = useRef(0);
   const workFileInputRef = useRef<HTMLInputElement>(null);
   // 작업 파일과 구성도가 선택 순서를 공유한다. 어느 입구든 늦게 끝난
@@ -152,7 +155,17 @@ function QuoteWorkspace() {
     if (target.kind === 'cables') {
       setRowNavigation(undefined);
       setImportNavigation(undefined);
-      document.querySelector('[data-section="cables"]')?.scrollIntoView({ block: 'start' });
+      // 접혀 있으면 먼저 펼치고, 그려진 **뒤에** 스크롤·포커스한다.
+      setCableSectionOpen(true);
+      requestAnimationFrame(() => {
+        const section = document.querySelector<HTMLElement>('[data-section="cables"]');
+        if (section === null) {
+          setNavigationError('케이블 거리 영역을 찾지 못했습니다.');
+          return;
+        }
+        section.scrollIntoView({ block: 'start' });
+        section.querySelector<HTMLElement>('button, input, select')?.focus();
+      });
     }
   }
 
@@ -586,7 +599,11 @@ function QuoteWorkspace() {
 
               {status.kind === 'editing' && (
                 <>
-                  <CoverSheet key={`cover-${workspace.documentGeneration}`} header={status.document.header} onChange={workspace.setHeader} />
+                  {/*
+                    견적표를 **먼저** 보여준다. 갑지 정보·시공·간접비·원가는
+                    아래 접기 영역으로 내린다 — 처음 열었을 때 눈에 들어와야
+                    하는 것은 품목과 합계다(계획 §1 기본 배치).
+                  */}
                   <ReviewSummary
                     items={buildReviewItems(status.prepared, pendingCableEdit)}
                     onNavigate={handleNavigate}
@@ -624,18 +641,29 @@ function QuoteWorkspace() {
                     prepared={status.prepared}
                     onNavigationMissed={setNavigationError}
                   />
-                  <div data-section="cables">
-                  <CableRoutePanel key={`cables-${workspace.documentGeneration}`} document={status.document} catalog={resources.catalog}
-                    onApply={workspace.applyCableRoutes} onPending={setPendingCableEdit} />
-                  {pendingCableEdit && <p role="status" className="q-notice">케이블 거리 수정이 아직 견적에 반영되지 않았습니다. 미리보기 후 적용하거나 취소하세요.</p>}
-                  </div>
+                  <WorkspaceSection title="견적 정보 (고객·현장)" sectionId="cover">
+                    <CoverSheet key={`cover-${workspace.documentGeneration}`} header={status.document.header} onChange={workspace.setHeader} />
+                  </WorkspaceSection>
+
+                  <WorkspaceSection
+                    title="케이블 거리"
+                    sectionId="cables"
+                    // 반영되지 않은 수정이 있으면 접혀 있어도 펼쳐서 보여준다.
+                    forceOpen={pendingCableEdit || cableSectionOpen}
+                  >
+                    <CableRoutePanel key={`cables-${workspace.documentGeneration}`} document={status.document} catalog={resources.catalog}
+                      onApply={workspace.applyCableRoutes} onPending={setPendingCableEdit} />
+                    {pendingCableEdit && <p role="status" className="q-notice">케이블 거리 수정이 아직 견적에 반영되지 않았습니다. 미리보기 후 적용하거나 취소하세요.</p>}
+                  </WorkspaceSection>
+
                   {status.document.systems.map((system) => (
-                    <InstallationPanel
-                      key={`${workspace.documentGeneration}-${system.systemId}`}
-                      system={system}
-                      document={status.document}
-                      onChange={(patch) => workspace.setInstallationInput(system.systemId, patch)}
-                    />
+                    <WorkspaceSection key={`inst-${workspace.documentGeneration}-${system.systemId}`} title={`설치 입력 — ${system.name}`}>
+                      <InstallationPanel
+                        system={system}
+                        document={status.document}
+                        onChange={(patch) => workspace.setInstallationInput(system.systemId, patch)}
+                      />
+                    </WorkspaceSection>
                   ))}
                   {status.document.systems.map((system) => {
                     const calc = status.prepared.priced.calculation.systems.find(
@@ -643,25 +671,32 @@ function QuoteWorkspace() {
                     );
                     if (calc === undefined) return null;
                     return (
-                      <IndirectPanel
-                        key={`${workspace.documentGeneration}-${system.systemId}`}
-                        system={system}
-                        calculation={calc}
-                        onProfileChange={(profile) => workspace.setProfile(system.systemId, profile)}
-                        onToggleApplied={(itemId, applied) =>
-                          workspace.setIndirectRule(system.systemId, itemId, { applied })
-                        }
-                        onRateChange={(itemId, rate) =>
-                          workspace.setIndirectRule(system.systemId, itemId, { rate })
-                        }
-                      />
+                      <WorkspaceSection key={`ind-${workspace.documentGeneration}-${system.systemId}`} title={`간접비 — ${system.name}`}>
+                        <IndirectPanel
+                          system={system}
+                          calculation={calc}
+                          onProfileChange={(profile) => workspace.setProfile(system.systemId, profile)}
+                          onToggleApplied={(itemId, applied) =>
+                            workspace.setIndirectRule(system.systemId, itemId, { applied })
+                          }
+                          onRateChange={(itemId, rate) =>
+                            workspace.setIndirectRule(system.systemId, itemId, { rate })
+                          }
+                        />
+                      </WorkspaceSection>
                     );
                   })}
-                  <PrivateCostPanel
-                    document={status.document}
-                    documentGeneration={workspace.documentGeneration}
-                    onLinesChange={setCostLines}
-                  />
+                  {/*
+                    ⛔ 접어도 PrivateCostPanel 을 떼지 않는다 — 떼면 원가 세션과
+                    연결이 끊긴다. 문서 교체에 따른 폐기는 기존 정책 그대로다.
+                  */}
+                  <WorkspaceSection title="내 PC 원가 확인" sectionId="private-cost">
+                    <PrivateCostPanel
+                      document={status.document}
+                      documentGeneration={workspace.documentGeneration}
+                      onLinesChange={setCostLines}
+                    />
+                  </WorkspaceSection>
                 </>
               )}
             </>

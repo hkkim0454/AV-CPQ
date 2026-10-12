@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { test, expect, type Page } from '@playwright/test';
-import { mockResources } from './fixtures';
+import { mockResources, expandWorkspaceSections } from './fixtures';
 
 test('저장 당시 노임 기준이 없으면 현재 노임으로 이전 합계를 지어내지 않는다', async ({ page }) => {
   const document = await saveQuote(page);
@@ -21,6 +21,7 @@ test('다른 작업 파일을 열면 이전 문서의 재계산 미리보기를 
   await page.getByLabel('작업 파일 선택').setInputFiles({
     name: 'second.avcpq.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(second)),
   });
+  await expandWorkspaceSections(page);
   await expect(page.getByRole('button', { name: '현재 기준으로 다시 계산 — 미리보기' })).toBeVisible();
   await expect(page.getByRole('button', { name: '적용', exact: true })).toHaveCount(0);
 });
@@ -42,6 +43,7 @@ async function reopen(page: Page, document: unknown) {
   await page.getByLabel('작업 파일 선택').setInputFiles({
     name: 'review.avcpq.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(document)),
   });
+  await expandWorkspaceSections(page);
 }
 
 test('저장 파일의 기준이 전부 미상이면 새 견적처럼 계산하지 않고 차단한다', async ({ page }) => {

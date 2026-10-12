@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
-import { mockResources } from './fixtures';
+import { mockResources, expandWorkspaceSections } from './fixtures';
 
 /** 계획 2026-10-04-quote-workspace-ui Task 4 — 작업 파일 저장/열기. */
 
@@ -11,6 +11,7 @@ test('작업 파일로 저장했다가 다시 열면 그대로 돌아온다(같�
   await page.getByLabel('품목 검색').fill('합성 테스트 품목');
   await page.getByRole('button', { name: '추가', exact: true }).click();
   await page.getByRole('button', { name: '견적 만들기' }).click();
+  await expandWorkspaceSections(page);
 
   await expect(page.locator('.q-quote-table tbody tr', { hasText: '합성 테스트 품목' })).toBeVisible();
 
@@ -30,6 +31,7 @@ test('작업 파일로 저장했다가 다시 열면 그대로 돌아온다(같�
     mimeType: 'application/json',
     buffer: Buffer.from(savedText),
   });
+  await expandWorkspaceSections(page);
 
   await expect(page.getByRole('alert').filter({ hasText: '계산 기준이 바뀌었습니다' })).toHaveCount(0);
   await expect(page.locator('.q-quote-table tbody tr', { hasText: '합성 테스트 품목' })).toBeVisible();
@@ -42,6 +44,7 @@ test('카탈로그가 바뀐 뒤 작업 파일을 열면 조용히 다시 계산
   await page.getByLabel('품목 검색').fill('합성 테스트 품목');
   await page.getByRole('button', { name: '추가', exact: true }).click();
   await page.getByRole('button', { name: '견적 만들기' }).click();
+  await expandWorkspaceSections(page);
 
   const [download] = await Promise.all([
     page.waitForEvent('download'),
@@ -71,6 +74,7 @@ test('카탈로그가 바뀐 뒤 작업 파일을 열면 조용히 다시 계산
     mimeType: 'application/json',
     buffer: Buffer.from(savedText),
   });
+  await expandWorkspaceSections(page);
 
   const conflict = page.getByRole('alert').filter({ hasText: '계산 기준이 바뀌었습니다' });
   await expect(conflict).toBeVisible();
@@ -99,6 +103,7 @@ test('케이블 거리 수정이 적용 대기 중이면 작업 파일 저장을
   await page.getByLabel('구성도 파일 선택').setInputFiles({
     name: 'diagram.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(diagram)),
   });
+  await expandWorkspaceSections(page);
 
   await expect(page.getByRole('button', { name: '작업 파일로 저장' })).toBeEnabled();
 
@@ -117,6 +122,7 @@ test('재계산은 미리보기→취소(원본 유지)→다시 미리보기→
   await page.getByLabel('품목 검색').fill('합성 테스트 품목');
   await page.getByRole('button', { name: '추가', exact: true }).click();
   await page.getByRole('button', { name: '견적 만들기' }).click();
+  await expandWorkspaceSections(page);
 
   const [download] = await Promise.all([
     page.waitForEvent('download'),
@@ -141,6 +147,7 @@ test('재계산은 미리보기→취소(원본 유지)→다시 미리보기→
   await page.getByLabel('작업 파일 선택').setInputFiles({
     name: 'saved.avcpq.json', mimeType: 'application/json', buffer: Buffer.from(savedText),
   });
+  await expandWorkspaceSections(page);
 
   const conflict = page.getByRole('alert').filter({ hasText: '계산 기준이 바뀌었습니다' });
   await expect(conflict).toBeVisible();
@@ -186,6 +193,7 @@ test('재계산 중 카탈로그에서 사라진 품목은 옛 단가로 조용�
   await page.getByLabel('품목 검색').fill('합성 테스트 품목');
   await page.getByRole('button', { name: '추가', exact: true }).click();
   await page.getByRole('button', { name: '견적 만들기' }).click();
+  await expandWorkspaceSections(page);
 
   const [download] = await Promise.all([
     page.waitForEvent('download'),
@@ -214,6 +222,7 @@ test('재계산 중 카탈로그에서 사라진 품목은 옛 단가로 조용�
   await page.getByLabel('작업 파일 선택').setInputFiles({
     name: 'saved.avcpq.json', mimeType: 'application/json', buffer: Buffer.from(savedText),
   });
+  await expandWorkspaceSections(page);
 
   const conflict = page.getByRole('alert').filter({ hasText: '계산 기준이 바뀌었습니다' });
   await conflict.getByRole('button', { name: '현재 기준으로 다시 계산 — 미리보기' }).click();
@@ -250,6 +259,7 @@ test('재계산은 배관 행도 그룹 재검증을 거쳐 지금 단가로 갱
   await page.getByLabel('품목 검색').fill('합성 장비');
   await page.getByRole('button', { name: '추가', exact: true }).click();
   await page.getByRole('button', { name: '견적 만들기' }).click();
+  await expandWorkspaceSections(page);
 
   await page.getByLabel('시스템1 장비실→가장 먼 장비 거리(m)').fill('10');
   await page.getByLabel('시스템1 장비실→가장 먼 장비 거리(m)').blur();
@@ -275,6 +285,7 @@ test('재계산은 배관 행도 그룹 재검증을 거쳐 지금 단가로 갱
   await page.getByLabel('작업 파일 선택').setInputFiles({
     name: 'saved.avcpq.json', mimeType: 'application/json', buffer: Buffer.from(savedText),
   });
+  await expandWorkspaceSections(page);
   const conflict = page.getByRole('alert').filter({ hasText: '계산 기준이 바뀌었습니다' });
   await conflict.getByRole('button', { name: '현재 기준으로 다시 계산 — 미리보기' }).click();
   await conflict.getByRole('button', { name: '적용', exact: true }).click();
@@ -305,6 +316,7 @@ test('케이블 가격만 바뀌고 수동 수정이 없으면 재계산이 가�
       lineTypes: [{ id: 'hdmi', name: 'HDMI' }],
     })),
   });
+  await expandWorkspaceSections(page);
 
   // 수동 수정은 전혀 하지 않는다 — 수량·품목 전부 자동 산출 그대로 둔다.
   await expect(page.locator('.q-quote-table tbody tr', { hasText: '합성 HDMI' }).locator('td').nth(8)).toHaveText('100');
@@ -325,6 +337,7 @@ test('케이블 가격만 바뀌고 수동 수정이 없으면 재계산이 가�
   await page.getByLabel('작업 파일 선택').setInputFiles({
     name: 'saved.avcpq.json', mimeType: 'application/json', buffer: Buffer.from(savedText),
   });
+  await expandWorkspaceSections(page);
 
   const conflict = page.getByRole('alert').filter({ hasText: '계산 기준이 바뀌었습니다' });
   await conflict.getByRole('button', { name: '현재 기준으로 다시 계산 — 미리보기' }).click();
@@ -343,6 +356,7 @@ test('계산이 막히지 않고 labor/wage도 그대로면 이전 합계를 실
   await page.getByLabel('품목 검색').fill('합성 테스트 품목');
   await page.getByRole('button', { name: '추가', exact: true }).click();
   await page.getByRole('button', { name: '견적 만들기' }).click();
+  await expandWorkspaceSections(page);
 
   const [download] = await Promise.all([
     page.waitForEvent('download'),
@@ -372,6 +386,7 @@ test('계산이 막히지 않고 labor/wage도 그대로면 이전 합계를 실
   await page.getByLabel('작업 파일 선택').setInputFiles({
     name: 'saved.avcpq.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(saved)),
   });
+  await expandWorkspaceSections(page);
   const conflict = page.getByRole('alert').filter({ hasText: '계산 기준이 바뀌었습니다' });
   await conflict.getByRole('button', { name: '현재 기준으로 다시 계산 — 미리보기' }).click();
   // labor/wage는 저장 당시와 같고(카탈로그만 바뀜) 계산도 막히지
@@ -397,6 +412,7 @@ test('재계산은 입력이 부족한 케이블 구간을 현재 규칙으로�
   await page.getByLabel('구성도 파일 선택').setInputFiles({
     name: 'diagram.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(diagram)),
   });
+  await expandWorkspaceSections(page);
   const warningBefore = page.getByRole('alert').filter({ hasText: '확인이 필요합니다' });
   await expect(warningBefore).toContainText('품목을 고른 뒤에도');
 
@@ -412,6 +428,7 @@ test('재계산은 입력이 부족한 케이블 구간을 현재 규칙으로�
   await page.getByLabel('작업 파일 선택').setInputFiles({
     name: 'saved.avcpq.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(saved)),
   });
+  await expandWorkspaceSections(page);
   const conflict = page.getByRole('alert').filter({ hasText: '계산 기준이 바뀌었습니다' });
   await conflict.getByRole('button', { name: '현재 기준으로 다시 계산 — 미리보기' }).click();
   // labor/wage는 안 바뀌었지만(rule만 바뀜), 이 문서는 quantityUnresolved
@@ -448,6 +465,7 @@ test('재계산 중 케이블 재산출이 수동 수정과 충돌하면 적용 
       lineTypes: [{ id: 'hdmi', name: 'HDMI' }],
     })),
   });
+  await expandWorkspaceSections(page);
 
   // 구간 거리를 5m로 확정해 적용한다 — cableRoutes/cableBaseline이
   // 5M 기준으로 갱신된다(기존 cable-routes.spec.ts와 같은 절차).
@@ -479,6 +497,7 @@ test('재계산 중 케이블 재산출이 수동 수정과 충돌하면 적용 
   await page.getByLabel('작업 파일 선택').setInputFiles({
     name: 'saved.avcpq.json', mimeType: 'application/json', buffer: Buffer.from(savedText),
   });
+  await expandWorkspaceSections(page);
 
   const conflict = page.getByRole('alert').filter({ hasText: '계산 기준이 바뀌었습니다' });
   await conflict.getByRole('button', { name: '현재 기준으로 다시 계산 — 미리보기' }).click();
@@ -506,6 +525,7 @@ test('저장 당시 미해결이던 장비 경고도 재열기 후 해소 UI가 
   await page.getByLabel('구성도 파일 선택').setInputFiles({
     name: 'diagram.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(diagram)),
   });
+  await expandWorkspaceSections(page);
 
   const warningPanel = page.getByRole('alert').filter({ hasText: '확인이 필요합니다' });
   await expect(warningPanel).toContainText('NOPE-MODEL-XYZ');
@@ -520,6 +540,7 @@ test('저장 당시 미해결이던 장비 경고도 재열기 후 해소 UI가 
   await page.getByLabel('작업 파일 선택').setInputFiles({
     name: 'saved.avcpq.json', mimeType: 'application/json', buffer: Buffer.from(savedText),
   });
+  await expandWorkspaceSections(page);
 
   const reopenedWarningPanel = page.getByRole('alert').filter({ hasText: '확인이 필요합니다' });
   await expect(reopenedWarningPanel).toContainText('NOPE-MODEL-XYZ');

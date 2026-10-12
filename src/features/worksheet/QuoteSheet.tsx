@@ -352,6 +352,10 @@ export function QuoteSheet({
   prepared,
   onNavigationMissed,
 }: QuoteSheetProps) {
+  // 상세 열(설명·비고·거래처·영업비고) 표시 여부. **열을 떼지 않고 CSS 로만
+  // 감춘다** — 조건부 렌더로 없애면 사람이 치던 draft 와 미저장 표식이 사라진다.
+  const [showDetailColumns, setShowDetailColumns] = useState(false);
+  const detailClass = showDetailColumns ? undefined : 'q-detail-hidden';
   const [expandedRowIds, setExpandedRowIds] = useState<ReadonlySet<string>>(new Set());
   const unconfirmedRowIds = new Set(
     laborWarnings.filter((w) => w.code === 'mapping-unconfirmed' && w.rowId !== undefined).map((w) => w.rowId!),
@@ -428,6 +432,16 @@ export function QuoteSheet({
 
   return (
     <div className="q-card q-quote-sheet">
+      <div className="q-sheet-tools">
+        <button
+          type="button"
+          className="q-button"
+          aria-expanded={showDetailColumns}
+          onClick={() => setShowDetailColumns((v) => !v)}
+        >
+          {showDetailColumns ? '상세 열 숨기기' : '상세 열 표시'}
+        </button>
+      </div>
       {document.systems.map((system) => {
         const calc = calcBySystem.get(system.systemId);
         const rows = document.rows.filter((r) => r.systemId === system.systemId);
@@ -443,10 +457,10 @@ export function QuoteSheet({
                     <th>규격</th>
                     <th>단위</th>
                     <th>수량</th>
-                    <th>설명</th>
-                    <th>비고</th>
-                    <th>거래처</th>
-                    <th>영업비고</th>
+                    <th className={detailClass}>설명</th>
+                    <th className={detailClass}>비고</th>
+                    <th className={detailClass}>거래처</th>
+                    <th className={detailClass}>영업비고</th>
                     <th>재료비</th>
                     <th>노무비</th>
                     <th>합계</th>
@@ -495,7 +509,7 @@ export function QuoteSheet({
                             }}
                           />
                         </td>
-                        <td>
+                        <td className={detailClass}>
                           <TextCell
                             rowId={row.rowId}
                             value={row.internalDescription ?? ''}
@@ -506,7 +520,7 @@ export function QuoteSheet({
                             <p className="q-muted">자동 메모(참고): {row.conversionNote}</p>
                           )}
                         </td>
-                        <td>
+                        <td className={detailClass}>
                           <TextCell
                             rowId={row.rowId}
                             value={row.remark}
@@ -514,7 +528,7 @@ export function QuoteSheet({
                             onCommit={onRemarkChange}
                           />
                         </td>
-                        <td>
+                        <td className={detailClass}>
                           <TextCell
                             rowId={row.rowId}
                             value={row.supplier ?? ''}
@@ -522,7 +536,7 @@ export function QuoteSheet({
                             onCommit={onSupplierChange}
                           />
                         </td>
-                        <td>
+                        <td className={detailClass}>
                           <TextCell
                             rowId={row.rowId}
                             value={row.salesRemark ?? ''}
@@ -577,8 +591,9 @@ export function QuoteSheet({
                     return (
                       <tr key={row.rowId} data-row-id={row.rowId} data-derived="true">
                         <td>{row.name}</td><td>{row.specification}</td><td>{row.unit}</td><td>{row.quantity}</td>
-                        <td>{row.internalDescription ?? ''}</td><td>{row.remark}</td>
-                        <td></td><td></td>
+                        <td className={detailClass}>{row.internalDescription ?? ''}</td>
+                        <td className={detailClass}>{row.remark}</td>
+                        <td className={detailClass}></td><td className={detailClass}></td>
                         <td>{rowCalc?.materialAmount?.toFixed() ?? '미등록'}</td>
                         <td>{row.laborMode === 'not-applicable' ? '해당없음' : rowCalc?.laborAmount?.toFixed() ?? '미등록'}</td>
                         <td>{rowCalc?.total?.toFixed() ?? '미등록'}</td><td></td>

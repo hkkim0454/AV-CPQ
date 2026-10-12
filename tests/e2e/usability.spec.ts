@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
-import { mockResources } from './fixtures';
+import { mockResources, expandWorkspaceSections } from './fixtures';
 
 async function createQuote(page: Page) {
   await mockResources(page);
@@ -9,6 +9,7 @@ async function createQuote(page: Page) {
   await page.getByLabel('품목 검색').fill('합성 테스트');
   await page.locator('.q-picker-matches').getByRole('button', { name: '추가', exact: true }).click();
   await page.getByRole('button', { name: '견적 만들기', exact: true }).click();
+  await expandWorkspaceSections(page);
 }
 
 async function saveQuote(page: Page) {
@@ -118,6 +119,7 @@ test('두 시스템 중 추가할 곳을 명시로 골라 추가하고 undo로 �
   await page.goto('/');
   await page.getByRole('button', { name: '구성도 JSON 열기', exact: true }).click();
   await page.getByLabel('구성도 파일 선택').setInputFiles({ name: 'rooms.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ version: '1', nodes: ['회의실', '강당'].map((systemName, i) => ({ id: `n${i}`, data: { model: 'FIX', systemName } })), edges: [], lineTypes: [] })) });
+  await expandWorkspaceSections(page);
   await page.getByRole('button', { name: '품목 직접 선택', exact: true }).click();
   await page.getByLabel('품목 검색').fill('합성 테스트');
   const add = page.locator('.q-picker-matches').getByRole('button', { name: '추가', exact: true });
@@ -137,6 +139,7 @@ test('실패한 파일은 작업을 보존하고, 늦게 읽힌 파일이 더 �
   await createQuote(page);
   const saved = await saveQuote(page);
   await page.getByLabel('작업 파일 선택').setInputFiles({ name: 'invalid.json', mimeType: 'application/json', buffer: Buffer.from('{') });
+  await expandWorkspaceSections(page);
   await expect(page.getByRole('alert').filter({ hasText: '작업 파일을 열지 못했습니다' })).toBeVisible();
   await expect(page.getByLabel('고객', { exact: true })).toBeVisible();
   await page.evaluate(() => {
@@ -150,9 +153,11 @@ test('실패한 파일은 작업을 보존하고, 늦게 읽힌 파일이 더 �
     };
   });
   await page.getByLabel('작업 파일 선택').setInputFiles({ name: 'slow.json', mimeType: 'application/json', buffer: Buffer.from(saved) });
+  await expandWorkspaceSections(page);
   await page.waitForFunction(() => typeof (window as unknown as { releaseFile?: unknown }).releaseFile === 'function');
   await page.getByRole('button', { name: '구성도 JSON 열기', exact: true }).click();
   await page.getByLabel('구성도 파일 선택').setInputFiles({ name: 'newest.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ version: '1', nodes: [{ id: 'new', data: { model: 'FIX', systemName: '나중 공간' } }], edges: [], lineTypes: [] })) });
+  await expandWorkspaceSections(page);
   await expect(page.getByLabel('견적번호', { exact: true })).toHaveValue('newest');
   await saveQuote(page);
   await page.evaluate(async () => {

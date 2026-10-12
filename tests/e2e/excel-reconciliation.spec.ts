@@ -13,7 +13,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { unzipSync, strFromU8 } from 'fflate';
 import { test, expect } from '@playwright/test';
-import { mockResources } from './fixtures';
+import { mockResources, expandWorkspaceSections, showDetailColumns } from './fixtures';
 
 const NAME = '합성 대사 장비';
 const meta = { schemaVersion: 1, generatedOn: '2026-01-01' };
@@ -52,6 +52,8 @@ for (const profile of ['ds', 'general'] as const) {
     await page.getByLabel('품목 검색').fill(NAME);
     await page.getByRole('button', { name: '추가', exact: true }).click();
     await page.getByRole('button', { name: '견적 만들기' }).click();
+  await expandWorkspaceSections(page);
+  await showDetailColumns(page);
     const quantity = page.getByLabel(`${NAME} 수량`, { exact: true });
     await quantity.fill('3');
     await quantity.blur();

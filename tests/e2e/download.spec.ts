@@ -13,7 +13,7 @@
 import { readFileSync } from 'node:fs';
 import { unzipSync, strFromU8 } from 'fflate';
 import { test, expect, type Page, type Download } from '@playwright/test';
-import { mockResources } from './fixtures';
+import { mockResources, expandWorkspaceSections, showDetailColumns } from './fixtures';
 
 async function downloadedBytes(download: Download): Promise<Uint8Array> {
   const path = await download.path();
@@ -27,6 +27,7 @@ async function saveQuote(page: Page): Promise<Record<string, unknown>> {
   await page.getByLabel('품목 검색').fill('합성 테스트 품목');
   await page.getByRole('button', { name: '추가', exact: true }).click();
   await page.getByRole('button', { name: '견적 만들기' }).click();
+  await expandWorkspaceSections(page);
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: '작업 파일로 저장' }).click();
   return JSON.parse(readFileSync((await (await download).path())!, 'utf8'));
@@ -124,6 +125,7 @@ test('해결되지 않은 구성도/품셈/계산 경고 — 해결 전에는 �
   await page.getByLabel('품목 검색').fill('합성 테스트 품목');
   await page.getByRole('button', { name: '추가', exact: true }).click();
   await page.getByRole('button', { name: '견적 만들기' }).click();
+  await expandWorkspaceSections(page);
 
   await expect(page.getByText('해결되지 않은 구성도/품셈/계산 경고가 있어', { exact: false })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Excel 다운로드' })).toBeDisabled();
@@ -131,6 +133,8 @@ test('해결되지 않은 구성도/품셈/계산 경고 — 해결 전에는 �
 
 test('거래처/영업비고 입력 — 1단계에는 남고 2단계(고객용)에는 애초에 없다', async ({ page }) => {
   await makeDownloadableQuote(page);
+  // 2차 개선에서 상세 열은 접힌 채 시작한다 — 사람이 하듯 먼저 펼친다.
+  await showDetailColumns(page);
   await page.getByLabel('합성 테스트 품목 거래처').fill('SONY/한국에빅스');
   await page.getByLabel('합성 테스트 품목 거래처').blur();
   await page.getByLabel('합성 테스트 품목 영업비고').fill('현장 확인 필요 — 영업팀 전용 메모');
