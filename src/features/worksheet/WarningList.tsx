@@ -29,13 +29,13 @@
  * (`cableCandidates`)를 사용자 확정 큰 분류별로 접어 보여준다.
  * 분류가 안 되거나 카탈로그에 없는 후보도 미분류에 남긴다.
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CandidateDetail } from '../catalog/CandidateDetail';
 import type { Catalog } from '../../data/catalog/load';
 import type { ImportWarning } from '../../import/diagram/devices';
 import { isDescriptionOnlyCandidate, type ModelSearchCandidate } from '../../import/diagram/matchCatalog';
 import { groupCableCandidates } from './cableCandidateCategories';
-import { identifyImportWarnings } from './reviewItems';
+import { decideNavigation, identifyImportWarnings } from './reviewItems';
 
 interface WarningListProps {
   warnings: readonly ImportWarning[];
@@ -47,10 +47,24 @@ interface WarningListProps {
   /** `catalog-item-removed` 전용. */
   onResolveRow(rowId: string, sku: string): void;
   /**
-   * 확인 목록에서 이 항목으로 이동해 달라는 요청(공유 id). 해당 항목을
-   * 스크롤·강조한다. 후보 선택 범위는 그 항목 안으로 유지한다.
+   * 확인 목록에서 온 이동 요청. 행 이동(`QuoteSheet`)과 **같은 계약**이다 —
+   * 한쪽만 느슨하면 그쪽으로 오래된 요청이 새어 들어간다.
+   *
+   * `nonce` 로 한 번만 소비하고, 소비 직전과 스크롤·포커스 직전에
+   * `sourcePrepared` 가 지금 결과와 같은 참조인지 본다.
    */
-  navigateToWarningId?: string | undefined;
+  navigation?: ImportNavigation | undefined;
+  /** 지금 계산 결과 — 요청이 낡았는지 **참조 동일성**으로 가른다. */
+  prepared?: unknown;
+  /** 대상이 없거나 오래된 요청일 때 알린다. 다른 항목을 대신 열지 않는다. */
+  onNavigationMissed?: ((message: string) => void) | undefined;
+}
+
+/** 구성도 경고로 가는 이동 요청. 목적지는 공유 식별자다. */
+export interface ImportNavigation {
+  warningId: string;
+  sourcePrepared: unknown;
+  nonce: number;
 }
 
   /**
@@ -205,14 +219,71 @@ export function WarningList({
   onResolveConduit,
   onResolveCable,
   onResolveRow,
-  navigateToWarningId,
+  navigation,
+  prepared,
+  onNavigationMissed,
 }: WarningListProps) {
-  if (warnings.length === 0) return null;
+  const itemRefs = useRef(new Map<string, HTMLLIElement>());
+  const handledNonce = useRef<number | undefined>(undefined);
+  const [pendingFocus, setPendingFocus] = useState<ImportNavigation | undefined>(undefined);
+
+  // ⛔ **여기서 조기 반환하지 않는다.** 아래 `useEffect` 가 훅이라서, 경고가
+  // 0건일 때만 건너뛰면 0건 → 1건이 되는 순간 훅 수가 달라진다. React 는
+  // "Rendered more hooks than during the previous render" 로 화면을 통째로
+  // 죽인다(실측: 배관 거리를 입력해 경고가 처음 생기는 순간 전체가 사라졌다).
+  // 반환은 모든 훅을 부른 **뒤에** 한다.
 
   // 요약 목록과 **같은 함수**로 식별한다. 배열 index 를 key 로 쓰면 앞선
   // 경고가 사라질 때 뒤 항목이 remount 되어 입력하던 검색어가 날아가고,
   // `nodeId ?? edgeId` 로 뭉개면 노드 경고와 연결선 경고가 같은 key 를 갖는다.
   const identified = identifyImportWarnings(warnings);
+
+  // --- 이동 요청 소비 ---------------------------------------------------
+  //
+  // 행 이동과 같은 계약이다. (1) nonce 로 **한 번만** 소비하고 (2) 소비
+  // 직전과 (3) 스크롤·포커스 직전에 `sourcePrepared` 를 다시 본다.
+  //
+  // ⛔ 단순히 `id === navigateToWarningId` 로 ref 에서 스크롤하면,
+  // 다른 이유로 재렌더될 때마다 **옛 요청이 다시 스크롤**하고, 같은 항목을
+  // 다시 눌러도 state 가 그대로라 **아무 일도 일어나지 않는다.**
+  const decide = (request: ImportNavigation) =>
+    decideNavigation({
+      sourcePrepared: request.sourcePrepared,
+      currentPrepared: prepared,
+      targetExists: identified.some((x) => x.id === request.warningId),
+    });
+
+  useEffect(() => {
+    if (navigation === undefined || navigation.nonce === handledNonce.current) return;
+    handledNonce.current = navigation.nonce;
+    const decision = decide(navigation);
+    if (decision.kind !== 'go') {
+      onNavigationMissed?.(decision.message);
+      return;
+    }
+    setPendingFocus(navigation);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigation]);
+
+  useEffect(() => {
+    if (pendingFocus === undefined) return;
+    setPendingFocus(undefined);
+    const stillOk = decide(pendingFocus);
+    if (stillOk.kind !== 'go') {
+      onNavigationMissed?.(stillOk.message);
+      return;
+    }
+    const target = itemRefs.current.get(pendingFocus.warningId);
+    if (target === undefined) {
+      onNavigationMissed?.('이동할 대상을 찾지 못했습니다. 확인 목록에서 다시 선택해 주세요.');
+      return;
+    }
+    target.scrollIntoView({ block: 'center', behavior: 'auto' });
+    target.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingFocus]);
+
+  if (warnings.length === 0) return null;
 
   return (
     <div className="q-card q-warning-list" role="alert">
@@ -246,12 +317,13 @@ export function WarningList({
           return (
             <li
               key={warningId}
+              data-warning-id={warningId}
+              // 포커스를 받아야 키보드 사용자가 이동한 자리를 안다.
+              tabIndex={-1}
               ref={(el) => {
-                if (el !== null && warningId === navigateToWarningId) {
-                  el.scrollIntoView({ block: 'center', behavior: 'auto' });
-                }
+                if (el === null) itemRefs.current.delete(warningId);
+                else itemRefs.current.set(warningId, el);
               }}
-              className={warningId === navigateToWarningId ? 'q-warning-targeted' : undefined}
             >
               <strong>{warning.blocking ? '확정 차단' : '확인'}</strong> {warning.message}
               {(warning.nodeId !== undefined || warning.edgeId !== undefined) && (

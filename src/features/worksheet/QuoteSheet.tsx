@@ -374,8 +374,7 @@ export function QuoteSheet({
     decideNavigation({
       sourcePrepared: request.sourcePrepared,
       currentPrepared: prepared,
-      rowId: request.rowId,
-      rowExists,
+      targetExists: rowExists(request.rowId),
     });
 
   useEffect(() => {

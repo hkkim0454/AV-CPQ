@@ -230,31 +230,30 @@ describe('identifyImportWarnings — 값이 아니라 구조로 식별한다', (
 describe('decideNavigation — 오래되거나 사라진 요청을 거부한다', () => {
   const P1 = { tag: 'prepared-1' };
   const P2 = { tag: 'prepared-2' };
-  const always = () => true;
 
   it('같은 계산 결과이고 행도 있으면 간다', () => {
-    expect(decideNavigation({ sourcePrepared: P1, currentPrepared: P1, rowId: 'r1', rowExists: always }))
+    expect(decideNavigation({ sourcePrepared: P1, currentPrepared: P1, targetExists: true }))
       .toEqual({ kind: 'go' });
   });
 
   it('그 사이 계산 결과가 바뀌었으면 거부한다', () => {
-    const d = decideNavigation({ sourcePrepared: P1, currentPrepared: P2, rowId: 'r1', rowExists: always });
+    const d = decideNavigation({ sourcePrepared: P1, currentPrepared: P2, targetExists: true });
     expect(d.kind).toBe('stale');
     expect(d.kind !== 'go' && d.message).toContain('다시 선택');
   });
 
   it('지금 계산 결과가 없으면 거부한다', () => {
-    expect(decideNavigation({ sourcePrepared: P1, currentPrepared: undefined, rowId: 'r1', rowExists: always }).kind)
+    expect(decideNavigation({ sourcePrepared: P1, currentPrepared: undefined, targetExists: true }).kind)
       .toBe('stale');
   });
 
-  it('행이 지워졌으면 거부한다 — 다른 행을 대신 고르지 않는다', () => {
-    const d = decideNavigation({ sourcePrepared: P1, currentPrepared: P1, rowId: 'r1', rowExists: () => false });
+  it('대상이 사라졌으면 거부한다 — 다른 것을 대신 고르지 않는다', () => {
+    const d = decideNavigation({ sourcePrepared: P1, currentPrepared: P1, targetExists: false });
     expect(d.kind).toBe('missing');
   });
 
   it('내용이 같아도 참조가 다르면 거부한다 — undo 로 새 객체가 온 경우', () => {
-    expect(decideNavigation({ sourcePrepared: { a: 1 }, currentPrepared: { a: 1 }, rowId: 'r1', rowExists: always }).kind)
+    expect(decideNavigation({ sourcePrepared: { a: 1 }, currentPrepared: { a: 1 }, targetExists: true }).kind)
       .toBe('stale');
   });
 });

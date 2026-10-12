@@ -294,14 +294,14 @@ export type NavigationDecision =
 export function decideNavigation(input: {
   sourcePrepared: unknown;
   currentPrepared: unknown;
-  rowId: string;
-  rowExists(rowId: string): boolean;
+  /** 그 목적지(행·경고)가 지금도 있는가. */
+  targetExists: boolean;
 }): NavigationDecision {
   if (input.currentPrepared === undefined || input.sourcePrepared !== input.currentPrepared) {
     return { kind: 'stale', message: '견적 내용이 바뀌었습니다. 확인 목록에서 다시 선택해 주세요.' };
   }
-  if (!input.rowExists(input.rowId)) {
-    return { kind: 'missing', message: '이동할 행을 찾지 못했습니다. 확인 목록에서 다시 선택해 주세요.' };
+  if (!input.targetExists) {
+    return { kind: 'missing', message: '이동할 대상을 찾지 못했습니다. 확인 목록에서 다시 선택해 주세요.' };
   }
   return { kind: 'go' };
 }

@@ -23,6 +23,7 @@ import { WarningList } from '../features/worksheet/WarningList';
 import { ReviewSummary } from '../features/worksheet/ReviewSummary';
 import { buildReviewItems, type ReviewTarget } from '../features/worksheet/reviewItems';
 import type { RowNavigation } from '../features/worksheet/QuoteSheet';
+import type { ImportNavigation } from '../features/worksheet/WarningList';
 import { InstallationPanel } from '../features/installation/InstallationPanel';
 import { CableRoutePanel } from '../features/installation/CableRoutePanel';
 import { PrivateCostPanel } from '../features/private-cost/PrivateCostPanel';
@@ -89,7 +90,7 @@ function QuoteWorkspace() {
   const [cableResetRowIds, setCableResetRowIds] = useState<string[]>([]);
   // 확인 목록 → 입력 자리 이동. 화면 state 일 뿐 문서에 들어가지 않는다.
   const [rowNavigation, setRowNavigation] = useState<RowNavigation | undefined>(undefined);
-  const [importNavigationId, setImportNavigationId] = useState<string | undefined>(undefined);
+  const [importNavigation, setImportNavigation] = useState<ImportNavigation | undefined>(undefined);
   const [navigationError, setNavigationError] = useState<string | undefined>(undefined);
   const navigationNonce = useRef(0);
   const workFileInputRef = useRef<HTMLInputElement>(null);
@@ -127,7 +128,7 @@ function QuoteWorkspace() {
     }
     navigationNonce.current += 1;
     if (target.kind === 'labor' || target.kind === 'quantity') {
-      setImportNavigationId(undefined);
+      setImportNavigation(undefined);
       setRowNavigation({
         rowId: target.rowId,
         kind: target.kind,
@@ -137,13 +138,20 @@ function QuoteWorkspace() {
       return;
     }
     if (target.kind === 'import') {
+      // 행 이동과 **같은 계약**이다 — 누른 순간의 계산 결과와 nonce 를 함께
+      // 보낸다. 문자열 id 만 보내면 같은 항목을 다시 눌러도 state 가 그대로라
+      // 아무 일도 일어나지 않고, 다른 이유로 재렌더될 때 옛 요청이 또 스크롤한다.
       setRowNavigation(undefined);
-      setImportNavigationId(target.warningId);
+      setImportNavigation({
+        warningId: target.warningId,
+        sourcePrepared: status.prepared,
+        nonce: navigationNonce.current,
+      });
       return;
     }
     if (target.kind === 'cables') {
       setRowNavigation(undefined);
-      setImportNavigationId(undefined);
+      setImportNavigation(undefined);
       document.querySelector('[data-section="cables"]')?.scrollIntoView({ block: 'start' });
     }
   }
@@ -592,7 +600,9 @@ function QuoteWorkspace() {
                     onResolveConduit={workspace.resolveConduit}
                     onResolveCable={workspace.resolveCable}
                     onResolveRow={workspace.resolveRow}
-                    navigateToWarningId={importNavigationId}
+                    navigation={importNavigation}
+                    prepared={status.prepared}
+                    onNavigationMissed={setNavigationError}
                   />
                   <QuoteSheet
                     key={`sheet-${workspace.documentGeneration}`}
