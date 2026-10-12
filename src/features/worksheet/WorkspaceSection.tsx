@@ -32,6 +32,17 @@
  */
 import { useId, useState, type ReactNode } from 'react';
 
+/**
+ * 설정 영역의 DOM id.
+ *
+ * 탐색이 `getElementById` 로 찾는다. 선택자 문자열로 조합하지 않는다 —
+ * `sectionId` 에 시스템 식별자가 섞여 들어가므로, 따옴표나 공백이 있으면
+ * 선택자가 깨진다.
+ */
+export function sectionDomId(sectionId: string): string {
+  return `q-section-${sectionId}`;
+}
+
 interface WorkspaceSectionProps {
   title: string;
   /** 처음에 펼친 채로 둘지. 기본은 접어 둔다 — 견적표를 먼저 보여준다. */
@@ -71,7 +82,9 @@ export function WorkspaceSection({
   return (
     <section
       className="q-card q-workspace-section"
-      {...(sectionId === undefined ? {} : { 'data-section': sectionId })}
+      {...(sectionId === undefined
+        ? {}
+        : { 'data-section': sectionId, id: sectionDomId(sectionId) })}
     >
       <h3 className="q-section-head">
         <button

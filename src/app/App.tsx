@@ -21,9 +21,10 @@ import { QuoteSheet } from '../features/worksheet/QuoteSheet';
 import { IndirectPanel } from '../features/worksheet/IndirectPanel';
 import { WarningList } from '../features/worksheet/WarningList';
 import { ReviewSummary } from '../features/worksheet/ReviewSummary';
-import { WorkspaceSection } from '../features/worksheet/WorkspaceSection';
+import { WorkspaceSection, sectionDomId } from '../features/worksheet/WorkspaceSection';
+import { WorkspaceNav, type NavTarget } from '../features/worksheet/WorkspaceNav';
 import { buildReviewItems, decideNavigation, type ReviewTarget } from '../features/worksheet/reviewItems';
-import type { RowNavigation } from '../features/worksheet/QuoteSheet';
+import { systemSectionDomId, type RowNavigation } from '../features/worksheet/QuoteSheet';
 import type { ImportNavigation } from '../features/worksheet/WarningList';
 import { InstallationPanel } from '../features/installation/InstallationPanel';
 import { CableRoutePanel } from '../features/installation/CableRoutePanel';
@@ -93,10 +94,20 @@ function QuoteWorkspace() {
   const [rowNavigation, setRowNavigation] = useState<RowNavigation | undefined>(undefined);
   const [importNavigation, setImportNavigation] = useState<ImportNavigation | undefined>(undefined);
   const [navigationError, setNavigationError] = useState<string | undefined>(undefined);
-  // 펼치라는 **일회성 요청 번호**다. 참/거짓이 아니라 번호인 이유는,
-  // 한 번 펼친 뒤에도 사람이 다시 접을 수 있어야 하기 때문이다.
-  const [cableOpenRequest, setCableOpenRequest] = useState<number | undefined>(undefined);
-  const [warningOpenRequest, setWarningOpenRequest] = useState<number | undefined>(undefined);
+  // 설정 영역별로 "펼쳐 달라"는 **일회성 요청 번호**를 담는다. 참/거짓이
+  // 아니라 번호인 이유는, 한 번 펼친 뒤에도 사람이 다시 접을 수 있어야
+  // 하기 때문이다(2026-10-12 독립 검토 지적).
+  const [sectionOpenRequests, setSectionOpenRequests] = useState<Readonly<Record<string, number>>>({});
+
+  function requestSectionOpen(sectionId: string, nonce: number): void {
+    setSectionOpenRequests((prev) => ({ ...prev, [sectionId]: nonce }));
+  }
+
+  /** 그 영역에 지금 걸린 펼침 요청. 없으면 prop 자체를 넘기지 않는다. */
+  function openRequestProp(sectionId: string): { openRequest?: number } {
+    const value = sectionOpenRequests[sectionId];
+    return value === undefined ? {} : { openRequest: value };
+  }
   const navigationNonce = useRef(0);
   const workFileInputRef = useRef<HTMLInputElement>(null);
   // 작업 파일과 구성도가 선택 순서를 공유한다. 어느 입구든 늦게 끝난
@@ -152,7 +163,7 @@ function QuoteWorkspace() {
       // 아무 일도 일어나지 않고, 다른 이유로 재렌더될 때 옛 요청이 또 스크롤한다.
       setRowNavigation(undefined);
       // 구성도 경고 목록은 표 아래 접기 영역에 있다 — 먼저 펼쳐야 포커스가 먹는다.
-      setWarningOpenRequest(navigationNonce.current);
+      requestSectionOpen('warnings', navigationNonce.current);
       setImportNavigation({
         warningId: target.warningId,
         sourcePrepared: status.prepared,
@@ -165,7 +176,7 @@ function QuoteWorkspace() {
       setImportNavigation(undefined);
       // 접혀 있으면 **한 번 펼치라고 요청**하고, 그려진 뒤에 스크롤·포커스한다.
       // 요청은 번호라서 한 번 쓰고 끝난다 — 그 뒤에는 사람이 다시 접을 수 있다.
-      setCableOpenRequest(navigationNonce.current);
+      requestSectionOpen('cables', navigationNonce.current);
       const requested = status.prepared;
       requestAnimationFrame(() => {
         const section = document.querySelector<HTMLElement>('[data-section="cables"]');
@@ -187,13 +198,52 @@ function QuoteWorkspace() {
     }
   }
 
+  /**
+   * 탐색 메뉴에서 누른 자리로 옮긴다.
+   *
+   * ⛔ **문서를 바꾸지 않는다.** 표를 걸러 내지도 않는다 — 스크롤과
+   * 포커스만 한다. 그래서 이 함수는 '저장하지 않은 변경'을 만들지 않고
+   * 실행취소 거리도 늘리지 않는다.
+   */
+  function handleNavGo(target: NavTarget): void {
+    setNavigationError(undefined);
+    if (target.kind === 'system') {
+      const section = document.getElementById(systemSectionDomId(target.systemId));
+      if (section === null) {
+        setNavigationError('이동할 시스템 표를 찾지 못했습니다.');
+        return;
+      }
+      section.scrollIntoView({ block: 'start' });
+      section.focus();
+      return;
+    }
+    // 설정 영역은 접혀 있을 수 있다. 먼저 펼치라고 **요청**하고, 그려진
+    // 다음 프레임에 스크롤·포커스한다. 요청은 번호라 한 번 쓰고 끝난다.
+    navigationNonce.current += 1;
+    requestSectionOpen(target.sectionId, navigationNonce.current);
+    requestAnimationFrame(() => {
+      const section = document.getElementById(sectionDomId(target.sectionId));
+      if (section === null) {
+        setNavigationError('이동할 영역을 찾지 못했습니다.');
+        return;
+      }
+      section.scrollIntoView({ block: 'start' });
+      // 제목의 접기 단추가 아니라 **본문의 첫 조작 요소**로 간다 — 펼쳐 놓고
+      // 제목에 멈추면 사람이 한 번 더 내려가야 한다. 본문이 비면 제목에 둔다.
+      const inBody = Array.from(
+        section.querySelectorAll<HTMLElement>('input, select, textarea, button'),
+      ).filter((el) => el.closest('.q-section-head') === null);
+      (inBody[0] ?? section.querySelector<HTMLElement>('.q-section-toggle'))?.focus();
+    });
+  }
+
   // 케이블 거리를 고치기 시작하면 그 영역을 **한 번** 펼쳐 보여준다.
   // 계속 펼쳐 두지는 않는다 — 입력하는 내내 접을 수 없으면 안 된다.
   const wasPendingCableEdit = useRef(false);
   useEffect(() => {
     if (pendingCableEdit && !wasPendingCableEdit.current) {
       navigationNonce.current += 1;
-      setCableOpenRequest(navigationNonce.current);
+      requestSectionOpen('cables', navigationNonce.current);
     }
     wasPendingCableEdit.current = pendingCableEdit;
   }, [pendingCableEdit]);
@@ -347,6 +397,20 @@ function QuoteWorkspace() {
         <ReferenceDocs />
 
         <div className="q-workspace">
+          {/*
+            지금 어느 견적을 보고 있는지 **상단에서** 알 수 있어야 한다
+            (계획 §1). 값은 갑지 입력에서 그대로 읽는다 — 비어 있으면
+            비었다고 말하고 지어내지 않는다.
+          */}
+          {status.kind === 'editing' && (
+            <p role="status" aria-label="현재 견적" className="q-quote-identity">
+              <strong>{status.document.header.customer || '고객 미입력'}</strong>
+              <span className="q-muted">
+                {status.document.header.projectName || '현장 미입력'}
+                {status.document.header.quoteNumber !== '' && ` · ${status.document.header.quoteNumber}`}
+              </span>
+            </p>
+          )}
           {status.kind !== 'empty' && (
             <p role="status" aria-label="작업 저장 상태" className="q-save-status">
               <strong>{hasUnsavedChanges ? '저장하지 않은 변경 내용이 있습니다' : '저장한 내용과 같습니다'}</strong>
@@ -627,7 +691,31 @@ function QuoteWorkspace() {
               )}
 
               {status.kind === 'editing' && (
-                <>
+                <div className="q-workspace-layout">
+                  {/*
+                    큰 화면에서는 왼쪽 탐색, 가운데 견적표다. 좁은 화면에서는
+                    탐색이 위로 올라가 가로로 줄바꿈된다(계획 §1).
+                    ⛔ 탐색은 표를 걸러 내지 않는다 — 스크롤·포커스만 한다.
+                  */}
+                  <WorkspaceNav
+                    systems={status.document.systems}
+                    sections={[
+                      ...(status.prepared.importWarnings.length > 0
+                        ? [{ sectionId: 'warnings', label: `구성도 경고 (${status.prepared.importWarnings.length}건)` }]
+                        : []),
+                      { sectionId: 'cover', label: '견적 정보 (고객·현장)' },
+                      { sectionId: 'cables', label: '케이블 거리' },
+                      ...status.document.systems.map((s) => ({
+                        sectionId: `inst-${s.systemId}`, label: `설치 입력 — ${s.name}`,
+                      })),
+                      ...status.document.systems.map((s) => ({
+                        sectionId: `ind-${s.systemId}`, label: `간접비 — ${s.name}`,
+                      })),
+                      { sectionId: 'private-cost', label: '내 PC 원가 확인' },
+                    ]}
+                    onGo={handleNavGo}
+                  />
+                  <div className="q-workspace-body">
                   {/*
                     견적표를 **먼저** 보여준다. 갑지 정보·시공·간접비·원가는
                     아래 접기 영역으로 내린다 — 처음 열었을 때 눈에 들어와야
@@ -672,7 +760,7 @@ function QuoteWorkspace() {
                       // 수 있게만 하고 감추지는 않는다 — 표 아래로 내린 것만으로
                       // "표가 한참 아래" 문제는 이미 해결된다.
                       defaultOpen
-                      {...(warningOpenRequest === undefined ? {} : { openRequest: warningOpenRequest })}
+                      {...openRequestProp('warnings')}
                     >
                       <WarningList
                         warnings={status.prepared.importWarnings}
@@ -689,7 +777,7 @@ function QuoteWorkspace() {
                     </WorkspaceSection>
                   )}
 
-                  <WorkspaceSection title="견적 정보 (고객·현장)" sectionId="cover">
+                  <WorkspaceSection title="견적 정보 (고객·현장)" sectionId="cover" {...openRequestProp('cover')}>
                     <CoverSheet key={`cover-${workspace.documentGeneration}`} header={status.document.header} onChange={workspace.setHeader} />
                   </WorkspaceSection>
 
@@ -698,7 +786,7 @@ function QuoteWorkspace() {
                     sectionId="cables"
                     // 펼치라는 요청은 **번호 한 번**이다. 반영되지 않은 수정이
                     // 생긴 순간과 확인 목록에서 눌렀을 때만 올라간다.
-                    {...(cableOpenRequest === undefined ? {} : { openRequest: cableOpenRequest })}
+                    {...openRequestProp('cables')}
                   >
                     <CableRoutePanel key={`cables-${workspace.documentGeneration}`} document={status.document} catalog={resources.catalog}
                       onApply={workspace.applyCableRoutes} onPending={setPendingCableEdit} />
@@ -706,7 +794,12 @@ function QuoteWorkspace() {
                   </WorkspaceSection>
 
                   {status.document.systems.map((system) => (
-                    <WorkspaceSection key={`inst-${workspace.documentGeneration}-${system.systemId}`} title={`설치 입력 — ${system.name}`}>
+                    <WorkspaceSection
+                      key={`inst-${workspace.documentGeneration}-${system.systemId}`}
+                      title={`설치 입력 — ${system.name}`}
+                      sectionId={`inst-${system.systemId}`}
+                      {...openRequestProp(`inst-${system.systemId}`)}
+                    >
                       <InstallationPanel
                         system={system}
                         document={status.document}
@@ -720,7 +813,12 @@ function QuoteWorkspace() {
                     );
                     if (calc === undefined) return null;
                     return (
-                      <WorkspaceSection key={`ind-${workspace.documentGeneration}-${system.systemId}`} title={`간접비 — ${system.name}`}>
+                      <WorkspaceSection
+                        key={`ind-${workspace.documentGeneration}-${system.systemId}`}
+                        title={`간접비 — ${system.name}`}
+                        sectionId={`ind-${system.systemId}`}
+                        {...openRequestProp(`ind-${system.systemId}`)}
+                      >
                         <IndirectPanel
                           system={system}
                           calculation={calc}
@@ -739,14 +837,15 @@ function QuoteWorkspace() {
                     ⛔ 접어도 PrivateCostPanel 을 떼지 않는다 — 떼면 원가 세션과
                     연결이 끊긴다. 문서 교체에 따른 폐기는 기존 정책 그대로다.
                   */}
-                  <WorkspaceSection title="내 PC 원가 확인" sectionId="private-cost">
+                  <WorkspaceSection title="내 PC 원가 확인" sectionId="private-cost" {...openRequestProp('private-cost')}>
                     <PrivateCostPanel
                       document={status.document}
                       documentGeneration={workspace.documentGeneration}
                       onLinesChange={setCostLines}
                     />
                   </WorkspaceSection>
-                </>
+                  </div>
+                </div>
               )}
             </>
           )}

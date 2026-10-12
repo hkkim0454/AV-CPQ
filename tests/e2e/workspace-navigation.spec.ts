@@ -370,6 +370,103 @@ test('문구가 같은 두 행의 확인 항목을 위치로 구분할 수 있�
   await expect(issues.nth(1)).toContainText('2번째 줄');
 });
 
+// ---------------------------------------------------------------------------
+/**
+ * 계획 §1 — 시스템 목록과 설정 영역으로 가는 **탐색 메뉴**.
+ *
+ * ⛔ 탐색은 화면을 움직일 뿐이다. 표를 걸러 내거나 합계·문서를 바꾸면
+ * 안 되고, 실행취소 내역도 늘어나면 안 된다.
+ */
+async function openTwoSystems(page: Page): Promise<void> {
+  await mockResources(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: '구성도 JSON 열기' }).click();
+  await page.getByLabel('구성도 파일 선택').setInputFiles({
+    name: 'two-systems.json', mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify({
+      version: '1.1',
+      nodes: Array.from({ length: 4 }, (_, i) => ({
+        id: `n${i}`, type: 'equipment',
+        data: { name: `장비 ${i}`, model: 'FIX', category: 'video', systemName: i < 2 ? '회의실 A' : '교육장 B' },
+      })),
+      edges: [], lineTypes: [],
+    })),
+  });
+  await expect(page.locator('.q-quote-sheet')).toBeVisible();
+}
+
+const workspaceNav = (page: Page) => page.getByRole('navigation', { name: '견적 내 이동' });
+
+test('탐색 메뉴에서 시스템을 누르면 그 표로 가고, 문서·합계·실행취소는 그대로다', async ({ page }) => {
+  await openTwoSystems(page);
+  const nav = workspaceNav(page);
+  await expect(nav).toBeVisible();
+
+  const totalBefore = await page.locator('.q-quote-table tfoot tr').last().locator('td').nth(1).innerText();
+  const rowsBefore = await page.locator('.q-quote-table tbody tr[data-row-id]').count();
+
+  await nav.getByRole('button', { name: '교육장 B', exact: true }).click();
+
+  // 그 시스템의 표 영역에 포커스가 간다.
+  await expect
+    .poll(async () =>
+      page.evaluate(() =>
+        (globalThis.document.activeElement as HTMLElement | null)?.getAttribute('data-system-name') ?? '',
+      ),
+    )
+    .toBe('교육장 B');
+
+  // ⛔ 행을 걸러 내지 않는다 — 두 시스템의 행이 모두 그대로 있다.
+  expect(await page.locator('.q-quote-table tbody tr[data-row-id]').count()).toBe(rowsBefore);
+  await expect(page.locator('.q-quote-table tfoot tr').last().locator('td').nth(1)).toHaveText(totalBefore);
+  // 화면만 움직였으므로 되돌릴 거리가 생기지 않는다.
+  await expect(page.getByRole('button', { name: '실행 취소', exact: true })).toBeDisabled();
+});
+
+test('탐색 메뉴에서 설정 영역을 누르면 먼저 펼친 뒤 데려간다', async ({ page }) => {
+  await openTwoSystems(page);
+  const coverToggle = page.locator('[data-section="cover"]').getByRole('button', { name: /견적 정보/ });
+  await expect(coverToggle).toHaveAttribute('aria-expanded', 'false');
+
+  await workspaceNav(page).getByRole('button', { name: '견적 정보 (고객·현장)' }).click();
+
+  await expect(coverToggle).toHaveAttribute('aria-expanded', 'true');
+  expect(
+    await page.evaluate(() => globalThis.document.activeElement?.closest('[data-section="cover"]') !== null),
+  ).toBe(true);
+});
+
+test('상단에 지금 보고 있는 견적의 고객·현장이 보인다', async ({ page }) => {
+  await openTwoSystems(page);
+  const identity = page.getByRole('status', { name: '현재 견적' });
+
+  // 아직 비어 있으면 그렇게 말한다 — 지어내지 않는다.
+  await expect(identity).toContainText('고객 미입력');
+
+  await workspaceNav(page).getByRole('button', { name: '견적 정보 (고객·현장)' }).click();
+  await page.getByLabel('고객', { exact: true }).fill('합성 고객사');
+  await page.getByLabel('현장/공사명', { exact: true }).fill('합성 현장');
+  await page.getByLabel('현장/공사명', { exact: true }).blur();
+
+  await expect(identity).toContainText('합성 고객사');
+  await expect(identity).toContainText('합성 현장');
+});
+
+test('390px 에서 탐색 메뉴가 가로로 줄바꿈되고 페이지가 넘치지 않는다', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openTwoSystems(page);
+  const nav = workspaceNav(page);
+  await expect(nav).toBeVisible();
+
+  const box = await nav.boundingBox();
+  expect(box!.width).toBeLessThanOrEqual(390);
+  // 단추들이 한 줄에 다 들어가지 않으므로 실제로 여러 줄이 된다.
+  const lines = await nav.evaluate((el) =>
+    new Set(Array.from(el.querySelectorAll('button')).map((b) => b.getBoundingClientRect().top)).size,
+  );
+  expect(lines).toBeGreaterThan(1);
+});
+
 test('잘못된 수량 초안이 접기·펼치기를 거쳐도 남고, 미저장 보호도 유지된다', async ({ page }) => {
   await buildSimpleQuote(page);
   const quantity = page.getByLabel('합성 테스트 품목 수량');

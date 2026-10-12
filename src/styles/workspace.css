@@ -415,6 +415,86 @@
   outline-offset: 2px;
 }
 
+/* --- 견적 내 이동 메뉴 (계획 §1 기본 배치) ------------------------------
+ *
+ * 큰 화면에서는 왼쪽 한 열, 가운데가 견적표다. 좁은 화면에서는 한 열로
+ * 합쳐지고 단추들이 가로로 줄바꿈된다.
+ *
+ * ⛔ 세 번째 고정 열을 만들지 않는다 — 표가 쓸 수 있는 너비가 줄어든다.
+ */
+.q-workspace-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+}
+
+.q-workspace-body {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  min-width: 0;
+}
+
+@media (min-width: 1100px) {
+  .q-workspace-layout {
+    grid-template-columns: 200px minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .q-workspace-nav {
+    position: sticky;
+    top: 12px;
+  }
+}
+
+.q-workspace-nav {
+  min-width: 0;
+}
+
+.q-nav-group-title {
+  margin: 8px 0 4px;
+  font-size: 11px;
+  color: var(--q-muted);
+}
+
+.q-nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+@media (min-width: 1100px) {
+  .q-nav-list {
+    display: grid;
+  }
+}
+
+.q-nav-item {
+  text-align: left;
+  width: 100%;
+  overflow-wrap: anywhere;
+}
+
+/* 좁은 화면에서는 단추가 내용만큼만 차지해 가로로 줄바꿈된다. */
+@media (max-width: 1099px) {
+  .q-nav-item {
+    width: auto;
+  }
+}
+
+/* --- 지금 보고 있는 견적 ------------------------------------------------- */
+.q-quote-identity {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 6px;
+}
+
 /* --- 확인 항목 요약 ------------------------------------------------------ */
 .q-review-head {
   display: flex;

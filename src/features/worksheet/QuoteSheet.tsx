@@ -35,6 +35,18 @@ export interface RowNavigation {
 
 type ItemRow = Extract<SheetRow, { type: 'item' }>;
 
+/**
+ * 시스템 표 영역의 DOM id.
+ *
+ * 탐색 메뉴가 `getElementById` 로 찾는다. **선택자 문자열로 조합하지
+ * 않는다** — systemId 에 따옴표나 공백이 들어가면 선택자가 깨지거나
+ * 엉뚱한 요소를 고른다. `getElementById` 는 선택자를 파싱하지 않아
+ * 어떤 문자열이든 그대로 안전하게 찾는다.
+ */
+export function systemSectionDomId(systemId: string): string {
+  return `q-system-${systemId}`;
+}
+
 interface QuoteSheetProps {
   document: QuoteDocument;
   calculation: CalculationSnapshot;
@@ -455,7 +467,14 @@ export function QuoteSheet({
         const rows = document.rows.filter((r) => r.systemId === system.systemId);
 
         return (
-          <section key={system.systemId} className="q-quote-system">
+          <section
+            key={system.systemId}
+            className="q-quote-system"
+            id={systemSectionDomId(system.systemId)}
+            data-system-name={system.name}
+            // 탐색 메뉴로 왔을 때 포커스를 받는다 — 키보드로도 자리를 안다.
+            tabIndex={-1}
+          >
             <h3>{system.name}</h3>
             <div className="q-table-wrap">
               <table className="q-quote-table">
